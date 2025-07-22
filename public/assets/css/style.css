@@ -1,0 +1,102 @@
+body {
+    margin: 0;
+    font-family: 'Inter', Arial, sans-serif;
+    background: #181818;
+    color: #fff;
+    min-height: 100vh;
+}
+#app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+#main-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 1rem;
+    background: #121212;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+.logo {
+    font-size: 1.5rem;
+    font-weight: bold;
+    letter-spacing: 2px;
+    color: #1db954;
+}
+#main-nav button {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 1rem;
+    margin: 0 0.5rem;
+    cursor: pointer;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    transition: background 0.2s;
+}
+#main-nav button:hover, #main-nav button.active {
+    background: #282828;
+    color: #1db954;
+}
+#user-panel {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+#user-panel button {
+    background: #1db954;
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    padding: 0.4rem 1rem;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+#user-panel button:hover {
+    background: #17a74a;
+}
+#main-content {
+    flex: 1 1 auto;
+    padding: 1rem;
+    max-width: 900px;
+    margin: 0 auto;
+    width: 100%;
+}
+#player-root {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #282828;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.3);
+    z-index: 20;
+    min-height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+#modal-root {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 100;
+    display: none;
+}
+@media (max-width: 600px) {
+    #main-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    #main-content {
+        padding: 0.5rem;
+    }
+    #player-root {
+        min-height: 56px;
+    }
+}
+
