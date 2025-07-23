@@ -1,48 +1,19 @@
--- Users
-CREATE TABLE users (
+-- Шаблон для добавления трека:
+--
+-- INSERT INTO tracks (title, artist, album, album_type, duration, file_path, cover)
+-- VALUES ('Название', 'Артист', 'Альбом', 'single', 180, '/uploads/tracks/track.mp3', '/uploads/covers/cover.jpg');
+
+-- Таблица треков с полной информацией
+CREATE TABLE IF NOT EXISTS tracks (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    username VARCHAR(100) NOT NULL UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
+    title VARCHAR(255) NOT NULL,           -- Название трека
+    artist VARCHAR(255) NOT NULL,          -- Имя артиста
+    album VARCHAR(255) NOT NULL,           -- Название альбома
+    album_type ENUM('album', 'ep', 'single') NOT NULL DEFAULT 'album', -- Тип альбома
+    duration INT,                          -- Длительность в секундах
+    file_path VARCHAR(255) NOT NULL,       -- Путь к аудиофайлу
+    cover VARCHAR(255),                    -- Путь к обложке
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Artists
-CREATE TABLE artists (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    bio TEXT,
-    image VARCHAR(255)
-);
-
--- Albums
-CREATE TABLE albums (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    title VARCHAR(255) NOT NULL,
-    artist_id INT,
-    cover VARCHAR(255),
-    release_date DATE,
-    FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE SET NULL
-);
-
--- Genres
-CREATE TABLE genres (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE
-);
-
--- Tracks
-CREATE TABLE tracks (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    title VARCHAR(255) NOT NULL,
-    artist_id INT,
-    album_id INT,
-    duration INT,
-    file_path VARCHAR(255) NOT NULL,
-    cover VARCHAR(255),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE SET NULL,
-    FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE SET NULL
 );
 
 -- Track-Genre relation
@@ -107,3 +78,22 @@ CREATE TABLE track_tags (
     FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE,
     FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
 ); 
+
+INSERT INTO tracks (title, artist, album, album_type, duration, file_path, cover)
+-- тринадцать карат 13 причин почему
+VALUES ('кассета 1', 'тринадцать карат', '13 причин почему', ' ', 180, 'tracks/music/trinadcat_karat_kasseta_1.mp3', 'tracks/covers/m1000x1000.jpeg'),
+VALUES ('утонуть', 'тринадцать карат', '13 причин почему', ' ', 180, 'tracks/music/утонуть.mp3', 'tracks/covers/m1000x1000.jpeg'),
+VALUES ('во снах', 'тринадцать карат', '13 причин почему', ' ', 180, 'tracks/music/во снах.mp3', 'tracks/covers/m1000x1000.jpeg'),
+VALUES ('проваливай', 'тринадцать карат', '13 причин почему', ' ', 180, 'tracks/music/проваливай.mp3', 'tracks/covers/m1000x1000.jpeg'),
+VALUES ('ты', 'тринадцать карат', '13 причин почему', ' ', 180, 'tracks/music/ты.mp3', 'tracks/covers/m1000x1000.jpeg'),
+VALUES ('кассета 6', 'тринадцать карат', '13 причин почему', ' ', 180, 'tracks/music/кассета 6.mp3', 'tracks/covers/m1000x1000.jpeg'),
+VALUES ('давай расскажем', 'тринадцать карат', '13 причин почему', ' ', 180, 'tracks/music/давай расскажем.mp3', 'tracks/covers/m1000x1000.jpeg'),
+VALUES ('пока он тебя не бросит', 'тринадцать карат', '13 причин почему', ' ', 180, 'tracks/music/пока он тебя не бросит.mp3', 'tracks/covers/m1000x1000.jpeg'),
+VALUES ('подружка', 'тринадцать карат', '13 причин почему', ' ', 180, 'tracks/music/trinadcat_karat_kasseta_1.mp3', 'tracks/covers/m1000x1000.jpeg'),
+VALUES ('больше не буду', 'тринадцать карат', '13 причин почему', ' ', 180, 'tracks/music/тринадцать_карат_Три_больше_не_буду.mp3', 'tracks/covers/m1000x1000.jpeg'),
+VALUES ('научился летать', 'тринадцать карат', '13 причин почему', ' ', 180, 'tracks/music/научился_летать_тринадцать_карат.m4a', 'tracks/covers/m1000x1000.jpeg'),
+VALUES ('одна', 'тринадцать карат', '13 причин почему', ' ', 180, 'tracks/music/trinadcat_karat_kasseta_1.mp3', 'tracks/covers/m1000x1000.jpeg'),
+VALUES ('жить после', 'тринадцать карат', '13 причин почему', ' ', 180, 'tracks/music/жить после - тринадцать карат.m4a', 'tracks/covers/m1000x1000.jpeg'),
+
+-- Kai Angel AMC
+VALUES ('JUMP!', 'Kai Angel', 'Angel May Cry', ' ', 180, 'tracks/music/Kai Angel-JUMP!.mp3', 'tracks/covers/Kai-Angel-ANGEL-MAY-CRY-07.jpg'),

@@ -506,3 +506,131 @@ body {
     }
 }
 
+.main-filters {
+    display: flex;
+    gap: 1rem;
+    margin: 2.2rem 0 1.2rem 0;
+    align-items: center;
+}
+.filter-btn {
+    background: #232323;
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    font-size: 1.05rem;
+    padding: 0.5rem 1.3rem;
+    cursor: pointer;
+    transition: background 0.18s, color 0.18s;
+}
+.filter-btn.active, .filter-btn:hover {
+    background: #fff;
+    color: #181818;
+    font-weight: 700;
+}
+
+.main-section {
+    margin-bottom: 2.5rem;
+}
+.main-section h3 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 1.1rem;
+    margin-top: 0;
+}
+.card-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.2rem;
+    min-height: 80px;
+}
+.card {
+    background: #232323;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.10);
+    padding: 1.1rem 1.1rem 1rem 1.1rem;
+    min-width: 180px;
+    max-width: 220px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.7rem;
+    cursor: pointer;
+    transition: box-shadow 0.18s, background 0.18s, transform 0.18s;
+    position: relative;
+}
+.card:hover {
+    background: #282828;
+    box-shadow: 0 4px 24px rgba(30,185,84,0.10);
+    transform: translateY(-2px) scale(1.03);
+}
+.card-cover {
+    width: 100%;
+    aspect-ratio: 1/1;
+    border-radius: 8px;
+    object-fit: cover;
+    background: #181818;
+    margin-bottom: 0.5rem;
+}
+.card-title {
+    font-size: 1.08rem;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.card-artist {
+    font-size: 0.98rem;
+    color: #b3b3b3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.card-type {
+    font-size: 0.85rem;
+    color: #1db954;
+    background: #181818;
+    border-radius: 6px;
+    padding: 0.1rem 0.5rem;
+    position: absolute;
+    top: 0.7rem;
+    right: 0.7rem;
+    font-weight: 600;
+}
+@media (max-width: 900px) {
+    .card-row {
+        gap: 0.7rem;
+    }
+    .card {
+        min-width: 140px;
+        max-width: 160px;
+        padding: 0.7rem 0.7rem 0.7rem 0.7rem;
+    }
+}
+@media (max-width: 600px) {
+    .main-filters {
+        gap: 0.5rem;
+        margin: 1.2rem 0 0.7rem 0;
+    }
+    .main-section h3 {
+        font-size: 1.05rem;
+        margin-bottom: 0.7rem;
+    }
+    .card-row {
+        gap: 0.4rem;
+    }
+    .card {
+        min-width: 100px;
+        max-width: 100px;
+        padding: 0.4rem 0.4rem 0.4rem 0.4rem;
+    }
+    .card-title {
+        font-size: 0.95rem;
+    }
+    .card-artist {
+        font-size: 0.85rem;
+    }
+}
+
