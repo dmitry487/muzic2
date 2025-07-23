@@ -84,103 +84,425 @@ body {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
     z-index: 100;
-    display: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.55);
+    transition: opacity 0.2s;
 }
+.modal {
+    background: #232323;
+    border-radius: 18px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+    padding: 2rem 2.2rem 1.5rem 2.2rem;
+    min-width: 320px;
+    max-width: 95vw;
+    color: #fff;
+    position: relative;
+    animation: modalIn 0.22s cubic-bezier(.4,1.6,.6,1) both;
+}
+@keyframes modalIn {
+    from { transform: translateY(40px) scale(0.97); opacity: 0; }
+    to   { transform: none; opacity: 1; }
+}
+.modal h2 {
+    margin-top: 0;
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #1db954;
+}
+.modal form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+.modal label {
+    font-size: 1rem;
+    color: #b3b3b3;
+    margin-bottom: 0.2rem;
+}
+.modal input[type="text"],
+.modal input[type="email"],
+.modal input[type="password"] {
+    background: #181818;
+    border: 1.5px solid #333;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 1.05rem;
+    padding: 0.6rem 1rem;
+    outline: none;
+    transition: border 0.18s;
+}
+.modal input:focus {
+    border-color: #1db954;
+}
+.modal .modal-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 0.5rem;
+    justify-content: flex-end;
+}
+.modal button[type="submit"] {
+    background: #1db954;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 0.6rem 1.5rem;
+    font-size: 1.08rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.18s;
+}
+.modal button[type="submit"]:hover {
+    background: #17a74a;
+}
+.modal .close-modal {
+    position: absolute;
+    top: 1.1rem;
+    right: 1.1rem;
+    background: none;
+    border: none;
+    color: #b3b3b3;
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: color 0.18s;
+}
+.modal .close-modal:hover {
+    color: #fff;
+}
+.modal .error {
+    color: #ff4d4f;
+    font-size: 0.98rem;
+    margin-top: -0.7rem;
+    margin-bottom: 0.5rem;
+    min-height: 1.2em;
+}
+@media (max-width: 500px) {
+    .modal {
+        padding: 1.2rem 0.7rem 1rem 0.7rem;
+        min-width: 0;
+    }
+}
+
 
 #player {
     display: flex;
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    max-width: 900px;
+    max-width: 1200px;
     margin: 0 auto;
-    padding: 0.5rem 1rem;
-    background: rgba(24,24,24,0.95);
+    padding: 0.5rem 1.5rem 0.3rem 1.5rem;
+    background: rgba(24,24,24,0.98);
     border-radius: 18px 18px 0 0;
     box-shadow: 0 -4px 24px 0 rgba(0,0,0,0.25);
-    gap: 1rem;
+    gap: 1.5rem;
     position: relative;
+    min-height: 90px;
 }
-#player button {
-    background: #232323;
-    border: none;
-    color: #fff;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    font-size: 1.5rem;
+.player-left {
     display: flex;
     align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    min-width: 0;
+    gap: 1rem;
+    flex: 1 1 0;
 }
-#player button:active {
-    background: #1db954;
-    color: #fff;
-}
-#player #play-btn {
-    background: #1db954;
-    color: #fff;
-    font-size: 2rem;
+.cover {
     width: 56px;
     height: 56px;
-    margin: 0 0.5rem;
-    box-shadow: 0 4px 16px rgba(30,185,84,0.15);
+    border-radius: 8px;
+    object-fit: cover;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    background: #222;
 }
-#player #play-btn:active {
-    background: #17a74a;
+.track-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
 }
-#player #track-title {
-    flex: 1 1 auto;
+#track-title {
     font-size: 1.1rem;
-    font-weight: 500;
+    font-weight: 600;
     color: #fff;
-    margin: 0 1rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
-#player #seek-bar {
-    flex: 2 1 200px;
-    margin: 0 1rem;
+#track-artist {
+    font-size: 0.98rem;
+    color: #b3b3b3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.track-status {
+    margin-left: 0.7rem;
+    color: #1db954;
+    font-size: 1.3rem;
+}
+.player-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 2 2 0;
+    min-width: 0;
+}
+.player-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin-bottom: 0.2rem;
+}
+.player-controls button {
+    background: none;
+    border: none;
+    color: #b3b3b3;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    font-size: 1.3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.18s, color 0.18s;
+}
+.player-controls button#play-btn {
+    background: #1db954;
+    color: #fff;
+    font-size: 2rem;
+    width: 54px;
+    height: 54px;
+    margin: 0 0.5rem;
+    box-shadow: 0 4px 16px rgba(30,185,84,0.15);
+}
+.player-controls button#play-btn:active {
+    background: #17a74a;
+}
+.player-controls button:active, .player-controls button.active {
+    background: #232323;
+    color: #1db954;
+}
+.player-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    width: 100%;
+    min-width: 0;
+}
+.player-progress #seek-bar {
+    flex: 1 1 200px;
     accent-color: #1db954;
     height: 4px;
     border-radius: 2px;
     background: #333;
 }
-#player #current-time, #player #duration {
+.player-progress #current-time, .player-progress #duration {
     font-size: 0.95rem;
     color: #b3b3b3;
     min-width: 44px;
     text-align: center;
 }
-@media (max-width: 600px) {
-    #main-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.5rem;
-    }
-    #main-content {
-        padding: 0.5rem;
-    }
-    #player-root {
-        min-height: 56px;
-    }
+.player-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1 1 0;
+    justify-content: flex-end;
+}
+.player-right button {
+    background: none;
+    border: none;
+    color: #b3b3b3;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.18s, color 0.18s;
+}
+.player-right button:active, .player-right button.active {
+    background: #232323;
+    color: #1db954;
+}
+.volume-bar {
+    width: 80px;
+    accent-color: #1db954;
+    margin: 0 0.3rem;
+}
+@media (max-width: 900px) {
     #player {
         flex-direction: column;
         align-items: stretch;
+        gap: 0.7rem;
         padding: 0.5rem 0.5rem 0.3rem 0.5rem;
-        border-radius: 12px 12px 0 0;
-        gap: 0.5rem;
+        min-height: 120px;
     }
-    #player #track-title {
-        margin: 0.5rem 0;
+    .player-center {
+        order: 2;
+    }
+    .player-left, .player-right {
+        justify-content: center;
+    }
+    .player-right {
+        margin-top: 0.3rem;
+    }
+}
+@media (max-width: 600px) {
+    #player {
+        min-height: 140px;
+        padding: 0.3rem 0.2rem 0.2rem 0.2rem;
+        gap: 0.3rem;
+    }
+    .cover {
+        width: 44px;
+        height: 44px;
+    }
+    .player-right .volume-bar {
+        width: 50px;
+    }
+}
+
+.tracks-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.2rem;
+    margin-top: 1.5rem;
+    justify-content: flex-start;
+}
+.track-card {
+    display: flex;
+    align-items: center;
+    background: #232323;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.10);
+    padding: 0.7rem 1.2rem 0.7rem 0.7rem;
+    min-width: 260px;
+    max-width: 340px;
+    width: 100%;
+    gap: 1rem;
+    transition: box-shadow 0.18s, background 0.18s;
+}
+.track-card:hover {
+    background: #282828;
+    box-shadow: 0 4px 24px rgba(30,185,84,0.10);
+}
+.track-cover {
+    width: 56px;
+    height: 56px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: #181818;
+}
+.track-meta {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+.track-title {
+    font-size: 1.08rem;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.track-artist {
+    font-size: 0.98rem;
+    color: #b3b3b3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.track-play-btn {
+    background: #1db954;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    font-size: 1.3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.18s;
+    box-shadow: 0 2px 8px rgba(30,185,84,0.10);
+}
+.track-play-btn:hover {
+    background: #17a74a;
+}
+@media (max-width: 700px) {
+    .tracks-list {
+        flex-direction: column;
+        gap: 0.7rem;
+    }
+    .track-card {
+        min-width: 0;
+        max-width: 100%;
+        padding: 0.7rem 0.7rem 0.7rem 0.7rem;
+    }
+}
+
+.welcome-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 80vh;
+    text-align: center;
+    gap: 2.5rem;
+}
+.welcome-logo {
+    font-size: 2.7rem;
+    font-weight: 900;
+    color: #1db954;
+    letter-spacing: 2px;
+    margin-bottom: 0.5rem;
+}
+.welcome-slogan {
+    font-size: 1.3rem;
+    color: #b3b3b3;
+    margin-bottom: 1.5rem;
+}
+.welcome-actions {
+    display: flex;
+    gap: 1.5rem;
+    justify-content: center;
+}
+.welcome-btn {
+    background: #1db954;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    padding: 0.9rem 2.2rem;
+    cursor: pointer;
+    box-shadow: 0 2px 12px rgba(30,185,84,0.10);
+    transition: background 0.18s, transform 0.18s;
+}
+.welcome-btn:hover {
+    background: #17a74a;
+    transform: translateY(-2px) scale(1.04);
+}
+@media (max-width: 600px) {
+    .welcome-logo {
+        font-size: 2rem;
+    }
+    .welcome-btn {
         font-size: 1rem;
+        padding: 0.7rem 1.2rem;
     }
-    #player #seek-bar {
-        margin: 0.5rem 0;
+    .welcome-actions {
+        gap: 0.7rem;
     }
 }
 
