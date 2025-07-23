@@ -86,6 +86,76 @@ body {
     z-index: 100;
     display: none;
 }
+
+#player {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0.5rem 1rem;
+    background: rgba(24,24,24,0.95);
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -4px 24px 0 rgba(0,0,0,0.25);
+    gap: 1rem;
+    position: relative;
+}
+#player button {
+    background: #232323;
+    border: none;
+    color: #fff;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+}
+#player button:active {
+    background: #1db954;
+    color: #fff;
+}
+#player #play-btn {
+    background: #1db954;
+    color: #fff;
+    font-size: 2rem;
+    width: 56px;
+    height: 56px;
+    margin: 0 0.5rem;
+    box-shadow: 0 4px 16px rgba(30,185,84,0.15);
+}
+#player #play-btn:active {
+    background: #17a74a;
+}
+#player #track-title {
+    flex: 1 1 auto;
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: #fff;
+    margin: 0 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#player #seek-bar {
+    flex: 2 1 200px;
+    margin: 0 1rem;
+    accent-color: #1db954;
+    height: 4px;
+    border-radius: 2px;
+    background: #333;
+}
+#player #current-time, #player #duration {
+    font-size: 0.95rem;
+    color: #b3b3b3;
+    min-width: 44px;
+    text-align: center;
+}
 @media (max-width: 600px) {
     #main-header {
         flex-direction: column;
@@ -97,6 +167,20 @@ body {
     }
     #player-root {
         min-height: 56px;
+    }
+    #player {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 0.5rem 0.5rem 0.3rem 0.5rem;
+        border-radius: 12px 12px 0 0;
+        gap: 0.5rem;
+    }
+    #player #track-title {
+        margin: 0.5rem 0;
+        font-size: 1rem;
+    }
+    #player #seek-bar {
+        margin: 0.5rem 0;
     }
 }
 
