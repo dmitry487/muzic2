@@ -115,3 +115,12 @@ function formatTime(sec) {
 }
 // TODO: Реализация очереди, загрузки трека, автодобавления похожих треков и т.д.
 
+window.playTrack = function({src, title, artist, cover}) {
+  if (!src) return;
+  audio.src = src;
+  audio.play();
+  trackTitle.textContent = title || '';
+  trackArtist.textContent = artist || '';
+  cover && (document.getElementById('cover').src = cover);
+};
+
