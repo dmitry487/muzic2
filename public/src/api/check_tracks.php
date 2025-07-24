@@ -42,6 +42,13 @@ foreach ($tracks as $track) {
     }
 }
 
+if ((isset($_GET['delete'])) || (php_sapi_name() === 'cli' && isset($argv[1]) && $argv[1] === 'delete')) {
+    $stmt = $db->prepare("DELETE FROM tracks WHERE file_path = ?");
+    $stmt->execute(['tracks/music/Kai Angel-AMC2.mp3']);
+    echo json_encode(['deleted' => $stmt->rowCount()]);
+    exit;
+}
+
 echo json_encode([
     'missing_audio' => $missing_audio,
     'missing_cover' => $missing_cover,

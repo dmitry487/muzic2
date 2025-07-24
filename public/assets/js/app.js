@@ -63,31 +63,41 @@ async function renderHome() {
 }
 
 function renderCards(rowId, items, type) {
-    const row = document.getElementById(rowId);
+    let row = document.getElementById(rowId);
     if (!row) return;
-    row.innerHTML = items.map(item => {
-        if (type === 'track') {
-            return `<div class="card" onclick="window.playTrack && window.playTrack({src: '/muzic2/${item.file_path}', title: '${escapeHtml(item.title)}', artist: '${escapeHtml(item.artist)}', cover: '/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}'})">
+    let html = '';
+    if (type === 'album' || type === 'mix') {
+        row.className = 'tile-row';
+        html = items.map(item => `
+            <div class="tile" onclick="window.playTrack && window.playTrack({src: '/muzic2/${item.file_path || ''}', title: '${escapeHtml(item.album || item.title)}', artist: '${escapeHtml(item.artist || '')}', cover: '/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}'})">
+                <img class="tile-cover" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
+                <div class="tile-title">${escapeHtml(item.album || item.title)}</div>
+                <div class="tile-desc">${escapeHtml(item.artist || '')}</div>
+                <div class="tile-play">&#9654;</div>
+            </div>
+        `).join('');
+    } else if (type === 'artist') {
+        row.className = 'artist-row';
+        html = items.map(item => `
+            <div class="artist-tile">
+                <img class="artist-avatar" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="artist">
+                <div class="artist-name">${escapeHtml(item.artist)}</div>
+            </div>
+        `).join('');
+    } else if (type === 'track') {
+        row.className = 'card-row';
+        html = items.map(item => `
+            <div class="card" onclick="window.playTrack && window.playTrack({src: '/muzic2/${item.file_path}', title: '${escapeHtml(item.title)}', artist: '${escapeHtml(item.artist)}', cover: '/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}'})">
                 <img class="card-cover" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
-                <div class="card-title">${escapeHtml(item.title)}</div>
-                <div class="card-artist">${escapeHtml(item.artist)}</div>
-                <div class="card-type">${item.album_type}</div>
-            </div>`;
-        } else if (type === 'album') {
-            return `<div class="card">
-                <img class="card-cover" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
-                <div class="card-title">${escapeHtml(item.album)}</div>
-                <div class="card-artist">${escapeHtml(item.artist)}</div>
-                <div class="card-type">${item.album_type}</div>
-            </div>`;
-        } else if (type === 'artist') {
-            return `<div class="card">
-                <img class="card-cover" src="${item.cover || 'https://via.placeholder.com/220x220?text=♪'}" alt="cover">
-                <div class="card-title">${escapeHtml(item.artist)}</div>
-            </div>`;
-        }
-        return '';
-    }).join('');
+                <div class="card-info">
+                    <div class="card-title">${escapeHtml(item.title)}</div>
+                    <div class="card-artist">${escapeHtml(item.artist)}</div>
+                    <div class="card-type">${item.album_type || ''}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+    row.innerHTML = html;
 }
 
 function escapeHtml(str) {
