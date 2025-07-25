@@ -66,10 +66,20 @@ function renderCards(rowId, items, type) {
     let row = document.getElementById(rowId);
     if (!row) return;
     let html = '';
-    if (type === 'album' || type === 'mix') {
+    if (type === 'album') {
         row.className = 'tile-row';
-        html = items.map(item => `
-            <div class="tile" onclick="window.playTrack && window.playTrack({src: '/muzic2/${item.file_path || ''}', title: '${escapeHtml(item.album || item.title)}', artist: '${escapeHtml(item.artist || '')}', cover: '/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}'})">
+        html = items.map((item, idx) => `
+            <div class="tile" data-album="${encodeURIComponent(item.album)}" data-idx="${idx}">
+                <img class="tile-cover" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
+                <div class="tile-title">${escapeHtml(item.album)}</div>
+                <div class="tile-desc">${escapeHtml(item.artist || '')}</div>
+                <div class="tile-play">&#9654;</div>
+            </div>
+        `).join('');
+    } else if (type === 'mix') {
+        row.className = 'tile-row';
+        html = items.map((item, idx) => `
+            <div class="tile" data-idx="${idx}">
                 <img class="tile-cover" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
                 <div class="tile-title">${escapeHtml(item.album || item.title)}</div>
                 <div class="tile-desc">${escapeHtml(item.artist || '')}</div>
@@ -86,8 +96,8 @@ function renderCards(rowId, items, type) {
         `).join('');
     } else if (type === 'track') {
         row.className = 'card-row';
-        html = items.map(item => `
-            <div class="card" onclick="window.playTrack && window.playTrack({src: '/muzic2/${item.file_path}', title: '${escapeHtml(item.title)}', artist: '${escapeHtml(item.artist)}', cover: '/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}'})">
+        html = items.map((item, idx) => `
+            <div class="card" data-idx="${idx}">
                 <img class="card-cover" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
                 <div class="card-info">
                     <div class="card-title">${escapeHtml(item.title)}</div>
@@ -98,6 +108,37 @@ function renderCards(rowId, items, type) {
         `).join('');
     }
     row.innerHTML = html;
+
+    // Делегирование событий для очереди и перехода на альбом
+    if (type === 'album') {
+        row.onclick = function(e) {
+            let el = e.target;
+            while (el && el !== row && !el.hasAttribute('data-album')) el = el.parentElement;
+            if (el && el.hasAttribute('data-album')) {
+                const albumName = el.getAttribute('data-album');
+                window.location = 'album.html?album=' + albumName;
+            }
+        };
+    } else if (type === 'mix' || type === 'track') {
+        row.onclick = function(e) {
+            let el = e.target;
+            while (el && el !== row && !el.hasAttribute('data-idx')) el = el.parentElement;
+            if (el && el.hasAttribute('data-idx')) {
+                const idx = parseInt(el.getAttribute('data-idx'), 10);
+                const queue = items.map(i => ({
+                    src: '/muzic2/' + (i.file_path || ''),
+                    title: i.title,
+                    artist: i.artist || '',
+                    cover: '/muzic2/' + (i.cover || 'tracks/covers/placeholder.jpg')
+                }));
+                window.playTrack({
+                    ...queue[idx],
+                    queue,
+                    queueStartIndex: idx
+                });
+            }
+        };
+    }
 }
 
 function escapeHtml(str) {

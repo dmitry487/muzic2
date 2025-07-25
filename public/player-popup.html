@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Музыкальный плеер</title>
+  <style>
+    body { background: #181818; color: #fff; margin: 0; font-family: 'Inter', Arial, sans-serif; }
+    #player { display: flex; align-items: center; gap: 1rem; padding: 1.2rem; }
+    #cover { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; background: #222; }
+    #track-title { font-size: 1.1rem; font-weight: 600; color: #fff; }
+    #track-artist { font-size: 0.98rem; color: #b3b3b3; }
+    #controls button { background: #232323; color: #fff; border: none; border-radius: 50%; width: 38px; height: 38px; font-size: 1.2rem; margin: 0 0.2rem; cursor: pointer; }
+    #controls button#play { background: #1db954; color: #fff; font-size: 1.5rem; }
+    #controls button#play:active { background: #17a74a; }
+    #seek { width: 120px; }
+  </style>
+</head>
+<body>
+  <div id="player">
+    <img id="cover" src="" alt="cover">
+    <div>
+      <div id="track-title">—</div>
+      <div id="track-artist">—</div>
+      <input type="range" id="seek" min="0" max="100" value="0">
+    </div>
+    <div id="controls">
+      <button id="play">▶</button>
+      <button id="pause">⏸</button>
+    </div>
+    <audio id="audio"></audio>
+  </div>
+  <script>
+    const audio = document.getElementById('audio');
+    const playBtn = document.getElementById('play');
+    const pauseBtn = document.getElementById('pause');
+    const seek = document.getElementById('seek');
+    const cover = document.getElementById('cover');
+    const title = document.getElementById('track-title');
+    const artist = document.getElementById('track-artist');
+
+    // Управление
+    playBtn.onclick = () => audio.play();
+    pauseBtn.onclick = () => audio.pause();
+    seek.oninput = () => {
+      if (audio.duration) audio.currentTime = (seek.value / 100) * audio.duration;
+    };
+    audio.ontimeupdate = () => {
+      seek.value = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
+      sendState();
+    };
+    audio.onplay = audio.onpause = sendState;
+
+    // Получение команд
+    window.addEventListener('message', (e) => {
+      if (!e.data || typeof e.data !== 'object') return;
+      if (e.data.cmd === 'playTrack') {
+        audio.src = e.data.src;
+        title.textContent = e.data.title || '';
+        artist.textContent = e.data.artist || '';
+        cover.src = e.data.cover || '';
+        audio.currentTime = e.data.currentTime || 0;
+        audio.volume = e.data.volume !== undefined ? e.data.volume : 1;
+        if (e.data.autoplay) audio.play();
+      }
+      if (e.data.cmd === 'setVolume') {
+        audio.volume = e.data.volume;
+      }
+      if (e.data.cmd === 'seek') {
+        audio.currentTime = e.data.currentTime;
+      }
+      if (e.data.cmd === 'play') audio.play();
+      if (e.data.cmd === 'pause') audio.pause();
+    });
+
+    // Отправка состояния
+    function sendState() {
+      window.opener && window.opener.postMessage({
+        cmd: 'playerState',
+        src: audio.src,
+        title: title.textContent,
+        artist: artist.textContent,
+        cover: cover.src,
+        currentTime: audio.currentTime,
+        duration: audio.duration,
+        isPlaying: !audio.paused,
+        volume: audio.volume
+      }, '*');
+    }
+  </script>
+</body>
+</html> 

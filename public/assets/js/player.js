@@ -74,7 +74,58 @@ const volumeBar = document.getElementById('volume-bar');
 
 let isPlaying = false;
 let currentTrack = null;
-let trackQueue = [];
+
+// --- Сохранение и восстановление состояния плеера ---
+const PLAYER_STATE_KEY = 'muzic2_player_state';
+
+function savePlayerState() {
+  const state = {
+    src: audio.src,
+    title: trackTitle.textContent,
+    artist: trackArtist.textContent,
+    cover: cover.src,
+    currentTime: audio.currentTime,
+    isPlaying: !audio.paused,
+    volume: audio.volume
+  };
+  localStorage.setItem(PLAYER_STATE_KEY, JSON.stringify(state));
+}
+
+function loadPlayerState() {
+  const state = JSON.parse(localStorage.getItem(PLAYER_STATE_KEY) || 'null');
+  if (state && state.src) {
+    audio.src = state.src;
+    trackTitle.textContent = state.title || '';
+    trackArtist.textContent = state.artist || '';
+    cover.src = state.cover || '';
+    // Сразу выставляем volumeBar
+    audio.volume = state.volume !== undefined ? state.volume : 1;
+    if (typeof volumeBar !== 'undefined') volumeBar.value = audio.volume * 100;
+    // Навешиваем обработчик для seekBar и времени
+    audio.addEventListener('loadedmetadata', function restoreStateOnce() {
+      audio.currentTime = state.currentTime || 0;
+      if (typeof seekBar !== 'undefined' && audio.duration) seekBar.value = (audio.currentTime / audio.duration) * 100;
+      if (typeof currentTime !== 'undefined') currentTime.textContent = formatTime(audio.currentTime);
+      if (typeof duration !== 'undefined') duration.textContent = formatTime(audio.duration);
+      if (state.isPlaying) {
+        audio.play().catch(()=>{});
+      }
+      audio.removeEventListener('loadedmetadata', restoreStateOnce);
+    });
+    // Если duration уже известна (например, кэш), обновляем сразу
+    if (audio.readyState >= 1 && audio.duration) {
+      if (typeof seekBar !== 'undefined') seekBar.value = (state.currentTime || 0) / audio.duration * 100;
+      if (typeof currentTime !== 'undefined') currentTime.textContent = formatTime(state.currentTime || 0);
+      if (typeof duration !== 'undefined') duration.textContent = formatTime(audio.duration);
+    }
+  }
+}
+
+['play', 'pause', 'seeked', 'volumechange', 'ended'].forEach(event => {
+  audio.addEventListener(event, savePlayerState);
+});
+window.addEventListener('DOMContentLoaded', loadPlayerState);
+// --- Конец блока сохранения состояния ---
 
 playBtn.onclick = () => {
   if (!audio.src) return;
@@ -113,14 +164,80 @@ function formatTime(sec) {
   sec = Math.floor(sec);
   return `${Math.floor(sec/60)}:${('0'+(sec%60)).slice(-2)}`;
 }
-// TODO: Реализация очереди, загрузки трека, автодобавления похожих треков и т.д.
 
-window.playTrack = function({src, title, artist, cover}) {
-  if (!src) return;
-  audio.src = src;
+const QUEUE_KEY = 'muzic2_player_queue';
+const QUEUE_INDEX_KEY = 'muzic2_player_queue_index';
+
+let trackQueue = [];
+let queueIndex = 0;
+
+function saveQueue() {
+  localStorage.setItem(QUEUE_KEY, JSON.stringify(trackQueue));
+  localStorage.setItem(QUEUE_INDEX_KEY, queueIndex);
+}
+function loadQueue() {
+  trackQueue = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
+  queueIndex = parseInt(localStorage.getItem(QUEUE_INDEX_KEY) || '0', 10);
+  if (isNaN(queueIndex) || queueIndex < 0) queueIndex = 0;
+}
+
+function playFromQueue(idx) {
+  if (!trackQueue[idx]) return;
+  queueIndex = idx;
+  const t = trackQueue[idx];
+  audio.src = t.src;
   audio.play();
-  trackTitle.textContent = title || '';
-  trackArtist.textContent = artist || '';
-  cover && (document.getElementById('cover').src = cover);
+  trackTitle.textContent = t.title || '';
+  trackArtist.textContent = t.artist || '';
+  cover && (cover.src = t.cover);
+  saveQueue();
+  setTimeout(savePlayerState, 100);
+}
+
+function playNext() {
+  if (queueIndex + 1 < trackQueue.length) {
+    playFromQueue(queueIndex + 1);
+  }
+}
+function playPrev() {
+  if (queueIndex > 0) {
+    playFromQueue(queueIndex - 1);
+  }
+}
+
+// Кнопки next/prev работают с очередью
+nextBtn.onclick = playNext;
+prevBtn.onclick = playPrev;
+audio.addEventListener('ended', playNext);
+
+// --- Глобальная функция для запуска трека/очереди ---
+window.playTrack = function({src, title, artist, cover: coverUrl, queue = null, queueStartIndex = 0}) {
+  if (queue && Array.isArray(queue) && queue.length > 0) {
+    trackQueue = queue;
+    queueIndex = queueStartIndex;
+    saveQueue();
+    playFromQueue(queueIndex);
+  } else {
+    // одиночный трек
+    trackQueue = [{src, title, artist, cover: coverUrl}];
+    queueIndex = 0;
+    saveQueue();
+    playFromQueue(0);
+  }
 };
+
+// --- Восстановление очереди при загрузке ---
+window.addEventListener('DOMContentLoaded', () => {
+  loadQueue();
+  if (trackQueue.length > 0) {
+    playFromQueue(queueIndex);
+    audio.currentTime = JSON.parse(localStorage.getItem(PLAYER_STATE_KEY) || '{}').currentTime || 0;
+    if (!JSON.parse(localStorage.getItem(PLAYER_STATE_KEY) || '{}').isPlaying) {
+      audio.pause();
+    }
+  }
+});
+
+// --- Удаляю UI очереди треков ---
+// (весь код, связанный с queueList, renderQueueUI, updateQueueAndUI, переопределениями playFromQueue и т.д. удалён)
 

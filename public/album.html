@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Альбом</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+  <style>
+    .album-header {
+      display: flex;
+      align-items: flex-end;
+      gap: 2.5rem;
+      margin-top: 2.5rem;
+      margin-bottom: 2.5rem;
+    }
+    .album-cover {
+      width: 220px;
+      height: 220px;
+      border-radius: 18px;
+      object-fit: cover;
+      box-shadow: 0 8px 32px rgba(30,185,84,0.18);
+      background: #181818;
+    }
+    .album-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+    }
+    .album-title {
+      font-size: 3.2rem;
+      font-weight: 900;
+      color: #fff;
+      margin-bottom: 0.5rem;
+    }
+    .album-artist {
+      font-size: 1.3rem;
+      color: #b3b3b3;
+      font-weight: 600;
+    }
+    .album-info {
+      font-size: 1.1rem;
+      color: #b3b3b3;
+      margin-top: 0.5rem;
+    }
+    .album-genre {
+      font-size: 1.08rem;
+      color: #1db954;
+      margin-top: 0.2rem;
+      font-weight: 600;
+    }
+    .album-desc {
+      font-size: 1.05rem;
+      color: #b3b3b3;
+      margin-top: 0.7rem;
+      max-width: 600px;
+    }
+    .album-controls {
+      display: flex;
+      align-items: center;
+      gap: 1.2rem;
+      margin-bottom: 1.5rem;
+    }
+    .album-play-btn {
+      background: #1db954;
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 64px;
+      height: 64px;
+      font-size: 2.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(30,185,84,0.15);
+      transition: background 0.18s, transform 0.18s;
+    }
+    .album-play-btn:hover {
+      background: #17a74a;
+      transform: scale(1.06);
+    }
+    .tracks-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 2rem;
+    }
+    .tracks-table th, .tracks-table td {
+      padding: 0.7rem 1rem;
+      text-align: left;
+      color: #fff;
+      font-size: 1.08rem;
+    }
+    .tracks-table th {
+      color: #b3b3b3;
+      font-weight: 600;
+      font-size: 1.02rem;
+      border-bottom: 1px solid #232323;
+    }
+    .tracks-table tr {
+      transition: background 0.15s;
+      cursor: pointer;
+    }
+    .tracks-table tr:hover {
+      background: #232323;
+    }
+    .tracks-table td.track-num {
+      color: #b3b3b3;
+      width: 2.5rem;
+      font-size: 1.02rem;
+    }
+    .tracks-table td.track-title {
+      font-weight: 700;
+      color: #fff;
+    }
+    .tracks-table td.track-artist {
+      color: #b3b3b3;
+      font-size: 1.01rem;
+    }
+    .tracks-table td.track-duration {
+      color: #b3b3b3;
+      font-size: 1.01rem;
+      text-align: right;
+      width: 4.5rem;
+    }
+  </style>
+</head>
+<body style="background: #181818; color: #fff;">
+  <div id="main-content">
+    <div class="album-header">
+      <img class="album-cover" id="album-cover" src="" alt="cover">
+      <div class="album-meta">
+        <div class="album-title" id="album-title">—</div>
+        <div class="album-artist" id="album-artist">—</div>
+        <div class="album-info" id="album-info">—</div>
+        <div class="album-genre" id="album-genre"></div>
+        <div class="album-desc" id="album-desc"></div>
+      </div>
+    </div>
+    <div class="album-controls">
+      <button class="album-play-btn" id="album-play-btn">▶</button>
+      <!-- Здесь можно добавить другие кнопки -->
+    </div>
+    <table class="tracks-table" id="tracks-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Название</th>
+          <th>Артист</th>
+          <th>Прослушивания</th>
+          <th>⏱</th>
+        </tr>
+      </thead>
+      <tbody id="tracks-tbody">
+      </tbody>
+    </table>
+  </div>
+  <script>
+    // Получаем album из query
+    function getAlbumName() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('album');
+    }
+    // Формат времени
+    function formatTime(sec) {
+      sec = Math.floor(sec);
+      return `${Math.floor(sec/60)}:${('0'+(sec%60)).slice(-2)}`;
+    }
+    // Загрузка альбома
+    async function loadAlbum() {
+      const album = getAlbumName();
+      if (!album) return;
+      // Исправленный путь к API с учётом корня
+      const res = await fetch('/muzic2/src/api/album.php?album=' + encodeURIComponent(album));
+      const data = await res.json();
+      document.getElementById('album-cover').src = '/muzic2/' + (data.cover || 'tracks/covers/placeholder.jpg');
+      document.getElementById('album-title').textContent = data.title || '';
+      document.getElementById('album-artist').textContent = data.artist || '';
+      document.getElementById('album-info').textContent = `${data.year || ''} • ${data.tracks.length} треков, ${formatTime(data.total_duration || 0)}`;
+      document.getElementById('album-genre').textContent = data.genre ? `Жанр: ${data.genre}` : '';
+      document.getElementById('album-desc').textContent = data.description || '';
+      // Таблица треков
+      const tbody = document.getElementById('tracks-tbody');
+      tbody.innerHTML = '';
+      data.tracks.forEach((t, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="track-num">${i+1}</td>
+          <td class="track-title">${t.title}</td>
+          <td class="track-artist">${t.artist}</td>
+          <td class="track-duration">${t.duration ? formatTime(t.duration) : '—'}</td>
+        `;
+        tr.onclick = () => {
+          window.playTrack && window.playTrack({
+            src: '/muzic2/' + (t.src || ''),
+            title: t.title,
+            artist: t.artist,
+            cover: '/muzic2/' + (t.cover || data.cover || 'tracks/covers/placeholder.jpg'),
+            queue: data.tracks.map(tt => ({
+              src: '/muzic2/' + (tt.src || ''),
+              title: tt.title,
+              artist: tt.artist,
+              cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg')
+            })),
+            queueStartIndex: i
+          });
+        };
+        tbody.appendChild(tr);
+      });
+      // Очередь для плеера
+      window.albumQueue = data.tracks.map(t => ({
+        src: '/muzic2/' + (t.src || ''),
+        title: t.title,
+        artist: t.artist,
+        cover: '/muzic2/' + (t.cover || data.cover || 'tracks/covers/placeholder.jpg')
+      }));
+      // Кнопка Play
+      document.getElementById('album-play-btn').onclick = () => {
+        window.playTrack && window.playTrack({
+          ...window.albumQueue[0],
+          queue: window.albumQueue,
+          queueStartIndex: 0
+        });
+      };
+    }
+    loadAlbum();
+  </script>
+</body>
+</html> 
