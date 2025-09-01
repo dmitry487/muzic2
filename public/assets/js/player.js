@@ -1,4 +1,3 @@
-// Независимый современный плеер с SVG-иконками
 const playerRoot = document.getElementById('player-root');
 
 playerRoot.innerHTML = `
@@ -75,7 +74,6 @@ const volumeBar = document.getElementById('volume-bar');
 let isPlaying = false;
 let currentTrack = null;
 
-// --- Сохранение и восстановление состояния плеера ---
 const PLAYER_STATE_KEY = 'muzic2_player_state';
 
 function savePlayerState() {
@@ -98,10 +96,8 @@ function loadPlayerState() {
     trackTitle.textContent = state.title || '';
     trackArtist.textContent = state.artist || '';
     cover.src = state.cover || '';
-    // Сразу выставляем volumeBar
     audio.volume = state.volume !== undefined ? state.volume : 1;
     if (typeof volumeBar !== 'undefined') volumeBar.value = audio.volume * 100;
-    // Навешиваем обработчик для seekBar и времени
     audio.addEventListener('loadedmetadata', function restoreStateOnce() {
       audio.currentTime = state.currentTime || 0;
       if (typeof seekBar !== 'undefined' && audio.duration) seekBar.value = (audio.currentTime / audio.duration) * 100;
@@ -112,7 +108,6 @@ function loadPlayerState() {
       }
       audio.removeEventListener('loadedmetadata', restoreStateOnce);
     });
-    // Если duration уже известна (например, кэш), обновляем сразу
     if (audio.readyState >= 1 && audio.duration) {
       if (typeof seekBar !== 'undefined') seekBar.value = (state.currentTime || 0) / audio.duration * 100;
       if (typeof currentTime !== 'undefined') currentTime.textContent = formatTime(state.currentTime || 0);
@@ -125,7 +120,6 @@ function loadPlayerState() {
   audio.addEventListener(event, savePlayerState);
 });
 window.addEventListener('DOMContentLoaded', loadPlayerState);
-// --- Конец блока сохранения состояния ---
 
 playBtn.onclick = () => {
   if (!audio.src) return;

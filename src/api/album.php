@@ -9,7 +9,6 @@ if (!$album) {
     exit;
 }
 
-// Поиск по album без учёта регистра и пробелов (только существующие поля)
 $sql = 'SELECT album, MIN(artist) as artist, MIN(album_type) as album_type, MIN(cover) as cover FROM tracks WHERE TRIM(LOWER(album)) = TRIM(LOWER(?)) GROUP BY album';
 $albumRow = $db->prepare($sql);
 $albumRow->execute([$album]);
@@ -22,7 +21,6 @@ if (!$albumRow) {
 $artist = $albumRow['artist'];
 $cover = $albumRow['cover'];
 
-// Получаем все треки этого альбома (без plays)
 $tracks = $db->prepare('SELECT id, title, artist, duration, file_path, cover FROM tracks WHERE TRIM(LOWER(album)) = TRIM(LOWER(?)) ORDER BY id ASC');
 $tracks->execute([$album]);
 $trackList = [];

@@ -1,13 +1,11 @@
 <?php
 require_once __DIR__ . '/../config/db.php';
 
-// Получаем данные из POST
 $data = json_decode(file_get_contents('php://input'), true);
 $email = trim($data['email'] ?? '');
 $username = trim($data['username'] ?? '');
 $password = $data['password'] ?? '';
 
-// Валидация
 if (!$email || !$username || !$password) {
     http_response_code(400);
     echo json_encode(['error' => 'Заполните все поля']);
@@ -26,7 +24,6 @@ if (strlen($password) < 6) {
 
 $db = get_db_connection();
 
-// Проверка уникальности email и username
 $stmt = $db->prepare('SELECT id FROM users WHERE email = ? OR username = ?');
 $stmt->execute([$email, $username]);
 if ($stmt->fetch()) {
@@ -35,10 +32,8 @@ if ($stmt->fetch()) {
     exit;
 }
 
-// Хешируем пароль
 $hash = password_hash($password, PASSWORD_DEFAULT);
 
-// Добавляем пользователя
 $stmt = $db->prepare('INSERT INTO users (email, username, password_hash) VALUES (?, ?, ?)');
 try {
     $stmt->execute([$email, $username, $hash]);

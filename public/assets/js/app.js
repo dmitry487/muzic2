@@ -1,4 +1,3 @@
-// SPA роутинг и динамический контент
 const mainContent = document.getElementById('main-content');
 const navHome = document.getElementById('nav-home');
 const navSearch = document.getElementById('nav-search');
@@ -109,7 +108,6 @@ function renderCards(rowId, items, type) {
     }
     row.innerHTML = html;
 
-    // Делегирование событий для очереди и перехода на альбом
     if (type === 'album') {
         row.onclick = function(e) {
             let el = e.target;

@@ -1,4 +1,3 @@
--- Таблица пользователей
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(255) NOT NULL UNIQUE,
@@ -7,31 +6,23 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Таблица жанров
 CREATE TABLE IF NOT EXISTS genres (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE
 );
 
--- Шаблон для добавления трека:
---
--- INSERT INTO tracks (title, artist, album, album_type, duration, file_path, cover)
--- VALUES ('Название', 'Артист', 'Альбом', 'single', 180, '/uploads/tracks/track.mp3', '/uploads/covers/cover.jpg');
-
--- Таблица треков с полной информацией
 CREATE TABLE IF NOT EXISTS tracks (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    title VARCHAR(255) NOT NULL,           -- Название трека
-    artist VARCHAR(255) NOT NULL,          -- Имя артиста
-    album VARCHAR(255) NOT NULL,           -- Название альбома
-    album_type ENUM('album', 'ep', 'single') NOT NULL DEFAULT 'album', -- Тип альбома
-    duration INT,                          -- Длительность в секундах
-    file_path VARCHAR(255) NOT NULL,       -- Путь к аудиофайлу
-    cover VARCHAR(255),                    -- Путь к обложке
+    title VARCHAR(255) NOT NULL,
+    artist VARCHAR(255) NOT NULL,
+    album VARCHAR(255) NOT NULL,
+    album_type ENUM('album', 'ep', 'single') NOT NULL DEFAULT 'album',
+    duration INT,
+    file_path VARCHAR(255) NOT NULL,
+    cover VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Track-Genre relation
 CREATE TABLE track_genres (
     track_id INT,
     genre_id INT,
@@ -40,7 +31,6 @@ CREATE TABLE track_genres (
     FOREIGN KEY (genre_id) REFERENCES genres(id) ON DELETE CASCADE
 );
 
--- Playlists
 CREATE TABLE playlists (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT,
@@ -50,7 +40,6 @@ CREATE TABLE playlists (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Playlist-Tracks relation
 CREATE TABLE playlist_tracks (
     playlist_id INT,
     track_id INT,
@@ -60,7 +49,6 @@ CREATE TABLE playlist_tracks (
     FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE
 );
 
--- Likes
 CREATE TABLE likes (
     user_id INT,
     track_id INT,
@@ -70,7 +58,6 @@ CREATE TABLE likes (
     FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE
 );
 
--- History
 CREATE TABLE history (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT,
@@ -80,7 +67,6 @@ CREATE TABLE history (
     FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE
 );
 
--- Tags (optional, for advanced search/recommendations)
 CREATE TABLE tags (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE

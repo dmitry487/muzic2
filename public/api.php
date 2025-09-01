@@ -1,11 +1,9 @@
 <?php
 header('Content-Type: application/json');
 
-// Простой роутинг по URL
 $request = $_SERVER['REQUEST_URI'];
 $method = $_SERVER['REQUEST_METHOD'];
 
-// Удаляем префикс /api.php или /api из URI
 $path = preg_replace('#^/[^/]+#', '', $request);
 
 switch (true) {

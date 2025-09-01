@@ -3,7 +3,6 @@ require_once __DIR__ . '/../config/db.php';
 
 $db = get_db_connection();
 
-// Получаем входные данные (track_id или массив track_id для исключения)
 $data = json_decode(file_get_contents('php://input'), true);
 $exclude_ids = $data['exclude_ids'] ?? [];
 $track_id = $data['track_id'] ?? null;
@@ -14,7 +13,6 @@ if (!$track_id && empty($exclude_ids)) {
     exit;
 }
 
-// Получаем жанры и артиста исходного трека
 if ($track_id) {
     $stmt = $db->prepare('SELECT artist_id FROM tracks WHERE id = ?');
     $stmt->execute([$track_id]);
@@ -33,7 +31,6 @@ if ($track_id) {
     $genre_ids = [];
 }
 
-// Формируем SQL для поиска похожих треков
 $where = [];
 $params = [];
 if ($artist_id) {
@@ -65,7 +62,6 @@ $stmt = $db->prepare($sql);
 $stmt->execute($params);
 $tracks = $stmt->fetchAll();
 
-// Получаем жанры для найденных треков
 $track_ids = array_column($tracks, 'id');
 $genres_map = [];
 if ($track_ids) {

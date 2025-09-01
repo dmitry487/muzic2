@@ -98,9 +98,36 @@
     .tracks-table tr {
       transition: background 0.15s;
       cursor: pointer;
+      position: relative;
     }
     .tracks-table tr:hover {
       background: #232323;
+    }
+    .track-play-btn {
+      display: none;
+      position: absolute;
+      left: 1.1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: #1db954;
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      font-size: 1.3rem;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 2;
+      box-shadow: 0 2px 8px rgba(30,185,84,0.10);
+      transition: background 0.18s, transform 0.18s;
+    }
+    .tracks-table tr:hover .track-play-btn {
+      display: flex;
+    }
+    .tracks-table tr:hover .track-num {
+      visibility: hidden;
     }
     .tracks-table td.track-num {
       color: #b3b3b3;
@@ -124,7 +151,7 @@
   </style>
 </head>
 <body style="background: #181818; color: #fff;">
-  <div id="main-content">
+  <div id="main-content" style="padding-bottom: 120px;">
     <div class="album-header">
       <img class="album-cover" id="album-cover" src="" alt="cover">
       <div class="album-meta">
@@ -153,6 +180,8 @@
       </tbody>
     </table>
   </div>
+  <div id="player-root"></div>
+  <script src="assets/js/player.js"></script>
   <script>
     // Получаем album из query
     function getAlbumName() {
@@ -188,7 +217,12 @@
           <td class="track-artist">${t.artist}</td>
           <td class="track-duration">${t.duration ? formatTime(t.duration) : '—'}</td>
         `;
-        tr.onclick = () => {
+        // Кнопка Play
+        const playBtn = document.createElement('button');
+        playBtn.className = 'track-play-btn';
+        playBtn.innerHTML = '&#9654;';
+        playBtn.onclick = (e) => {
+          e.stopPropagation();
           window.playTrack && window.playTrack({
             src: '/muzic2/' + (t.src || ''),
             title: t.title,
@@ -202,6 +236,26 @@
             })),
             queueStartIndex: i
           });
+        };
+        tr.children[0].style.position = 'relative';
+        tr.children[0].appendChild(playBtn);
+        // Клик по строке — тоже play с этого трека
+        tr.onclick = (e) => {
+          if (e.target !== playBtn) {
+            window.playTrack && window.playTrack({
+              src: '/muzic2/' + (t.src || ''),
+              title: t.title,
+              artist: t.artist,
+              cover: '/muzic2/' + (t.cover || data.cover || 'tracks/covers/placeholder.jpg'),
+              queue: data.tracks.map(tt => ({
+                src: '/muzic2/' + (tt.src || ''),
+                title: tt.title,
+                artist: tt.artist,
+                cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg')
+              })),
+              queueStartIndex: i
+            });
+          }
         };
         tbody.appendChild(tr);
       });
