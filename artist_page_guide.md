@@ -86,3 +86,4 @@ GET /public/src/api/artist.php?artist=Kai%20Angel
 - Топ-треки
 - Альбомы
 - Статистику артиста
+

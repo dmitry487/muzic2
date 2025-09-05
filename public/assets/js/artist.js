@@ -1,6 +1,45 @@
-// Artist page functionality
+// Artist page functionality with robust image path handling and fallbacks
 let currentArtist = null;
 let artistTracks = [];
+
+// Simple SVG placeholder for images (avoids missing asset files)
+const PLACEHOLDER_COVER = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#667eea"/>
+      <stop offset="100%" stop-color="#764ba2"/>
+    </linearGradient>
+  </defs>
+  <rect width="300" height="300" fill="url(#g)"/>
+  <g fill="#ffffff" opacity="0.9">
+    <circle cx="100" cy="150" r="35"/>
+    <rect x="145" y="115" width="60" height="70" rx="10"/>
+  </g>
+</svg>`);
+
+// Normalize/resolve cover path for usage from /public/* pages
+function resolveCoverPath(p) {
+    if (!p || typeof p !== 'string' || p.trim() === '') return PLACEHOLDER_COVER;
+    const s = p.trim();
+    if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:')) return s;
+    // Ensure paths stored as 'tracks/...' are reachable from /public/* by prefixing '../'
+    const idx = s.indexOf('tracks/');
+    if (idx !== -1) {
+        return '../' + s.slice(idx);
+    }
+    // Assets already under /public/assets can be used as-is
+    if (s.startsWith('assets/')) return s;
+    // Default fallback
+    return PLACEHOLDER_COVER;
+}
+
+function attachImgFallback(imgEl) {
+    if (!imgEl) return;
+    imgEl.addEventListener('error', () => {
+        imgEl.src = PLACEHOLDER_COVER;
+    }, { once: true });
+}
 
 // Initialize artist page
 document.addEventListener('DOMContentLoaded', function() {
@@ -49,12 +88,13 @@ function renderArtistPage(artist) {
     if (avatar) {
         // Use specific images for Kai Angel
         let avatarSrc = artist.cover;
-        if (artist.name.toLowerCase().includes('kai angel')) {
+        if (artist.name && artist.name.toLowerCase().includes('kai angel')) {
             // Use the portrait image for avatar
             avatarSrc = 'tracks/covers/Снимок экрана 2025-07-19 в 11.56.58.png';
         }
-        avatar.src = avatarSrc || 'assets/images/default-artist.png';
-        avatar.alt = artist.name;
+        avatar.src = resolveCoverPath(avatarSrc);
+        avatar.alt = artist.name || 'Artist';
+        attachImgFallback(avatar);
         
         // Add loading animation
         avatar.style.opacity = '0';
@@ -67,9 +107,9 @@ function renderArtistPage(artist) {
     // Set artist name with better text handling
     const nameElement = document.getElementById('artist-name');
     if (nameElement) {
-        nameElement.textContent = artist.name;
+        nameElement.textContent = artist.name || '';
         // Add class for specific styling
-        if (artist.name.toLowerCase().includes('kai angel')) {
+        if (artist.name && artist.name.toLowerCase().includes('kai angel')) {
             nameElement.parentElement.parentElement.classList.add('kai-angel');
         }
     }
@@ -118,22 +158,23 @@ function createTrackElement(track, number) {
     
     // Use better cover images for Kai Angel tracks
     let coverSrc = track.cover;
-    if (track.artist.toLowerCase().includes('kai angel')) {
-        if (track.album.toLowerCase().includes('angel may cry')) {
+    if (track.artist && track.artist.toLowerCase().includes('kai angel')) {
+        if (track.album && track.album.toLowerCase().includes('angel may cry')) {
             coverSrc = 'tracks/covers/Kai-Angel-ANGEL-MAY-CRY-07.jpg';
-        } else if (track.album.toLowerCase().includes('angel may cry 2')) {
+        } else if (track.album && track.album.toLowerCase().includes('angel may cry 2')) {
             coverSrc = 'tracks/covers/Снимок экрана 2025-07-14 в 07.03.03.png';
         }
     }
+    const finalCover = resolveCoverPath(coverSrc);
     
     trackDiv.innerHTML = `
         <div class="track-number">${number}</div>
         <div class="track-play-icon" style="display: none;">
             <i class="fas fa-play"></i>
         </div>
-        <img class="track-cover-small" src="${coverSrc || 'assets/images/default-cover.png'}" alt="${track.title}" loading="lazy">
+        <img class="track-cover-small" src="${finalCover}" alt="${track.title || ''}" loading="lazy">
         <div class="track-details">
-            <div class="track-title-primary" title="${track.title}">${track.title}</div>
+            <div class="track-title-primary" title="${track.title || ''}">${track.title || ''}</div>
             <div class="track-stats">
                 ${Math.random() > 0.7 ? '<span class="track-explicit">E</span>' : ''}
                 <span class="track-plays">${playCount}</span>
@@ -147,6 +188,10 @@ function createTrackElement(track, number) {
             <i class="fas fa-ellipsis-h"></i>
         </button>
     `;
+    
+    // Fallback for image
+    const img = trackDiv.querySelector('img.track-cover-small');
+    attachImgFallback(img);
     
     // Add click event to play track
     trackDiv.addEventListener('click', (e) => {
@@ -187,15 +232,20 @@ function createAlbumElement(album) {
     // Format album type
     const albumType = album.type === 'album' ? 'Альбом' : 
                      album.type === 'ep' ? 'EP' : 'Сингл';
+
+    const finalCover = resolveCoverPath(album.cover);
     
     albumDiv.innerHTML = `
-        <img class="album-cover" src="${album.cover || 'assets/images/default-cover.png'}" alt="${album.title}">
-        <div class="album-title">${album.title}</div>
+        <img class="album-cover" src="${finalCover}" alt="${album.title || ''}" loading="lazy">
+        <div class="album-title">${album.title || ''}</div>
         <div class="album-info">${albumType} • ${album.track_count} трек${getTrackWordEnding(album.track_count)}</div>
         <button class="album-play-btn">
             <i class="fas fa-play"></i>
         </button>
     `;
+
+    const img = albumDiv.querySelector('img.album-cover');
+    attachImgFallback(img);
     
     // Add click event to open album
     albumDiv.addEventListener('click', (e) => {
@@ -259,9 +309,12 @@ function playTrack(track) {
     const trackArtist = document.getElementById('track-artist');
     const currentCover = document.getElementById('current-cover');
     
-    if (trackTitle) trackTitle.textContent = track.title;
-    if (trackArtist) trackArtist.textContent = track.artist;
-    if (currentCover) currentCover.src = track.cover || 'assets/images/default-cover.png';
+    if (trackTitle) trackTitle.textContent = track.title || '';
+    if (trackArtist) trackArtist.textContent = track.artist || '';
+    if (currentCover) {
+        currentCover.src = resolveCoverPath(track.cover);
+        attachImgFallback(currentCover);
+    }
     
     // Use existing player functionality if available
     if (window.loadTrack) {
@@ -329,7 +382,7 @@ function preloadImage(src) {
         const img = new Image();
         img.onload = () => resolve(img);
         img.onerror = reject;
-        img.src = src;
+        img.src = resolveCoverPath(src);
     });
 }
 
@@ -350,14 +403,8 @@ async function preloadKaiAngelImages() {
 }
 
 function formatNumber(num) {
-    if (num >= 1000000) {
-        return Math.floor(num / 1000000) + ' ' + Math.floor((num % 1000000) / 100000) + ' ' + 
-               Math.floor((num % 100000) / 10000) + ' ' + Math.floor((num % 10000) / 1000);
-    } else if (num >= 1000) {
-        return Math.floor(num / 1000) + ' ' + Math.floor((num % 1000) / 100) + ' ' + 
-               Math.floor((num % 100) / 10) + ' ' + (num % 10);
-    }
-    return num.toString();
+    if (typeof num !== 'number') return '0';
+    return num.toLocaleString('ru-RU');
 }
 
 function getTrackWordEnding(count) {

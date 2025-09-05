@@ -76,13 +76,35 @@ function renderCards(rowId, items, type) {
             </div>
         `).join('');
     } else if (type === 'mix') {
-        row.className = 'tile-row';
+        row.className = 'mix-row';
         html = items.map((item, idx) => `
-            <div class="tile" data-idx="${idx}">
-                <img class="tile-cover" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
-                <div class="tile-title">${escapeHtml(item.album || item.title)}</div>
-                <div class="tile-desc">${escapeHtml(item.artist || '')}</div>
-                <div class="tile-play">&#9654;</div>
+            <div class="mix-card" data-idx="${idx}" data-mix-id="${item.id}">
+                <div class="mix-cover-container">
+                    <img class="mix-cover" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="mix cover">
+                    <div class="mix-overlay">
+                        <button class="mix-play-btn">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <div class="mix-info-overlay">
+                            <span class="mix-track-count">${item.track_count || 0} треков</span>
+                            <span class="mix-duration">${formatDuration(item.total_duration || 0)}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="mix-content">
+                    <h3 class="mix-title">${escapeHtml(item.title)}</h3>
+                    <p class="mix-description">${escapeHtml(item.description || '')}</p>
+                    <div class="mix-stats">
+                        <span class="mix-likes">
+                            <i class="far fa-heart"></i>
+                            ${Math.floor(Math.random() * 1000) + 100}
+                        </span>
+                        <span class="mix-plays">
+                            <i class="fas fa-play"></i>
+                            ${formatNumber(Math.floor(Math.random() * 100000) + 10000)}
+                        </span>
+                    </div>
+                </div>
             </div>
         `).join('');
     } else if (type === 'artist') {
@@ -117,6 +139,30 @@ function renderCards(rowId, items, type) {
                 window.location = 'album.html?album=' + albumName;
             }
         };
+    } else if (type === 'mix') {
+        row.onclick = function(e) {
+            let el = e.target;
+            while (el && el !== row && !el.hasAttribute('data-mix-id')) el = el.parentElement;
+            if (el && el.hasAttribute('data-mix-id')) {
+                const idx = parseInt(el.getAttribute('data-idx'), 10);
+                const mix = items[idx];
+                if (mix && mix.tracks && mix.tracks.length > 0) {
+                    // Play first track from mix
+                    const firstTrack = mix.tracks[0];
+                    const queue = mix.tracks.map(track => ({
+                        src: '/muzic2/tracks/music/' + track.title + '.mp3',
+                        title: track.title,
+                        artist: track.artist,
+                        cover: '/muzic2/' + mix.cover
+                    }));
+                    window.playTrack({
+                        ...queue[0],
+                        queue,
+                        queueStartIndex: 0
+                    });
+                }
+            }
+        };
     } else if (type === 'artist') {
         row.onclick = function(e) {
             let el = e.target;
@@ -126,7 +172,7 @@ function renderCards(rowId, items, type) {
                 window.location = 'artist.html?artist=' + artistName;
             }
         };
-    } else if (type === 'mix' || type === 'track') {
+    } else if (type === 'track') {
         row.onclick = function(e) {
             let el = e.target;
             while (el && el !== row && !el.hasAttribute('data-idx')) el = el.parentElement;
@@ -152,5 +198,21 @@ function escapeHtml(str) {
     return String(str).replace(/[&<>"]/g, function (m) {
         return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];
     });
+}
+
+function formatDuration(seconds) {
+    if (!seconds) return '0:00';
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
+function formatNumber(num) {
+    if (num >= 1000000) {
+        return Math.floor(num / 1000000) + 'M';
+    } else if (num >= 1000) {
+        return Math.floor(num / 1000) + 'K';
+    }
+    return num.toString();
 }
 
