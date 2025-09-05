@@ -42,7 +42,9 @@ for ($i = 0; $i < 6; $i++) {
             'id' => $track['id'],
             'title' => $track['title'],
             'artist' => $track['artist'],
-            'duration' => (int)$track['duration']
+            'duration' => (int)$track['duration'],
+            'file_path' => $track['file_path'],
+            'cover' => $track['cover']
         ];
         $totalDuration += (int)$track['duration'];
     }

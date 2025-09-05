@@ -97,7 +97,51 @@
       <ul id="queue-list"></ul>
     </div>
   `;
-
+  
+  // Inject global Back button once
+  (function ensureGlobalBackButton() {
+  if (document.getElementById('global-back-btn')) return;
+  const style = document.createElement('style');
+  style.id = 'global-back-style';
+  style.textContent = `
+  #global-back-btn {
+  position: fixed;
+  left: 12px;
+  top: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: #1f1f1f;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,.3);
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  }
+  #global-back-btn:hover { background: #262626; }
+  #global-back-btn svg { pointer-events: none; }
+  `;
+  document.head.appendChild(style);
+  const btn = document.createElement('button');
+  btn.id = 'global-back-btn';
+  btn.title = 'Назад';
+  btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/><line x1="9" y1="12" x2="21" y2="12"/></svg>';
+  btn.onclick = function() {
+  try {
+  if (window.history && window.history.length > 1) {
+  window.history.back();
+  } else {
+  window.location.href = '/muzic2/public/index.php';
+  }
+  } catch (e) {
+  window.location.href = '/muzic2/public/index.php';
+  }
+  };
+  document.body.appendChild(btn);
+  })();
+  
   // Elements
   const audio = document.getElementById('audio');
   const playBtn = document.getElementById('play-btn');
@@ -119,6 +163,76 @@
   const queueClose = document.getElementById('queue-close');
   const queueList = document.getElementById('queue-list');
 
+  // Persistent popup player integration
+  let popupWin = null;
+  let popupActive = false;
+  let popupState = { currentTime: 0, duration: 0, isPlaying: false, src: '', volume: 1, title: '', artist: '', cover: '' };
+  function reconnectPopup() {
+    // Disable popup usage to ensure reliable inline playback
+    popupWin = null;
+    popupActive = false;
+  }
+  function ensurePopup(allowOpen) {
+    // Always return false to use inline <audio>
+    return false;
+  }
+  window.addEventListener('message', (e) => {
+    if (!e.data || typeof e.data !== 'object') return;
+    if (e.data.cmd === 'playerState') {
+      popupActive = true;
+      popupState = e.data;
+      // Update UI from popup state
+      seekBar.value = popupState.duration ? (popupState.currentTime / popupState.duration) * 100 : 0;
+      currentTimeEl.textContent = formatTime(popupState.currentTime || 0);
+      durationEl.textContent = formatTime(popupState.duration || 0);
+      if (popupState.title) trackTitle.textContent = popupState.title;
+      if (popupState.artist) trackArtist.textContent = popupState.artist;
+      if (popupState.cover) cover.src = popupState.cover;
+      updatePlayPauseUI();
+      savePlayerStateThrottled();
+    }
+    if (e.data.cmd === 'playerEnded') {
+      playNext(true);
+    }
+  });
+  reconnectPopup();
+
+  // Safe posting to popup with readiness checks and retries
+  function postToPopup(message, opts = {}) {
+    // Popup disabled: always return false
+    return false;
+    const { retries = 10, delay = 120 } = opts;
+    if (!ensurePopup(false)) return false;
+    let attempts = 0;
+    function trySend() {
+      if (!popupWin || popupWin.closed) return false;
+      let ready = true;
+      try {
+        ready = popupWin.document && popupWin.document.readyState === 'complete';
+      } catch (e) {
+        ready = true;
+      }
+      if (!ready) {
+        if (attempts++ < retries) {
+          setTimeout(trySend, delay);
+          return true;
+        }
+        return false;
+      }
+      try {
+        popupWin.postMessage(message, '*');
+        return true;
+      } catch (e) {
+        if (attempts++ < retries) {
+          setTimeout(trySend, delay);
+          return true;
+        }
+        return false;
+      }
+    }
+    return trySend();
+  }
+
   // State
   const PLAYER_STATE_KEY = 'muzic2_player_state';
   const QUEUE_KEY = 'muzic2_player_queue';
@@ -138,7 +252,8 @@
     return `${Math.floor(sec / 60)}:${('0' + (sec % 60)).slice(-2)}`;
   }
   function updatePlayPauseUI() {
-    if (audio.paused) {
+    const playing = popupActive ? !!popupState.isPlaying : !audio.paused;
+    if (!playing) {
       playIcon.style.display = '';
       pauseIcon.style.display = 'none';
     } else {
@@ -169,14 +284,15 @@
 
   // Persistence
   function savePlayerState() {
+    const usingPopup = popupActive;
     const state = {
-      src: audio.src,
+      src: usingPopup ? (popupState.src || '') : audio.src,
       title: trackTitle.textContent,
       artist: trackArtist.textContent,
       cover: cover.src,
-      currentTime: audio.currentTime,
-      isPlaying: !audio.paused,
-      volume: audio.volume,
+      currentTime: usingPopup ? (popupState.currentTime || 0) : audio.currentTime,
+      isPlaying: usingPopup ? !!popupState.isPlaying : !audio.paused,
+      volume: usingPopup ? (popupState.volume ?? audio.volume) : audio.volume,
       shuffle: shuffleEnabled,
       repeat: repeatMode,
       queueIndex
@@ -267,11 +383,26 @@
     if (!trackQueue[idx]) return;
     queueIndex = idx;
     const t = trackQueue[idx];
-    audio.src = t.src;
     setNowPlaying(t);
-    // start from beginning always when starting playback via control
-    audio.currentTime = 0;
-    audio.play().catch(() => {});
+    if (popupActive || ensurePopup(true)) {
+      const ok = postToPopup({ cmd: 'playTrack', src: t.src, title: t.title, artist: t.artist, cover: t.cover, currentTime: 0, volume: volumeBar.value/100, autoplay: true });
+      if (!ok) {
+        // fallback to inline audio if cannot control popup
+        audio.src = encodeURI(t.src);
+        audio.currentTime = 0;
+        audio.play().catch(() => {});
+      } else {
+        saveQueue();
+        savePlayerState();
+        renderQueueUI();
+        return;
+      }
+    } else {
+      audio.src = encodeURI(t.src);
+      // start from beginning always when starting playback via control
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
+    }
     saveQueue();
     savePlayerState();
     renderQueueUI();
@@ -321,14 +452,41 @@
 
   // Events
   playBtn.onclick = () => {
-    if (!audio.src) {
-      // try play current queue item
-      if (trackQueue[queueIndex]) {
-        playFromQueue(queueIndex);
+    // If popup is active or can be opened via this gesture, control it
+    if (popupActive || ensurePopup(true)) {
+      if (!popupState.src && trackQueue[queueIndex]) {
+        const t = trackQueue[queueIndex];
+        const ok = postToPopup({ cmd: 'playTrack', src: t.src, title: t.title, artist: t.artist, cover: t.cover, currentTime: 0, volume: volumeBar.value/100, autoplay: true });
+        if (ok) return; // handled by popup
+      } else {
+        const ok = postToPopup({ cmd: popupState.isPlaying ? 'pause' : 'play' });
+        if (ok) return; // handled by popup
       }
+      // if posting failed, fall through to local audio
+    }
+    if (!audio.src) {
+      if (trackQueue[queueIndex]) { playFromQueue(queueIndex); return; }
+      if (window.initialQueue && Array.isArray(window.initialQueue) && window.initialQueue.length > 0) {
+        trackQueue = window.initialQueue.slice();
+        queueIndex = 0;
+        saveQueue();
+        playFromQueue(0);
+        return;
+      }
+      // last resort: restore from saved state
+      try {
+        const state = JSON.parse(localStorage.getItem('muzic2_player_state') || 'null');
+        if (state && state.src) {
+          audio.src = state.src;
+          audio.currentTime = state.currentTime || 0;
+          trackTitle.textContent = state.title || '';
+          trackArtist.textContent = state.artist || '';
+          cover.src = state.cover || cover.src;
+          audio.play().catch(() => {});
+        }
+      } catch (e) {}
       return;
     }
-    // Do NOT reset position on play; resume from currentTime
     if (audio.paused) {
       audio.play();
     } else {
@@ -336,37 +494,60 @@
     }
   };
   audio.addEventListener('play', () => {
+    if (popupActive) return;
     isPlaying = true;
     updatePlayPauseUI();
     document.getElementById('track-status').textContent = '';
     savePlayerState();
   });
   audio.addEventListener('pause', () => {
+    if (popupActive) return;
     isPlaying = false;
     updatePlayPauseUI();
     document.getElementById('track-status').textContent = '';
     savePlayerState();
   });
   audio.addEventListener('timeupdate', () => {
+    if (popupActive) return;
     seekBar.value = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
     currentTimeEl.textContent = formatTime(audio.currentTime);
-    // Persist progress regularly so we can resume across navigation
     savePlayerStateThrottled();
   });
   audio.addEventListener('loadedmetadata', () => {
+    if (popupActive) return;
     durationEl.textContent = formatTime(audio.duration);
   });
   audio.addEventListener('ended', () => {
+    if (popupActive) return;
     playNext(true);
   });
 
   seekBar.oninput = () => {
+    if (popupActive) {
+      if (popupState.duration) {
+        const t = (seekBar.value / 100) * popupState.duration;
+        const ok = postToPopup({ cmd: 'seek', currentTime: t }, { retries: 3, delay: 100 });
+        if (!ok) {
+          // fallback to local if needed
+          if (audio.duration) audio.currentTime = (seekBar.value / 100) * audio.duration;
+        }
+      }
+      return;
+    }
     if (audio.duration) {
       audio.currentTime = (seekBar.value / 100) * audio.duration;
     }
   };
   volumeBar.oninput = () => {
-    audio.volume = volumeBar.value / 100;
+    if (popupActive) {
+      const ok = postToPopup({ cmd: 'setVolume', volume: volumeBar.value / 100 }, { retries: 3, delay: 100 });
+      if (!ok) {
+        // fallback to local update
+        audio.volume = volumeBar.value / 100;
+      }
+    } else {
+      audio.volume = volumeBar.value / 100;
+    }
     savePlayerState();
   };
   shuffleBtn.onclick = () => {
@@ -443,4 +624,8 @@
   updateShuffleUI();
   updateRepeatUI();
   renderQueueUI();
+  // Sync UI with popup if already open
+  if (popupActive && popupWin) {
+    postToPopup({ cmd: 'play' }, { retries: 3, delay: 150 });
+  }
 })();

@@ -52,10 +52,21 @@ async function renderHome() {
             </section>
         `;
         renderCards('favorites-row', data.favorites, 'track');
-        renderCards('mixes-row', data.mixes, 'track');
+        renderCards('mixes-row', data.mixes, 'mix');
         renderCards('albums-row', data.albums, 'album');
         renderCards('tracks-row', data.tracks, 'track');
         renderCards('artists-row', data.artists, 'artist');
+        // Prepare initial queue for the main Play button
+        (function prepareInitialQueue() {
+            const srcItems = (data.favorites && data.favorites.length ? data.favorites : data.tracks) || [];
+            const qRaw = srcItems.map(i => ({
+                src: '/muzic2/' + (i.file_path || ''),
+                title: i.title,
+                artist: i.artist || '',
+                cover: '/muzic2/' + (i.cover || 'tracks/covers/placeholder.jpg')
+            }));
+            window.initialQueue = qRaw.map(t => ({ ...t, src: encodeURI(t.src) }));
+        })();
     } catch (e) {
         mainContent.innerHTML = '<div class="error">Ошибка загрузки главной страницы</div>';
     }
@@ -147,17 +158,18 @@ function renderCards(rowId, items, type) {
                 const idx = parseInt(el.getAttribute('data-idx'), 10);
                 const mix = items[idx];
                 if (mix && mix.tracks && mix.tracks.length > 0) {
-                    // Play first track from mix
-                    const firstTrack = mix.tracks[0];
+                    // Build queue from file_path coming from API
                     const queue = mix.tracks.map(track => ({
-                        src: '/muzic2/tracks/music/' + track.title + '.mp3',
+                        src: '/muzic2/' + (track.file_path || ''),
                         title: track.title,
                         artist: track.artist,
-                        cover: '/muzic2/' + mix.cover
+                        cover: '/muzic2/' + (track.cover || mix.cover)
                     }));
+                    // encode URIs for safety
+                    const safeQueue = queue.map(t => ({ ...t, src: encodeURI(t.src) }));
                     window.playTrack({
-                        ...queue[0],
-                        queue,
+                        ...safeQueue[0],
+                        queue: safeQueue,
                         queueStartIndex: 0
                     });
                 }
@@ -178,12 +190,13 @@ function renderCards(rowId, items, type) {
             while (el && el !== row && !el.hasAttribute('data-idx')) el = el.parentElement;
             if (el && el.hasAttribute('data-idx')) {
                 const idx = parseInt(el.getAttribute('data-idx'), 10);
-                const queue = items.map(i => ({
+                const queueRaw = items.map(i => ({
                     src: '/muzic2/' + (i.file_path || ''),
                     title: i.title,
                     artist: i.artist || '',
                     cover: '/muzic2/' + (i.cover || 'tracks/covers/placeholder.jpg')
                 }));
+                const queue = queueRaw.map(t => ({ ...t, src: encodeURI(t.src) }));
                 window.playTrack({
                     ...queue[idx],
                     queue,

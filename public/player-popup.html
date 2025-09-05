@@ -17,6 +17,9 @@
 </head>
 <body>
   <div id="player">
+    <button id="back" title="Назад" style="position:fixed;left:12px;top:12px;width:40px;height:40px;border-radius:50%;border:none;background:#1f1f1f;color:#fff;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3);display:grid;place-items:center;">
+      ←
+    </button>
     <img id="cover" src="" alt="cover">
     <div>
       <div id="track-title">—</div>
@@ -31,6 +34,7 @@
   </div>
   <script>
     const audio = document.getElementById('audio');
+    const backBtn = document.getElementById('back');
     const playBtn = document.getElementById('play');
     const pauseBtn = document.getElementById('pause');
     const seek = document.getElementById('seek');
@@ -49,6 +53,24 @@
       sendState();
     };
     audio.onplay = audio.onpause = sendState;
+    audio.addEventListener('loadedmetadata', sendState);
+    audio.addEventListener('volumechange', sendState);
+    audio.addEventListener('ended', () => {
+      sendState();
+      window.opener && window.opener.postMessage({ cmd: 'playerEnded' }, '*');
+    });
+
+    // Notify opener that popup is ready
+    try { window.opener && window.opener.postMessage({ cmd: 'popupReady' }, '*'); } catch (e) {}
+
+    backBtn.onclick = () => {
+      try {
+        if (window.history && window.history.length > 1) window.history.back();
+        else window.close();
+      } catch (e) {
+        window.close();
+      }
+    };
 
     // Получение команд
     window.addEventListener('message', (e) => {

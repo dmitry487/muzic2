@@ -223,17 +223,16 @@
         playBtn.innerHTML = '&#9654;';
         playBtn.onclick = (e) => {
           e.stopPropagation();
+          const queueRaw = data.tracks.map(tt => ({
+            src: '/muzic2/' + (tt.src || ''),
+            title: tt.title,
+            artist: tt.artist,
+            cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg')
+          }));
+          const queue = queueRaw.map(ti => ({ ...ti, src: encodeURI(ti.src) }));
           window.playTrack && window.playTrack({
-            src: '/muzic2/' + (t.src || ''),
-            title: t.title,
-            artist: t.artist,
-            cover: '/muzic2/' + (t.cover || data.cover || 'tracks/covers/placeholder.jpg'),
-            queue: data.tracks.map(tt => ({
-              src: '/muzic2/' + (tt.src || ''),
-              title: tt.title,
-              artist: tt.artist,
-              cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg')
-            })),
+            ...queue[i],
+            queue,
             queueStartIndex: i
           });
         };
@@ -242,17 +241,16 @@
         // Клик по строке — тоже play с этого трека
         tr.onclick = (e) => {
           if (e.target !== playBtn) {
+            const queueRaw = data.tracks.map(tt => ({
+              src: '/muzic2/' + (tt.src || ''),
+              title: tt.title,
+              artist: tt.artist,
+              cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg')
+            }));
+            const queue = queueRaw.map(ti => ({ ...ti, src: encodeURI(ti.src) }));
             window.playTrack && window.playTrack({
-              src: '/muzic2/' + (t.src || ''),
-              title: t.title,
-              artist: t.artist,
-              cover: '/muzic2/' + (t.cover || data.cover || 'tracks/covers/placeholder.jpg'),
-              queue: data.tracks.map(tt => ({
-                src: '/muzic2/' + (tt.src || ''),
-                title: tt.title,
-                artist: tt.artist,
-                cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg')
-              })),
+              ...queue[i],
+              queue,
               queueStartIndex: i
             });
           }
@@ -268,9 +266,10 @@
       }));
       // Кнопка Play
       document.getElementById('album-play-btn').onclick = () => {
+        const queue = (window.albumQueue || []).map(t => ({ ...t, src: encodeURI(t.src) }));
         window.playTrack && window.playTrack({
-          ...window.albumQueue[0],
-          queue: window.albumQueue,
+          ...queue[0],
+          queue,
           queueStartIndex: 0
         });
       };
