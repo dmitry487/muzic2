@@ -103,6 +103,26 @@ function renderArtistPage(artist) {
             avatar.style.opacity = '1';
         };
     }
+    // Set hero background to artist cover (full-width block behind name)
+    const hero = document.querySelector('.artist-hero');
+    if (hero) {
+        // Build absolute URL under /muzic2 to be CSS-safe
+        const raw = artist.cover || '';
+        let abs = '';
+        if (raw.startsWith('http') || raw.startsWith('data:')) {
+            abs = raw;
+        } else if (raw.includes('tracks/')) {
+            const idx = raw.indexOf('tracks/');
+            abs = '/muzic2/' + raw.slice(idx);
+        } else if (raw.startsWith('/')) {
+            abs = raw;
+        } else if (raw) {
+            abs = '/muzic2/' + raw;
+        } else {
+            abs = '/muzic2/tracks/covers/m1000x1000.jpeg';
+        }
+        hero.style.setProperty('--artist-bg', `url('${abs}')`);
+    }
     
     // Set artist name with better text handling
     const nameElement = document.getElementById('artist-name');
