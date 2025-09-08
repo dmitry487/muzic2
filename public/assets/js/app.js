@@ -52,21 +52,10 @@ async function renderHome() {
             </section>
         `;
         renderCards('favorites-row', data.favorites, 'track');
-        renderCards('mixes-row', data.mixes, 'mix');
+        renderCards('mixes-row', data.mixes, 'track');
         renderCards('albums-row', data.albums, 'album');
         renderCards('tracks-row', data.tracks, 'track');
         renderCards('artists-row', data.artists, 'artist');
-        // Prepare initial queue for the main Play button
-        (function prepareInitialQueue() {
-            const srcItems = (data.favorites && data.favorites.length ? data.favorites : data.tracks) || [];
-            const qRaw = srcItems.map(i => ({
-                src: '/muzic2/' + (i.file_path || ''),
-                title: i.title,
-                artist: i.artist || '',
-                cover: '/muzic2/' + (i.cover || 'tracks/covers/placeholder.jpg')
-            }));
-            window.initialQueue = qRaw.map(t => ({ ...t, src: encodeURI(t.src) }));
-        })();
     } catch (e) {
         mainContent.innerHTML = '<div class="error">Ошибка загрузки главной страницы</div>';
     }
@@ -87,41 +76,19 @@ function renderCards(rowId, items, type) {
             </div>
         `).join('');
     } else if (type === 'mix') {
-        row.className = 'mix-row';
+        row.className = 'tile-row';
         html = items.map((item, idx) => `
-            <div class="mix-card" data-idx="${idx}" data-mix-id="${item.id}">
-                <div class="mix-cover-container">
-                    <img class="mix-cover" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="mix cover">
-                    <div class="mix-overlay">
-                        <button class="mix-play-btn">
-                            <i class="fas fa-play"></i>
-                        </button>
-                        <div class="mix-info-overlay">
-                            <span class="mix-track-count">${item.track_count || 0} треков</span>
-                            <span class="mix-duration">${formatDuration(item.total_duration || 0)}</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="mix-content">
-                    <h3 class="mix-title">${escapeHtml(item.title)}</h3>
-                    <p class="mix-description">${escapeHtml(item.description || '')}</p>
-                    <div class="mix-stats">
-                        <span class="mix-likes">
-                            <i class="far fa-heart"></i>
-                            ${Math.floor(Math.random() * 1000) + 100}
-                        </span>
-                        <span class="mix-plays">
-                            <i class="fas fa-play"></i>
-                            ${formatNumber(Math.floor(Math.random() * 100000) + 10000)}
-                        </span>
-                    </div>
-                </div>
+            <div class="tile" data-idx="${idx}">
+                <img class="tile-cover" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
+                <div class="tile-title">${escapeHtml(item.album || item.title)}</div>
+                <div class="tile-desc">${escapeHtml(item.artist || '')}</div>
+                <div class="tile-play">&#9654;</div>
             </div>
         `).join('');
     } else if (type === 'artist') {
         row.className = 'artist-row';
-        html = items.map((item, idx) => `
-            <div class="artist-tile" data-artist="${encodeURIComponent(item.artist)}" data-idx="${idx}">
+        html = items.map(item => `
+            <div class="artist-tile">
                 <img class="artist-avatar" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="artist">
                 <div class="artist-name">${escapeHtml(item.artist)}</div>
             </div>
@@ -150,53 +117,18 @@ function renderCards(rowId, items, type) {
                 window.location = 'album.html?album=' + albumName;
             }
         };
-    } else if (type === 'mix') {
-        row.onclick = function(e) {
-            let el = e.target;
-            while (el && el !== row && !el.hasAttribute('data-mix-id')) el = el.parentElement;
-            if (el && el.hasAttribute('data-mix-id')) {
-                const idx = parseInt(el.getAttribute('data-idx'), 10);
-                const mix = items[idx];
-                if (mix && mix.tracks && mix.tracks.length > 0) {
-                    // Build queue from file_path coming from API
-                    const queue = mix.tracks.map(track => ({
-                        src: '/muzic2/' + (track.file_path || ''),
-                        title: track.title,
-                        artist: track.artist,
-                        cover: '/muzic2/' + (track.cover || mix.cover)
-                    }));
-                    // encode URIs for safety
-                    const safeQueue = queue.map(t => ({ ...t, src: encodeURI(t.src) }));
-                    window.playTrack({
-                        ...safeQueue[0],
-                        queue: safeQueue,
-                        queueStartIndex: 0
-                    });
-                }
-            }
-        };
-    } else if (type === 'artist') {
-        row.onclick = function(e) {
-            let el = e.target;
-            while (el && el !== row && !el.hasAttribute('data-artist')) el = el.parentElement;
-            if (el && el.hasAttribute('data-artist')) {
-                const artistName = el.getAttribute('data-artist');
-                window.location = 'artist.html?artist=' + artistName;
-            }
-        };
-    } else if (type === 'track') {
+    } else if (type === 'mix' || type === 'track') {
         row.onclick = function(e) {
             let el = e.target;
             while (el && el !== row && !el.hasAttribute('data-idx')) el = el.parentElement;
             if (el && el.hasAttribute('data-idx')) {
                 const idx = parseInt(el.getAttribute('data-idx'), 10);
-                const queueRaw = items.map(i => ({
+                const queue = items.map(i => ({
                     src: '/muzic2/' + (i.file_path || ''),
                     title: i.title,
                     artist: i.artist || '',
                     cover: '/muzic2/' + (i.cover || 'tracks/covers/placeholder.jpg')
                 }));
-                const queue = queueRaw.map(t => ({ ...t, src: encodeURI(t.src) }));
                 window.playTrack({
                     ...queue[idx],
                     queue,
@@ -211,21 +143,5 @@ function escapeHtml(str) {
     return String(str).replace(/[&<>"]/g, function (m) {
         return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];
     });
-}
-
-function formatDuration(seconds) {
-    if (!seconds) return '0:00';
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-}
-
-function formatNumber(num) {
-    if (num >= 1000000) {
-        return Math.floor(num / 1000000) + 'M';
-    } else if (num >= 1000) {
-        return Math.floor(num / 1000) + 'K';
-    }
-    return num.toString();
 }
 
