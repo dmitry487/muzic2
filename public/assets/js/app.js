@@ -88,7 +88,7 @@ function renderCards(rowId, items, type) {
     } else if (type === 'artist') {
         row.className = 'artist-row';
         html = items.map(item => `
-            <div class="artist-tile">
+            <div class="artist-tile" data-artist="${encodeURIComponent(item.artist)}">
                 <img class="artist-avatar" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="artist">
                 <div class="artist-name">${escapeHtml(item.artist)}</div>
             </div>
@@ -115,6 +115,15 @@ function renderCards(rowId, items, type) {
             if (el && el.hasAttribute('data-album')) {
                 const albumName = el.getAttribute('data-album');
                 window.location = 'album.html?album=' + albumName;
+            }
+        };
+    } else if (type === 'artist') {
+        row.onclick = function(e) {
+            let el = e.target;
+            while (el && el !== row && !el.hasAttribute('data-artist')) el = el.parentElement;
+            if (el && el.hasAttribute('data-artist')) {
+                const artistName = el.getAttribute('data-artist');
+                window.location = 'artist.html?artist=' + artistName;
             }
         };
     } else if (type === 'mix' || type === 'track') {
@@ -144,4 +153,6 @@ function escapeHtml(str) {
         return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];
     });
 }
+
+// removed inline album/artist router; restored original behavior
 

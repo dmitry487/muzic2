@@ -86,12 +86,7 @@ function renderArtistPage(artist) {
     // Set artist avatar with better image handling
     const avatar = document.getElementById('artist-avatar');
     if (avatar) {
-        // Use specific images for Kai Angel
-        let avatarSrc = artist.cover;
-        if (artist.name && artist.name.toLowerCase().includes('kai angel')) {
-            // Use the portrait image for avatar
-            avatarSrc = 'tracks/covers/Снимок экрана 2025-07-19 в 11.56.58.png';
-        }
+        const avatarSrc = artist.cover;
         avatar.src = resolveCoverPath(avatarSrc);
         avatar.alt = artist.name || 'Artist';
         attachImgFallback(avatar);
@@ -158,16 +153,17 @@ function renderPopularTracks(tracks) {
     container.innerHTML = '';
     
     tracks.forEach((track, index) => {
-        const trackElement = createTrackElement(track, index + 1);
+        const trackElement = createTrackElement(track, index + 1, index);
         container.appendChild(trackElement);
     });
 }
 
 // Create track element
-function createTrackElement(track, number) {
+function createTrackElement(track, number, indexInArtist) {
     const trackDiv = document.createElement('div');
     trackDiv.className = 'track-item-numbered';
     trackDiv.dataset.trackId = track.id;
+    trackDiv.dataset.idx = String(indexInArtist != null ? indexInArtist : 0);
     
     // Format duration
     const duration = formatDuration(track.duration);
@@ -178,13 +174,6 @@ function createTrackElement(track, number) {
     
     // Use better cover images for Kai Angel tracks
     let coverSrc = track.cover;
-    if (track.artist && track.artist.toLowerCase().includes('kai angel')) {
-        if (track.album && track.album.toLowerCase().includes('angel may cry')) {
-            coverSrc = 'tracks/covers/Kai-Angel-ANGEL-MAY-CRY-07.jpg';
-        } else if (track.album && track.album.toLowerCase().includes('angel may cry 2')) {
-            coverSrc = 'tracks/covers/Снимок экрана 2025-07-14 в 07.03.03.png';
-        }
-    }
     const finalCover = resolveCoverPath(coverSrc);
     
     trackDiv.innerHTML = `
@@ -213,10 +202,22 @@ function createTrackElement(track, number) {
     const img = trackDiv.querySelector('img.track-cover-small');
     attachImgFallback(img);
     
-    // Add click event to play track
+    // Add click event to play track with full artist queue
     trackDiv.addEventListener('click', (e) => {
         if (!e.target.closest('.track-like-btn') && !e.target.closest('.track-more-btn')) {
-            playTrack(track);
+            const idx = parseInt(trackDiv.dataset.idx || '0', 10);
+            const queue = (artistTracks || []).map(t => ({
+                src: t.src || t.file_path || '',
+                title: t.title || '',
+                artist: t.artist || '',
+                cover: t.cover || '',
+                duration: t.duration || 0
+            }));
+            if (window.playTrack) {
+                window.playTrack({ ...queue[idx], queue, queueStartIndex: idx });
+            } else if (window.loadTrack) {
+                window.loadTrack(queue[idx]);
+            }
         }
     });
     
@@ -322,26 +323,21 @@ function setupEventListeners() {
 
 // Play track function
 function playTrack(track) {
+    // Kept for compatibility; delegate to queue-based playback
     if (!track) return;
-    
-    // Update player with track info
-    const trackTitle = document.getElementById('track-title');
-    const trackArtist = document.getElementById('track-artist');
-    const currentCover = document.getElementById('current-cover');
-    
-    if (trackTitle) trackTitle.textContent = track.title || '';
-    if (trackArtist) trackArtist.textContent = track.artist || '';
-    if (currentCover) {
-        currentCover.src = resolveCoverPath(track.cover);
-        attachImgFallback(currentCover);
+    const idx = Math.max(0, artistTracks.findIndex(t => (t.id && track.id) ? t.id === track.id : t.title === track.title));
+    const queue = (artistTracks || []).map(t => ({
+        src: t.src || t.file_path || '',
+        title: t.title || '',
+        artist: t.artist || '',
+        cover: t.cover || '',
+        duration: t.duration || 0
+    }));
+    if (window.playTrack) {
+        window.playTrack({ ...queue[idx] || queue[0], queue, queueStartIndex: idx >= 0 ? idx : 0 });
+    } else if (window.loadTrack) {
+        window.loadTrack(queue[idx] || queue[0]);
     }
-    
-    // Use existing player functionality if available
-    if (window.loadTrack) {
-        window.loadTrack(track);
-    }
-    
-    console.log('Playing track:', track.title);
 }
 
 // Play album function
