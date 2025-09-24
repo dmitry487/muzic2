@@ -8,9 +8,9 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	function showPage(page) {
 		if (page === 'Главная') {
 			renderHome();
-		} else if (page === 'Поиск') {
-			mainContent.innerHTML = '<h2>Поиск</h2><p>Контент скоро будет...</p>';
-		} else if (page === 'Моя музыка') {
+	} else if (page === 'Поиск') {
+		renderSearch();
+	} else if (page === 'Моя музыка') {
 			mainContent.innerHTML = '<h2>Моя музыка</h2><p>Контент скоро будет...</p>';
 		}
 	}
@@ -239,6 +239,253 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			document.getElementById('play-all-btn').onclick=()=>{ const q=(data.top_tracks||[]).map(tt=>({ src: encodeURI('/muzic2/'+(tt.src||'')), title:tt.title, artist:tt.artist, cover:'/muzic2/'+(tt.cover||data.cover||'tracks/covers/placeholder.jpg') })); if(q.length){ window.playTrack && window.playTrack({ ...q[0], queue:q, queueStartIndex:0 }); } };
 		} catch (e) {
 			mainContent.innerHTML = '<div class="error">Ошибка загрузки артиста</div>';
+		}
+	}
+
+	// Search functionality
+	async function renderSearch() {
+		mainContent.innerHTML = `
+			<div class="search-container">
+				<div class="search-header">
+					<div class="search-input-container">
+						<input type="text" id="search-input" placeholder="Поиск музыки, артистов, альбомов..." autocomplete="off">
+						<button id="search-btn" class="search-btn">🔍</button>
+					</div>
+					<div class="search-filters">
+						<button class="search-filter-btn active" data-type="all">Все</button>
+						<button class="search-filter-btn" data-type="tracks">Треки</button>
+						<button class="search-filter-btn" data-type="artists">Артисты</button>
+						<button class="search-filter-btn" data-type="albums">Альбомы</button>
+					</div>
+				</div>
+				<div id="search-results" class="search-results">
+					<div class="search-placeholder">
+						<h3>Начните поиск</h3>
+						<p>Введите название трека, артиста или альбома</p>
+					</div>
+				</div>
+			</div>
+		`;
+
+		// Add search styles
+		const searchStyles = document.createElement('style');
+		searchStyles.textContent = `
+			.search-container { padding: 2rem; max-width: 1200px; margin: 0 auto; }
+			.search-header { margin-bottom: 2rem; }
+			.search-input-container { position: relative; margin-bottom: 1.5rem; }
+			#search-input { 
+				width: 100%; 
+				padding: 1rem 3rem 1rem 1rem; 
+				font-size: 1.1rem; 
+				border: 2px solid #333; 
+				border-radius: 25px; 
+				background: #1a1a1a; 
+				color: #fff; 
+				outline: none;
+				transition: border-color 0.3s;
+			}
+			#search-input:focus { border-color: #1db954; }
+			.search-btn { 
+				position: absolute; 
+				right: 0.5rem; 
+				top: 50%; 
+				transform: translateY(-50%); 
+				background: #1db954; 
+				border: none; 
+				border-radius: 50%; 
+				width: 40px; 
+				height: 40px; 
+				cursor: pointer; 
+				font-size: 1.2rem;
+			}
+			.search-filters { display: flex; gap: 1rem; flex-wrap: wrap; }
+			.search-filter-btn { 
+				padding: 0.5rem 1rem; 
+				background: #333; 
+				border: none; 
+				border-radius: 20px; 
+				color: #fff; 
+				cursor: pointer; 
+				transition: all 0.3s;
+			}
+			.search-filter-btn.active, .search-filter-btn:hover { background: #1db954; }
+			.search-results { min-height: 400px; }
+			.search-placeholder { 
+				text-align: center; 
+				padding: 4rem 2rem; 
+				color: #666; 
+			}
+			.search-placeholder h3 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+			.search-section { margin-bottom: 2rem; }
+			.search-section h4 { 
+				font-size: 1.3rem; 
+				margin-bottom: 1rem; 
+				color: #fff; 
+				border-bottom: 2px solid #333; 
+				padding-bottom: 0.5rem; 
+			}
+			.search-loading { text-align: center; padding: 2rem; color: #666; }
+			.search-error { text-align: center; padding: 2rem; color: #ff6b6b; }
+			.no-results { text-align: center; padding: 2rem; color: #666; }
+		`;
+		document.head.appendChild(searchStyles);
+
+		// Setup event listeners
+		const searchInput = document.getElementById('search-input');
+		const searchBtn = document.getElementById('search-btn');
+		const searchResults = document.getElementById('search-results');
+		const filterBtns = document.querySelectorAll('.search-filter-btn');
+
+		let currentType = 'all';
+		let searchTimeout;
+
+		// Search input handler
+		searchInput.addEventListener('input', (e) => {
+			clearTimeout(searchTimeout);
+			const query = e.target.value.trim();
+			
+			if (query.length < 2) {
+				showSearchPlaceholder();
+				return;
+			}
+
+			searchTimeout = setTimeout(() => {
+				performSearch(query, currentType);
+			}, 300);
+		});
+
+		// Search button handler
+		searchBtn.addEventListener('click', () => {
+			const query = searchInput.value.trim();
+			if (query.length >= 2) {
+				performSearch(query, currentType);
+			}
+		});
+
+		// Filter buttons handler
+		filterBtns.forEach(btn => {
+			btn.addEventListener('click', () => {
+				filterBtns.forEach(b => b.classList.remove('active'));
+				btn.classList.add('active');
+				currentType = btn.dataset.type;
+				
+				const query = searchInput.value.trim();
+				if (query.length >= 2) {
+					performSearch(query, currentType);
+				}
+			});
+		});
+
+		// Enter key handler
+		searchInput.addEventListener('keypress', (e) => {
+			if (e.key === 'Enter') {
+				const query = searchInput.value.trim();
+				if (query.length >= 2) {
+					performSearch(query, currentType);
+				}
+			}
+		});
+
+		async function performSearch(query, type) {
+			searchResults.innerHTML = '<div class="search-loading">Поиск...</div>';
+			
+			try {
+				const response = await fetch(`/muzic2/src/api/search.php?q=${encodeURIComponent(query)}&type=${type}`);
+				const data = await response.json();
+				
+				if (data.error) {
+					searchResults.innerHTML = `<div class="search-error">Ошибка: ${data.error}</div>`;
+					return;
+				}
+				
+				displaySearchResults(data, query);
+			} catch (error) {
+				searchResults.innerHTML = '<div class="search-error">Ошибка при поиске</div>';
+			}
+		}
+
+		function displaySearchResults(data, query) {
+			let html = '';
+			
+			if (currentType === 'all') {
+				// Show all results grouped by type
+				if (data.tracks.length > 0) {
+					html += '<div class="search-section"><h4>Треки</h4>';
+					html += data.tracks.map(track => createTrackCard(track)).join('');
+					html += '</div>';
+				}
+				
+				if (data.artists.length > 0) {
+					html += '<div class="search-section"><h4>Артисты</h4>';
+					html += data.artists.map(artist => createArtistCard(artist)).join('');
+					html += '</div>';
+				}
+				
+				if (data.albums.length > 0) {
+					html += '<div class="search-section"><h4>Альбомы</h4>';
+					html += data.albums.map(album => createAlbumCard(album)).join('');
+					html += '</div>';
+				}
+			} else {
+				// Show specific type results
+				const results = data[currentType] || [];
+				if (results.length > 0) {
+					html = results.map(item => {
+						if (currentType === 'tracks') return createTrackCard(item);
+						if (currentType === 'artists') return createArtistCard(item);
+						if (currentType === 'albums') return createAlbumCard(item);
+					}).join('');
+				}
+			}
+			
+			if (!html) {
+				html = '<div class="no-results">Ничего не найдено</div>';
+			}
+			
+			searchResults.innerHTML = html;
+		}
+
+		function createTrackCard(track) {
+			return `
+				<div class="card" onclick="playTrack('${encodeURIComponent(track.src)}', '${encodeURIComponent(track.title)}', '${encodeURIComponent(track.artist)}', '${encodeURIComponent(track.cover)}')">
+					<img class="card-cover" src="/muzic2/${track.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
+					<div class="card-info">
+						<div class="card-title">${escapeHtml(track.title)}</div>
+						<div class="card-artist">${escapeHtml(track.artist)}</div>
+						<div class="card-type">${escapeHtml(track.album || '')}</div>
+					</div>
+				</div>
+			`;
+		}
+
+		function createArtistCard(artist) {
+			return `
+				<div class="artist-tile" onclick="window.location.href='artist.html?artist=${encodeURIComponent(artist.name)}'">
+					<img class="artist-avatar" src="/muzic2/${artist.cover || 'tracks/covers/placeholder.jpg'}" alt="avatar">
+					<div class="artist-name">${escapeHtml(artist.name)}</div>
+					<div class="artist-tracks">${artist.track_count} треков</div>
+				</div>
+			`;
+		}
+
+		function createAlbumCard(album) {
+			return `
+				<div class="tile" onclick="window.location.href='album.html?album=${encodeURIComponent(album.title)}'">
+					<img class="tile-cover" src="/muzic2/${album.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
+					<div class="tile-title">${escapeHtml(album.title)}</div>
+					<div class="tile-desc">${escapeHtml(album.artist || '')}</div>
+					<div class="tile-play">&#9654;</div>
+				</div>
+			`;
+		}
+
+		function showSearchPlaceholder() {
+			searchResults.innerHTML = `
+				<div class="search-placeholder">
+					<h3>Начните поиск</h3>
+					<p>Введите название трека, артиста или альбома</p>
+				</div>
+			`;
 		}
 	}
 }
