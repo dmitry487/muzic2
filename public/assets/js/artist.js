@@ -23,15 +23,15 @@ function resolveCoverPath(p) {
     if (!p || typeof p !== 'string' || p.trim() === '') return PLACEHOLDER_COVER;
     const s = p.trim();
     if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:')) return s;
-    // Ensure paths stored as 'tracks/...' are reachable from /public/* by prefixing '../'
+    // Absolute paths handling
+    if (s.startsWith('/muzic2/')) return s;
+    if (s.startsWith('/tracks/')) return '/muzic2' + s;
+    if (s.startsWith('/')) return s;
+    // Relative to project
     const idx = s.indexOf('tracks/');
-    if (idx !== -1) {
-        return '../' + s.slice(idx);
-    }
-    // Assets already under /public/assets can be used as-is
+    if (idx !== -1) return '/muzic2/' + s.slice(idx);
     if (s.startsWith('assets/')) return s;
-    // Default fallback
-    return PLACEHOLDER_COVER;
+    return '/muzic2/' + s;
 }
 
 function attachImgFallback(imgEl) {
@@ -86,13 +86,8 @@ function renderArtistPage(artist) {
     // Set artist avatar with better image handling
     const avatar = document.getElementById('artist-avatar');
     if (avatar) {
-        // Use specific images for Kai Angel
-        let avatarSrc = artist.cover;
-        if (artist.name && artist.name.toLowerCase().includes('kai angel')) {
-            // Use the portrait image for avatar
-            avatarSrc = 'tracks/covers/Снимок экрана 2025-07-19 в 11.56.58.png';
-        }
-        avatar.src = resolveCoverPath(avatarSrc);
+        const rc = resolveCoverPath(artist.cover);
+        avatar.src = rc.startsWith('data:') ? rc : encodeURI(rc);
         avatar.alt = artist.name || 'Artist';
         attachImgFallback(avatar);
         
@@ -121,7 +116,7 @@ function renderArtistPage(artist) {
         } else {
             abs = '/muzic2/tracks/covers/m1000x1000.jpeg';
         }
-        hero.style.setProperty('--artist-bg', `url('${abs}')`);
+        hero.style.setProperty('--artist-bg', `url('${encodeURI(abs)}')`);
     }
     
     // Set artist name with better text handling
@@ -137,7 +132,9 @@ function renderArtistPage(artist) {
     // Set monthly listeners
     const listenersElement = document.getElementById('artist-listeners');
     if (listenersElement) {
-        listenersElement.textContent = `${formatNumber(artist.monthly_listeners)} слушателей за месяц`;
+        // Hide monthly listeners per requirements
+        listenersElement.textContent = '';
+        listenersElement.style.display = 'none';
     }
     
     // Render popular tracks
@@ -145,6 +142,9 @@ function renderArtistPage(artist) {
     
     // Render albums
     renderAlbums(artist.albums || []);
+
+    // Render videos
+    renderVideos(artist.name || '');
     
     // Set up event listeners
     setupEventListeners();
@@ -177,15 +177,8 @@ function createTrackElement(track, number) {
     const playCount = formatNumber(Math.max(basePlays, 100000));
     
     // Use better cover images for Kai Angel tracks
-    let coverSrc = track.cover;
-    if (track.artist && track.artist.toLowerCase().includes('kai angel')) {
-        if (track.album && track.album.toLowerCase().includes('angel may cry')) {
-            coverSrc = 'tracks/covers/Kai-Angel-ANGEL-MAY-CRY-07.jpg';
-        } else if (track.album && track.album.toLowerCase().includes('angel may cry 2')) {
-            coverSrc = 'tracks/covers/Снимок экрана 2025-07-14 в 07.03.03.png';
-        }
-    }
-    const finalCover = resolveCoverPath(coverSrc);
+    const resolvedCover = resolveCoverPath(track.cover);
+    const finalCover = resolvedCover.startsWith('data:') ? resolvedCover : encodeURI(resolvedCover);
     
     trackDiv.innerHTML = `
         <div class="track-number">${number}</div>
@@ -195,10 +188,7 @@ function createTrackElement(track, number) {
         <img class="track-cover-small" src="${finalCover}" alt="${track.title || ''}" loading="lazy">
         <div class="track-details">
             <div class="track-title-primary" title="${track.title || ''}">${track.title || ''}</div>
-            <div class="track-stats">
-                ${Math.random() > 0.7 ? '<span class="track-explicit">E</span>' : ''}
-                <span class="track-plays">${playCount}</span>
-            </div>
+            
         </div>
         <div class="track-duration">${duration}</div>
         <button class="track-like-btn">
@@ -216,7 +206,7 @@ function createTrackElement(track, number) {
     // Add click event to play track
     trackDiv.addEventListener('click', (e) => {
         if (!e.target.closest('.track-like-btn') && !e.target.closest('.track-more-btn')) {
-            playTrack(track);
+            artistPlayTrack(track);
         }
     });
     
@@ -253,7 +243,11 @@ function createAlbumElement(album) {
     const albumType = album.type === 'album' ? 'Альбом' : 
                      album.type === 'ep' ? 'EP' : 'Сингл';
 
-    const finalCover = resolveCoverPath(album.cover);
+    (function(){
+        // ensure album cover is encoded
+    })();
+    const _rcAlbum = resolveCoverPath(album.cover);
+    const finalCover = _rcAlbum.startsWith('data:') ? _rcAlbum : encodeURI(_rcAlbum);
     
     albumDiv.innerHTML = `
         <img class="album-cover" src="${finalCover}" alt="${album.title || ''}" loading="lazy">
@@ -284,6 +278,51 @@ function createAlbumElement(album) {
     return albumDiv;
 }
 
+// Render videos
+async function renderVideos(artistName) {
+    const container = document.getElementById('videos-list');
+    if (!container) return;
+    container.innerHTML = '<div class="loading">Загрузка...</div>';
+    try {
+        const res = await fetch(`src/api/videos.php?artist=${encodeURIComponent(artistName)}`);
+        const json = await res.json();
+        const items = (json && json.success && Array.isArray(json.data)) ? json.data : [];
+        if (!items.length) {
+            container.innerHTML = '<div style="color:#9aa0a6;padding:8px 0;">Видео не найдены</div>';
+            return;
+        }
+        container.innerHTML = '';
+        items.forEach(v => {
+            const card = document.createElement('div');
+            card.className = 'album-card';
+            const _rcThumb = resolveCoverPath(v.cover || 'tracks/covers/m1000x1000.jpeg');
+            const thumb = _rcThumb.startsWith('data:') ? _rcThumb : encodeURI(_rcThumb);
+            card.innerHTML = `
+                <img class="album-cover" src="${thumb}" alt="${(v.title||'').replace(/"/g,'&quot;')}" loading="lazy">
+                <div class="album-title">${(v.title||'')}</div>
+                <div class="album-info">Видео</div>
+                <button class="album-play-btn"><i class="fas fa-play"></i></button>
+            `;
+            const img = card.querySelector('img.album-cover');
+            attachImgFallback(img);
+            const btn = card.querySelector('.album-play-btn');
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                window.playTrack && window.playTrack({
+                    src: v.src,
+                    title: v.title || '',
+                    artist: artistName || '',
+                    cover: thumb,
+                    duration: 0
+                });
+            });
+            container.appendChild(card);
+        });
+    } catch (e) {
+        container.innerHTML = '<div class="error">Ошибка загрузки видео</div>';
+    }
+}
+
 // Setup event listeners
 function setupEventListeners() {
     // Play all button
@@ -291,7 +330,7 @@ function setupEventListeners() {
     if (playAllBtn) {
         playAllBtn.addEventListener('click', () => {
             if (artistTracks.length > 0) {
-                playTrack(artistTracks[0]);
+                artistPlayTrack(artistTracks[0]);
             }
         });
     }
@@ -302,7 +341,7 @@ function setupEventListeners() {
         shuffleBtn.addEventListener('click', () => {
             if (artistTracks.length > 0) {
                 const randomTrack = artistTracks[Math.floor(Math.random() * artistTracks.length)];
-                playTrack(randomTrack);
+                artistPlayTrack(randomTrack);
             }
         });
     }
@@ -321,24 +360,48 @@ function setupEventListeners() {
 }
 
 // Play track function
-function playTrack(track) {
+function artistPlayTrack(track) {
     if (!track) return;
     
     // Update player with track info
     const trackTitle = document.getElementById('track-title');
     const trackArtist = document.getElementById('track-artist');
-    const currentCover = document.getElementById('current-cover');
+    const currentCover = document.getElementById('cover') || document.getElementById('current-cover');
     
     if (trackTitle) trackTitle.textContent = track.title || '';
     if (trackArtist) trackArtist.textContent = track.artist || '';
     if (currentCover) {
-        currentCover.src = resolveCoverPath(track.cover);
+        const rc = resolveCoverPath(track.cover);
+        currentCover.src = rc.startsWith('data:') ? rc : encodeURI(rc);
         attachImgFallback(currentCover);
     }
     
-    // Use existing player functionality if available
-    if (window.loadTrack) {
-        window.loadTrack(track);
+    // Build absolute src for audio
+    let src = track.src || track.file_path || '';
+    if (src) {
+        if (!/^https?:|^data:/i.test(src)) {
+            if (src.startsWith('/muzic2/')) {
+                // keep as is
+            } else if (src.startsWith('/tracks/')) {
+                src = '/muzic2' + src;
+            } else {
+                const idx = src.indexOf('tracks/');
+                src = idx !== -1 ? ('/muzic2/' + src.slice(idx)) : ('/muzic2/' + src.replace(/^\/+/, ''));
+            }
+        }
+        if (!/^data:/i.test(src)) src = encodeURI(src);
+    }
+    // Use global player
+    if (window.playTrack) {
+        window.playTrack({
+            src,
+            title: track.title || '',
+            artist: track.artist || '',
+            cover: (function(){ const c = resolveCoverPath(track.cover); return c.startsWith('data:') ? c : encodeURI(c); })(),
+            duration: track.duration || 0
+        });
+    } else if (window.loadTrack) {
+        window.loadTrack({ src, title: track.title || '', artist: track.artist || '', cover: (function(){ const c = resolveCoverPath(track.cover); return c.startsWith('data:') ? c : encodeURI(c); })(), duration: track.duration || 0 });
     }
     
     console.log('Playing track:', track.title);

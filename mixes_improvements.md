@@ -63,3 +63,13 @@
 2. `public/assets/js/app.js` - рендеринг и обработка кликов
 3. `public/assets/css/style.css` - стили для миксов
 
+
+
+
+
+
+
+
+
+
+

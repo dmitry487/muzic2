@@ -3,14 +3,14 @@ require_once __DIR__ . '/../../../src/config/db.php';
 header('Content-Type: application/json');
 
 $db = get_db_connection();
-$artist = isset($_GET['artist']) ? $_GET['artist'] : null;
+$artist = isset($_GET['artist']) ? (string)$_GET['artist'] : null;
 
 if (!$artist) {
     echo json_encode(['error' => 'No artist name provided']);
     exit;
 }
 
-// Получаем информацию об артисте и его треках
+// Try to find exact-match (case-insensitive) artist rows
 $artistQuery = 'SELECT 
     artist,
     COUNT(*) as total_tracks,
@@ -18,7 +18,7 @@ $artistQuery = 'SELECT
     SUM(duration) as total_duration,
     MIN(cover) as cover
 FROM tracks 
-WHERE TRIM(LOWER(artist)) = TRIM(LOWER(?)) 
+WHERE LOWER(artist) = LOWER(?) 
 GROUP BY artist';
 
 $artistStmt = $db->prepare($artistQuery);
@@ -30,11 +30,20 @@ if (!$artistInfo) {
     exit;
 }
 
-// Получаем топ-треки артиста (наиболее популярные)
+// If we have explicit artists table, prefer its cover/bio
+$explicitCover = null; $bio = null;
+try {
+    $row = $db->prepare('SELECT cover, bio FROM artists WHERE LOWER(name)=LOWER(?) LIMIT 1');
+    $row->execute([$artist]);
+    $ar = $row->fetch();
+    if ($ar) { $explicitCover = $ar['cover']; $bio = $ar['bio']; }
+} catch (Throwable $e) {}
+
+// Top tracks for this exact artist
 $topTracksQuery = 'SELECT 
     id, title, artist, album, duration, file_path, cover
 FROM tracks 
-WHERE TRIM(LOWER(artist)) = TRIM(LOWER(?)) 
+WHERE LOWER(artist) = LOWER(?) 
 ORDER BY id ASC 
 LIMIT 10';
 
@@ -54,7 +63,7 @@ foreach ($topTracksStmt as $track) {
     ];
 }
 
-// Получаем альбомы артиста
+// Albums for this exact artist
 $albumsQuery = 'SELECT 
     album,
     album_type,
@@ -62,7 +71,7 @@ $albumsQuery = 'SELECT
     MIN(cover) as cover,
     SUM(duration) as total_duration
 FROM tracks 
-WHERE TRIM(LOWER(artist)) = TRIM(LOWER(?)) 
+WHERE LOWER(artist) = LOWER(?) 
 GROUP BY album, album_type
 ORDER BY album ASC';
 
@@ -80,14 +89,14 @@ foreach ($albumsStmt as $album) {
     ];
 }
 
-// Получаем все треки для подсчета прослушиваний (пока заглушка)
-$monthlyListeners = rand(100000, 10000000); // Временная заглушка
+$monthlyListeners = rand(100000, 10000000);
 
 $response = [
     'name' => $artistInfo['artist'],
-    'verified' => true, // Пока всех делаем верифицированными
+    'verified' => true,
     'monthly_listeners' => $monthlyListeners,
-    'cover' => $artistInfo['cover'],
+    'cover' => $explicitCover ?: $artistInfo['cover'],
+    'bio' => $bio ?: null,
     'total_tracks' => (int)$artistInfo['total_tracks'],
     'total_albums' => (int)$artistInfo['total_albums'],
     'total_duration' => (int)$artistInfo['total_duration'],

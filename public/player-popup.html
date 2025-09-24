@@ -31,9 +31,11 @@
       <button id="pause">⏸</button>
     </div>
     <audio id="audio"></audio>
+    <video id="video" style="display:none;width:100%;max-height:60vh;"></video>
   </div>
   <script>
     const audio = document.getElementById('audio');
+    const video = document.getElementById('video');
     const backBtn = document.getElementById('back');
     const playBtn = document.getElementById('play');
     const pauseBtn = document.getElementById('pause');
@@ -41,24 +43,25 @@
     const cover = document.getElementById('cover');
     const title = document.getElementById('track-title');
     const artist = document.getElementById('track-artist');
+    function isVideoSrc(src){ return /\.(mp4|webm|ogg)(\?|$)/i.test(String(src||'')); }
+    function getActiveMedia(){ return (video.style.display !== 'none') ? video : audio; }
+    function useMediaForSrc(src){ if(isVideoSrc(src)){ video.style.display=''; audio.pause(); audio.removeAttribute('src'); } else { video.pause(); video.style.display='none'; video.removeAttribute('src'); } }
 
     // Управление
-    playBtn.onclick = () => audio.play();
-    pauseBtn.onclick = () => audio.pause();
+    playBtn.onclick = () => getActiveMedia().play();
+    pauseBtn.onclick = () => getActiveMedia().pause();
     seek.oninput = () => {
-      if (audio.duration) audio.currentTime = (seek.value / 100) * audio.duration;
+      const m = getActiveMedia();
+      if (m.duration) m.currentTime = (seek.value / 100) * m.duration;
     };
-    audio.ontimeupdate = () => {
-      seek.value = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
-      sendState();
-    };
-    audio.onplay = audio.onpause = sendState;
-    audio.addEventListener('loadedmetadata', sendState);
-    audio.addEventListener('volumechange', sendState);
-    audio.addEventListener('ended', () => {
-      sendState();
-      window.opener && window.opener.postMessage({ cmd: 'playerEnded' }, '*');
-    });
+    function bind(el){
+      el.ontimeupdate = () => { seek.value = el.duration ? (el.currentTime / el.duration) * 100 : 0; sendState(); };
+      el.onplay = el.onpause = sendState;
+      el.addEventListener('loadedmetadata', sendState);
+      el.addEventListener('volumechange', sendState);
+      el.addEventListener('ended', () => { sendState(); window.opener && window.opener.postMessage({ cmd: 'playerEnded' }, '*'); });
+    }
+    bind(audio); bind(video);
 
     // Notify opener that popup is ready
     try { window.opener && window.opener.postMessage({ cmd: 'popupReady' }, '*'); } catch (e) {}
@@ -76,36 +79,39 @@
     window.addEventListener('message', (e) => {
       if (!e.data || typeof e.data !== 'object') return;
       if (e.data.cmd === 'playTrack') {
-        audio.src = e.data.src;
+        useMediaForSrc(e.data.src);
+        const m = getActiveMedia();
+        m.src = e.data.src;
         title.textContent = e.data.title || '';
         artist.textContent = e.data.artist || '';
         cover.src = e.data.cover || '';
-        audio.currentTime = e.data.currentTime || 0;
-        audio.volume = e.data.volume !== undefined ? e.data.volume : 1;
-        if (e.data.autoplay) audio.play();
+        m.currentTime = e.data.currentTime || 0;
+        m.volume = e.data.volume !== undefined ? e.data.volume : 1;
+        if (e.data.autoplay) m.play();
       }
       if (e.data.cmd === 'setVolume') {
-        audio.volume = e.data.volume;
+        getActiveMedia().volume = e.data.volume;
       }
       if (e.data.cmd === 'seek') {
-        audio.currentTime = e.data.currentTime;
+        getActiveMedia().currentTime = e.data.currentTime;
       }
-      if (e.data.cmd === 'play') audio.play();
-      if (e.data.cmd === 'pause') audio.pause();
+      if (e.data.cmd === 'play') getActiveMedia().play();
+      if (e.data.cmd === 'pause') getActiveMedia().pause();
     });
 
     // Отправка состояния
     function sendState() {
+      const m = getActiveMedia();
       window.opener && window.opener.postMessage({
         cmd: 'playerState',
-        src: audio.src,
+        src: m.currentSrc || m.src,
         title: title.textContent,
         artist: artist.textContent,
         cover: cover.src,
-        currentTime: audio.currentTime,
-        duration: audio.duration,
-        isPlaying: !audio.paused,
-        volume: audio.volume
+        currentTime: m.currentTime,
+        duration: m.duration,
+        isPlaying: !m.paused,
+        volume: m.volume
       }, '*');
     }
   </script>

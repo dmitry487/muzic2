@@ -114,3 +114,13 @@ foreach ($available_covers as $cover) {
 echo "</ul>";
 ?>
 
+
+
+
+
+
+
+
+
+
+
