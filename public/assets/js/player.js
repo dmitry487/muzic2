@@ -173,6 +173,7 @@
   const durationEl = playerContainer.querySelector('#duration');
   const cover = playerContainer.querySelector('#cover');
   const volumeBar = playerContainer.querySelector('#volume-bar');
+  const volumeBtn = playerContainer.querySelector('#volume-btn');
   const queueBtn = playerContainer.querySelector('#queue-btn');
   const queuePanel = playerRoot.querySelector('#queue-panel');
   const queueClose = playerRoot.querySelector('#queue-close');
@@ -270,6 +271,8 @@
   // One-time replay toggle state
   let replayOnceEnabled = false;
   let replayToken = null;
+  let isMuted = false;
+  let previousVolume = 1;
   let originalQueue = [];
 
   // Helpers
@@ -301,6 +304,25 @@
     repeatBtn.classList.toggle('btn-active', isOn);
     repeatBtn.setAttribute('aria-pressed', String(isOn));
     repeatBtn.style.color = isOn ? '#1ed760' : '';
+  }
+
+  function updateMuteUI() {
+    if (!volumeBtn) return;
+    if (isMuted) {
+      volumeBtn.title = 'Включить звук';
+      volumeBtn.classList.add('btn-active');
+      volumeBtn.setAttribute('aria-pressed', 'true');
+      volumeBtn.style.color = '#1ed760';
+      // Change icon to muted speaker
+      volumeBtn.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
+    } else {
+      volumeBtn.title = 'Отключить звук';
+      volumeBtn.classList.remove('btn-active');
+      volumeBtn.setAttribute('aria-pressed', 'false');
+      volumeBtn.style.color = '';
+      // Change icon to normal speaker
+      volumeBtn.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
+    }
   }
 
   // Throttle helper to limit frequent storage writes
@@ -357,6 +379,7 @@
       replayToken = state.replayToken || localStorage.getItem(REPLAY_TOKEN_KEY) || null;
       updateShuffleUI();
       updateRepeatUI();
+      updateMuteUI();
 
       audio.addEventListener('loadedmetadata', function restoreOnce() {
         audio.currentTime = state.currentTime || 0;
@@ -584,14 +607,20 @@
     }
   };
   volumeBar.oninput = () => {
+    const newVolume = volumeBar.value / 100;
     if (popupActive) {
-      const ok = postToPopup({ cmd: 'setVolume', volume: volumeBar.value / 100 }, { retries: 3, delay: 100 });
+      const ok = postToPopup({ cmd: 'setVolume', volume: newVolume }, { retries: 3, delay: 100 });
       if (!ok) {
         // fallback to local update
-        audio.volume = volumeBar.value / 100;
+        audio.volume = newVolume;
       }
     } else {
-      audio.volume = volumeBar.value / 100;
+      audio.volume = newVolume;
+    }
+    // If user manually changes volume, unmute
+    if (isMuted && newVolume > 0) {
+      isMuted = false;
+      updateMuteUI();
     }
     savePlayerState();
   };
@@ -682,6 +711,29 @@
 
   queueBtn.onclick = () => toggleQueuePanel();
   queueClose.onclick = () => toggleQueuePanel(false);
+
+  volumeBtn.onclick = () => {
+    if (isMuted) {
+      // Unmute: restore previous volume
+      isMuted = false;
+      audio.volume = previousVolume;
+      volumeBar.value = Math.round(previousVolume * 100);
+      if (popupActive) {
+        postToPopup({ cmd: 'setVolume', volume: previousVolume });
+      }
+    } else {
+      // Mute: save current volume and set to 0
+      previousVolume = audio.volume;
+      isMuted = true;
+      audio.volume = 0;
+      volumeBar.value = 0;
+      if (popupActive) {
+        postToPopup({ cmd: 'setVolume', volume: 0 });
+      }
+    }
+    updateMuteUI();
+    savePlayerState();
+  };
 
   // Persistence wiring
   ;['play', 'pause', 'seeked', 'volumechange', 'ended'].forEach(event => {
@@ -835,6 +887,7 @@
   loadPlayerState();
   updateShuffleUI();
   updateRepeatUI();
+  updateMuteUI();
   renderQueueUI();
   // Ensure UI reflects current state after initial render
   setTimeout(updateShuffleUI, 0);
