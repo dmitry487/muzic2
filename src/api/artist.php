@@ -12,20 +12,17 @@ if (!$artist) {
 
 // Получаем информацию об артисте и его треках
 $artistQuery = 'SELECT 
-    t.artist AS artist,
-    COUNT(*) AS total_tracks,
-    COUNT(DISTINCT t.album) AS total_albums,
-    SUM(t.duration) AS total_duration,
-    COALESCE(a.cover, MIN(t.cover)) AS cover,
-    a.bio AS bio
-FROM tracks t
-LEFT JOIN artists a ON TRIM(LOWER(a.name)) = TRIM(LOWER(t.artist))
-WHERE TRIM(LOWER(t.artist)) = TRIM(LOWER(?)) OR TRIM(LOWER(t.artist)) LIKE TRIM(LOWER(?))
-GROUP BY t.artist, a.cover, a.bio';
+    artist,
+    COUNT(*) as total_tracks,
+    COUNT(DISTINCT album) as total_albums,
+    SUM(duration) as total_duration,
+    MIN(cover) as cover
+FROM tracks 
+WHERE TRIM(LOWER(artist)) = TRIM(LOWER(?)) 
+GROUP BY artist';
 
 $artistStmt = $db->prepare($artistQuery);
-$like = '%'.$artist.'%';
-$artistStmt->execute([$artist, $like]);
+$artistStmt->execute([$artist]);
 $artistInfo = $artistStmt->fetch();
 
 if (!$artistInfo) {
@@ -37,13 +34,12 @@ if (!$artistInfo) {
 $topTracksQuery = 'SELECT 
     id, title, artist, album, duration, file_path, cover
 FROM tracks 
-WHERE TRIM(LOWER(artist)) = TRIM(LOWER(?)) OR TRIM(LOWER(artist)) LIKE TRIM(LOWER(?))
+WHERE TRIM(LOWER(artist)) = TRIM(LOWER(?)) 
 ORDER BY id ASC 
-LIMIT 50';
+LIMIT 10';
 
 $topTracksStmt = $db->prepare($topTracksQuery);
-$like = '%'.$artist.'%';
-$topTracksStmt->execute([$artist, $like]);
+$topTracksStmt->execute([$artist]);
 $topTracks = [];
 
 foreach ($topTracksStmt as $track) {
@@ -92,7 +88,6 @@ $response = [
     'verified' => true, // Пока всех делаем верифицированными
     'monthly_listeners' => $monthlyListeners,
     'cover' => $artistInfo['cover'],
-    'bio' => $artistInfo['bio'] ?? '',
     'total_tracks' => (int)$artistInfo['total_tracks'],
     'total_albums' => (int)$artistInfo['total_albums'],
     'total_duration' => (int)$artistInfo['total_duration'],

@@ -90,9 +90,6 @@
       if (e.data.cmd === 'seek') {
         audio.currentTime = e.data.currentTime;
       }
-      if (e.data.cmd === 'requestState') {
-        sendState();
-      }
       if (e.data.cmd === 'play') audio.play();
       if (e.data.cmd === 'pause') audio.pause();
     });

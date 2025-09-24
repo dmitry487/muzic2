@@ -98,7 +98,7 @@
     </div>
   `;
   
-  // Inject global Back button once (navigation won't stop audio because popup player handles playback)
+  // Inject global Back button once
   (function ensureGlobalBackButton() {
   if (document.getElementById('global-back-btn')) return;
   const style = document.createElement('style');
@@ -168,23 +168,16 @@
   let popupActive = false;
   let popupState = { currentTime: 0, duration: 0, isPlaying: false, src: '', volume: 1, title: '', artist: '', cover: '' };
   function reconnectPopup() {
-    // Do not call window.open here to avoid creating about:blank popups on load
+    // Disable popup usage to ensure reliable inline playback
     popupWin = null;
     popupActive = false;
-    return false;
   }
   function ensurePopup(allowOpen) {
-    // Disable popup usage; always use inline <audio>
+    // Always return false to use inline <audio>
     return false;
   }
   window.addEventListener('message', (e) => {
     if (!e.data || typeof e.data !== 'object') return;
-    if (e.data.cmd === 'popupReady') {
-      popupActive = true;
-      // Request current state asap
-      try { popupWin && popupWin.postMessage({ cmd: 'requestState' }, '*'); } catch (err) {}
-      return;
-    }
     if (e.data.cmd === 'playerState') {
       popupActive = true;
       popupState = e.data;
@@ -206,8 +199,11 @@
 
   // Safe posting to popup with readiness checks and retries
   function postToPopup(message, opts = {}) {
-    // Popup disabled
+    // Popup disabled: always return false
     return false;
+    const { retries = 10, delay = 120 } = opts;
+    if (!ensurePopup(false)) return false;
+    let attempts = 0;
     function trySend() {
       if (!popupWin || popupWin.closed) return false;
       let ready = true;
@@ -304,11 +300,8 @@
     localStorage.setItem(PLAYER_STATE_KEY, JSON.stringify(state));
   }
   const savePlayerStateThrottled = throttle(savePlayerState, 1000);
-  function getSavedState() {
-    try { return JSON.parse(localStorage.getItem(PLAYER_STATE_KEY) || 'null'); } catch (e) { return null; }
-  }
   function loadPlayerState() {
-    const state = getSavedState();
+    const state = JSON.parse(localStorage.getItem(PLAYER_STATE_KEY) || 'null');
     if (state && state.src) {
       audio.src = state.src;
       trackTitle.textContent = state.title || '';
@@ -395,7 +388,7 @@
       const ok = postToPopup({ cmd: 'playTrack', src: t.src, title: t.title, artist: t.artist, cover: t.cover, currentTime: 0, volume: volumeBar.value/100, autoplay: true });
       if (!ok) {
         // fallback to inline audio if cannot control popup
-        audio.src = t.src;
+        audio.src = encodeURI(t.src);
         audio.currentTime = 0;
         audio.play().catch(() => {});
       } else {
@@ -405,7 +398,7 @@
         return;
       }
     } else {
-      audio.src = t.src;
+      audio.src = encodeURI(t.src);
       // start from beginning always when starting playback via control
       audio.currentTime = 0;
       audio.play().catch(() => {});
@@ -582,55 +575,15 @@
     if (document.visibilityState === 'hidden') savePlayerState();
   });
   window.addEventListener('beforeunload', savePlayerState);
-  // Ensure state persists on back/forward with bfcache
-  window.addEventListener('pagehide', savePlayerState);
-  window.addEventListener('pageshow', () => {
-    // Re-apply state if needed
-    const s = getSavedState();
-    if (!s || !s.src) return;
-    if (!audio.src) {
-      audio.src = s.src;
-      trackTitle.textContent = s.title || '';
-      trackArtist.textContent = s.artist || '';
-      cover.src = s.cover || cover.src;
-      audio.volume = s.volume !== undefined ? s.volume : audio.volume;
-    }
-    if (s.currentTime != null) {
-      const t = Number(s.currentTime) || 0;
-      // Wait for metadata to apply time accurately
-      const restore = () => { audio.currentTime = t; updatePlayPauseUI(); };
-      if (isNaN(audio.duration) || !isFinite(audio.duration)) {
-        audio.addEventListener('loadedmetadata', function once(){ audio.removeEventListener('loadedmetadata', once); restore(); });
-      } else { restore(); }
-    }
-    if (s.isPlaying && audio.paused) {
-      audio.play().catch(()=>{});
-    }
-  });
 
   // Public API for other pages
   window.playTrack = function ({ src, title, artist, cover: coverUrl, queue = null, queueStartIndex = 0, duration = 0 }) {
-    function normalizeSrc(u){
-      if (!u) return '';
-      if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('data:')) return u;
-      if (u.startsWith('/')) return u;
-      const i = u.indexOf('tracks/');
-      if (i !== -1) return '/muzic2/' + u.slice(i);
-      return '/muzic2/' + u.replace(/^\/+/, '');
-    }
-    function normalizeCover(u){
-      if (!u) return '';
-      if (u.startsWith('http') || u.startsWith('data:') || u.startsWith('/')) return u;
-      const i = u.indexOf('tracks/');
-      if (i !== -1) return '/muzic2/' + u.slice(i);
-      return '/muzic2/' + u.replace(/^\/+/, '');
-    }
     if (queue && Array.isArray(queue) && queue.length > 0) {
       trackQueue = queue.map(q => ({
-        src: normalizeSrc(q.src || q.file_path || q.url || ''),
+        src: q.src || q.file_path || q.url || '',
         title: q.title || '',
         artist: q.artist || '',
-        cover: normalizeCover(q.cover || coverUrl || ''),
+        cover: q.cover || coverUrl || '',
         duration: q.duration || 0
       }));
       queueIndex = Math.max(0, Math.min(queueStartIndex, trackQueue.length - 1));
@@ -639,7 +592,7 @@
       toggleQueuePanel(true);
     } else {
       // Single track
-      trackQueue = [{ src: normalizeSrc(src), title, artist, cover: normalizeCover(coverUrl || ''), duration }];
+      trackQueue = [{ src, title, artist, cover: coverUrl || '', duration }];
       queueIndex = 0;
       saveQueue();
       playFromQueue(0);
@@ -648,26 +601,11 @@
 
   // Backward compatibility for artist.js which may call loadTrack(track)
   window.loadTrack = function (track) {
-    function normalizeSrc(u){
-      if (!u) return '';
-      if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('data:')) return u;
-      if (u.startsWith('/')) return u;
-      const i = u.indexOf('tracks/');
-      if (i !== -1) return '/muzic2/' + u.slice(i);
-      return '/muzic2/' + u.replace(/^\/+/, '');
-    }
-    function normalizeCover(u){
-      if (!u) return '';
-      if (u.startsWith('http') || u.startsWith('data:') || u.startsWith('/')) return u;
-      const i = u.indexOf('tracks/');
-      if (i !== -1) return '/muzic2/' + u.slice(i);
-      return '/muzic2/' + u.replace(/^\/+/, '');
-    }
     const t = {
-      src: normalizeSrc(track.src || track.file_path || ''),
+      src: track.src || track.file_path || '',
       title: track.title || '',
       artist: track.artist || '',
-      cover: normalizeCover(track.cover || ''),
+      cover: track.cover || '',
       duration: track.duration || 0
     };
     window.playTrack({ ...t });

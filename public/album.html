@@ -224,12 +224,12 @@
         playBtn.onclick = (e) => {
           e.stopPropagation();
           const queueRaw = data.tracks.map(tt => ({
-            src: '/muzic2/' + (tt.src || tt.file_path || ''),
+            src: '/muzic2/' + (tt.src || ''),
             title: tt.title,
             artist: tt.artist,
             cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg')
           }));
-          const queue = queueRaw;
+          const queue = queueRaw.map(ti => ({ ...ti, src: encodeURI(ti.src) }));
           window.playTrack && window.playTrack({
             ...queue[i],
             queue,
@@ -242,12 +242,12 @@
         tr.onclick = (e) => {
           if (e.target !== playBtn) {
             const queueRaw = data.tracks.map(tt => ({
-              src: '/muzic2/' + (tt.src || tt.file_path || ''),
+              src: '/muzic2/' + (tt.src || ''),
               title: tt.title,
               artist: tt.artist,
               cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg')
             }));
-            const queue = queueRaw;
+            const queue = queueRaw.map(ti => ({ ...ti, src: encodeURI(ti.src) }));
             window.playTrack && window.playTrack({
               ...queue[i],
               queue,
@@ -259,14 +259,14 @@
       });
       // Очередь для плеера
       window.albumQueue = data.tracks.map(t => ({
-        src: '/muzic2/' + (t.src || t.file_path || ''),
+        src: '/muzic2/' + (t.src || ''),
         title: t.title,
         artist: t.artist,
         cover: '/muzic2/' + (t.cover || data.cover || 'tracks/covers/placeholder.jpg')
       }));
       // Кнопка Play
       document.getElementById('album-play-btn').onclick = () => {
-        const queue = (window.albumQueue || []);
+        const queue = (window.albumQueue || []).map(t => ({ ...t, src: encodeURI(t.src) }));
         window.playTrack && window.playTrack({
           ...queue[0],
           queue,
