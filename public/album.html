@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Альбом</title>
   <link rel="stylesheet" href="assets/css/style.css">
   <style>
@@ -147,6 +148,140 @@
       font-size: 1.01rem;
       text-align: right;
       width: 4.5rem;
+    }
+
+    /* Responsive Album Page */
+    @media (max-width: 768px) {
+      .album-header {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 1.5rem;
+        margin-top: 1.5rem;
+        margin-bottom: 1.5rem;
+      }
+      .album-cover {
+        width: 180px;
+        height: 180px;
+      }
+      .album-title {
+        font-size: 2.5rem;
+      }
+      .album-artist {
+        font-size: 1.1rem;
+      }
+      .album-info {
+        font-size: 1rem;
+      }
+      .album-desc {
+        font-size: 0.95rem;
+        max-width: 100%;
+      }
+      .album-controls {
+        justify-content: center;
+        margin-bottom: 1rem;
+      }
+      .album-play-btn {
+        width: 56px;
+        height: 56px;
+        font-size: 2rem;
+      }
+      .tracks-table th, .tracks-table td {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.95rem;
+      }
+      .tracks-table th {
+        font-size: 0.9rem;
+      }
+      .tracks-table td.track-num {
+        width: 2rem;
+        font-size: 0.9rem;
+      }
+      .tracks-table td.track-duration {
+        width: 3.5rem;
+        font-size: 0.9rem;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .album-header {
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+        gap: 1rem;
+      }
+      .album-cover {
+        width: 150px;
+        height: 150px;
+      }
+      .album-title {
+        font-size: 2rem;
+      }
+      .album-artist {
+        font-size: 1rem;
+      }
+      .album-info {
+        font-size: 0.9rem;
+      }
+      .album-desc {
+        font-size: 0.85rem;
+      }
+      .album-controls {
+        margin-bottom: 0.75rem;
+      }
+      .album-play-btn {
+        width: 48px;
+        height: 48px;
+        font-size: 1.8rem;
+      }
+      .tracks-table th, .tracks-table td {
+        padding: 0.4rem 0.5rem;
+        font-size: 0.85rem;
+      }
+      .tracks-table th {
+        font-size: 0.8rem;
+      }
+      .tracks-table td.track-num {
+        width: 1.5rem;
+        font-size: 0.8rem;
+      }
+      .tracks-table td.track-duration {
+        width: 3rem;
+        font-size: 0.8rem;
+      }
+      .track-play-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 1.1rem;
+        left: 0.8rem;
+      }
+    }
+
+    @media (max-width: 360px) {
+      .album-cover {
+        width: 120px;
+        height: 120px;
+      }
+      .album-title {
+        font-size: 1.5rem;
+      }
+      .album-artist {
+        font-size: 0.9rem;
+      }
+      .tracks-table th, .tracks-table td {
+        padding: 0.3rem 0.4rem;
+        font-size: 0.8rem;
+      }
+      .tracks-table th {
+        font-size: 0.75rem;
+      }
+      .tracks-table td.track-num {
+        width: 1.2rem;
+        font-size: 0.75rem;
+      }
+      .tracks-table td.track-duration {
+        width: 2.5rem;
+        font-size: 0.75rem;
+      }
     }
   </style>
 </head>

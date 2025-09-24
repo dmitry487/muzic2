@@ -34,6 +34,20 @@
       .queue-artist { color: #9aa0a6; font-size: 0.86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .queue-meta { color: #666; font-size: 0.8rem; }
       .queue-current { background: #1a1f1a; }
+
+      /* Responsive player layout */
+      @media (max-width: 900px) {
+        #player { grid-template-columns: 1fr; row-gap: 8px; padding: 8px; }
+        .player-left { justify-content: center; }
+        .player-right { justify-content: center; }
+        .player-progress { grid-template-columns: auto 1fr auto; gap: 8px; }
+      }
+      @media (max-width: 600px) {
+        .cover { width: 44px; height: 44px; }
+        .volume-bar { width: 80px; }
+        .player-controls { gap: 8px; }
+        #current-time, #duration { font-size: 0.85rem; }
+      }
     </style>
     <div id="player">
       <div class="player-left">
