@@ -35,6 +35,17 @@
       .queue-meta { color: #666; font-size: 0.8rem; }
       .queue-current { background: #1a1f1a; }
 
+      /* Fullscreen mode */
+      #fullscreen-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 9999; display: none; }
+      #fullscreen-content { position: absolute; top: 0; left: 0; width: 100%; height: calc(100vh - 100px); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+      #fullscreen-cover { max-width: 50vh; max-height: 50vh; width: auto; height: auto; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.8); }
+      #fullscreen-video { max-width: 100vw; max-height: calc(100vh - 100px); width: auto; height: auto; }
+      #fullscreen-info { position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); text-align: center; color: #fff; }
+      #fullscreen-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.3rem; }
+      #fullscreen-artist { font-size: 1rem; color: #b3b3b3; }
+      #fullscreen-close { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.5); border: none; color: #fff; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+      #fullscreen-back { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.5); border: none; color: #fff; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+
       /* Responsive player layout */
       @media (max-width: 900px) {
         #player { grid-template-columns: 1fr; row-gap: 8px; padding: 8px; }
@@ -102,6 +113,18 @@
         </button>
       </div>
       <audio id="audio" preload="auto"></audio>
+    </div>
+    <div id="fullscreen-overlay">
+      <div id="fullscreen-content">
+        <img id="fullscreen-cover" src="" alt="cover" style="display: none;">
+        <video id="fullscreen-video" style="display: none;" controls></video>
+        <div id="fullscreen-info">
+          <div id="fullscreen-title"></div>
+          <div id="fullscreen-artist"></div>
+        </div>
+        <button id="fullscreen-back">←</button>
+        <button id="fullscreen-close">×</button>
+      </div>
     </div>
     <div id="queue-panel">
       <div id="queue-header">
@@ -174,10 +197,18 @@
   const cover = playerContainer.querySelector('#cover');
   const volumeBar = playerContainer.querySelector('#volume-bar');
   const volumeBtn = playerContainer.querySelector('#volume-btn');
+  const fullscreenBtn = playerContainer.querySelector('#fullscreen-btn');
   const queueBtn = playerContainer.querySelector('#queue-btn');
   const queuePanel = playerRoot.querySelector('#queue-panel');
   const queueClose = playerRoot.querySelector('#queue-close');
   const queueList = playerRoot.querySelector('#queue-list');
+  const fullscreenOverlay = playerRoot.querySelector('#fullscreen-overlay');
+  const fullscreenCover = playerRoot.querySelector('#fullscreen-cover');
+  const fullscreenVideo = playerRoot.querySelector('#fullscreen-video');
+  const fullscreenTitle = playerRoot.querySelector('#fullscreen-title');
+  const fullscreenArtist = playerRoot.querySelector('#fullscreen-artist');
+  const fullscreenClose = playerRoot.querySelector('#fullscreen-close');
+  const fullscreenBack = playerRoot.querySelector('#fullscreen-back');
 
   // Persistent popup player integration
   let popupWin = null;
@@ -273,6 +304,7 @@
   let replayToken = null;
   let isMuted = false;
   let previousVolume = 1;
+  let isFullscreen = false;
   let originalQueue = [];
 
   // Helpers
@@ -323,6 +355,92 @@
       // Change icon to normal speaker
       volumeBtn.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
     }
+  }
+
+  function updateFullscreenUI() {
+    if (!fullscreenBtn) return;
+    if (isFullscreen) {
+      fullscreenBtn.title = 'Выйти из полноэкранного режима';
+      fullscreenBtn.classList.add('btn-active');
+      fullscreenBtn.setAttribute('aria-pressed', 'true');
+      fullscreenBtn.style.color = '#1ed760';
+      // Change icon to exit fullscreen
+      fullscreenBtn.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>';
+    } else {
+      fullscreenBtn.title = 'Полноэкранный режим';
+      fullscreenBtn.classList.remove('btn-active');
+      fullscreenBtn.setAttribute('aria-pressed', 'false');
+      fullscreenBtn.style.color = '';
+      // Change icon to enter fullscreen
+      fullscreenBtn.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+    }
+  }
+
+  function enterFullscreen() {
+    if (!fullscreenOverlay || !trackQueue[queueIndex]) return;
+    
+    const currentTrack = trackQueue[queueIndex];
+    isFullscreen = true;
+    
+    // Update fullscreen content
+    fullscreenTitle.textContent = currentTrack.title || '';
+    fullscreenArtist.textContent = currentTrack.artist || '';
+    
+    // Check if there's a video source (you can extend this logic)
+    const hasVideo = currentTrack.video || false; // Add video property to tracks if needed
+    
+    if (hasVideo && currentTrack.video) {
+      fullscreenVideo.src = currentTrack.video;
+      fullscreenVideo.style.display = 'block';
+      fullscreenCover.style.display = 'none';
+      fullscreenVideo.play().catch(() => {});
+    } else {
+      fullscreenCover.src = currentTrack.cover || '';
+      fullscreenCover.style.display = 'block';
+      fullscreenVideo.style.display = 'none';
+      fullscreenVideo.src = '';
+    }
+    
+    // Move player to fullscreen overlay
+    if (playerContainer && fullscreenOverlay) {
+      fullscreenOverlay.appendChild(playerContainer);
+      playerContainer.style.position = 'absolute';
+      playerContainer.style.bottom = '0';
+      playerContainer.style.left = '0';
+      playerContainer.style.width = '100%';
+      playerContainer.style.zIndex = '10000';
+    }
+    
+    fullscreenOverlay.style.display = 'flex';
+    updateFullscreenUI();
+    
+    // Prevent body scroll
+    document.body.style.overflow = 'hidden';
+  }
+
+
+  function exitFullscreen() {
+    if (!fullscreenOverlay) return;
+    
+    isFullscreen = false;
+    fullscreenOverlay.style.display = 'none';
+    fullscreenVideo.pause();
+    fullscreenVideo.src = '';
+    
+    // Move player back to original position
+    if (playerContainer && playerRoot) {
+      playerRoot.appendChild(playerContainer);
+      playerContainer.style.position = '';
+      playerContainer.style.bottom = '';
+      playerContainer.style.left = '';
+      playerContainer.style.width = '';
+      playerContainer.style.zIndex = '';
+    }
+    
+    updateFullscreenUI();
+    
+    // Restore body scroll
+    document.body.style.overflow = '';
   }
 
   // Throttle helper to limit frequent storage writes
@@ -380,6 +498,7 @@
       updateShuffleUI();
       updateRepeatUI();
       updateMuteUI();
+      updateFullscreenUI();
 
       audio.addEventListener('loadedmetadata', function restoreOnce() {
         audio.currentTime = state.currentTime || 0;
@@ -651,6 +770,29 @@
       }
     }
     updateShuffleUI();
+    
+    // Update fullscreen content if in fullscreen mode
+    if (isFullscreen && fullscreenOverlay) {
+      const currentTrack = trackQueue[queueIndex];
+      if (currentTrack) {
+        fullscreenTitle.textContent = currentTrack.title || '';
+        fullscreenArtist.textContent = currentTrack.artist || '';
+        
+        const hasVideo = currentTrack.video || false;
+        if (hasVideo && currentTrack.video) {
+          fullscreenVideo.src = currentTrack.video;
+          fullscreenVideo.style.display = 'block';
+          fullscreenCover.style.display = 'none';
+          fullscreenVideo.play().catch(() => {});
+        } else {
+          fullscreenCover.src = currentTrack.cover || '';
+          fullscreenCover.style.display = 'block';
+          fullscreenVideo.style.display = 'none';
+          fullscreenVideo.src = '';
+        }
+      }
+    }
+    
     savePlayerState();
   };
   repeatBtn.onclick = () => {
@@ -711,6 +853,24 @@
 
   queueBtn.onclick = () => toggleQueuePanel();
   queueClose.onclick = () => toggleQueuePanel(false);
+
+  fullscreenBtn.onclick = () => {
+    if (isFullscreen) {
+      exitFullscreen();
+    } else {
+      enterFullscreen();
+    }
+  };
+
+  fullscreenClose.onclick = () => exitFullscreen();
+  fullscreenBack.onclick = () => exitFullscreen();
+
+  // Handle Escape key to exit fullscreen
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isFullscreen) {
+      exitFullscreen();
+    }
+  });
 
   volumeBtn.onclick = () => {
     if (isMuted) {
@@ -888,6 +1048,7 @@
   updateShuffleUI();
   updateRepeatUI();
   updateMuteUI();
+  updateFullscreenUI();
   renderQueueUI();
   // Ensure UI reflects current state after initial render
   setTimeout(updateShuffleUI, 0);
