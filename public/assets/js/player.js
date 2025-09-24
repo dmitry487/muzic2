@@ -245,12 +245,17 @@
   const ORIGINAL_QUEUE_KEY = 'muzic2_player_original_queue';
   const SHUFFLE_KEY = 'muzic2_player_shuffle';
   const REPEAT_KEY = 'muzic2_player_repeat'; // none | one | all
+  const REPLAY_ENABLED_KEY = 'muzic2_player_replay_once_enabled';
+  const REPLAY_TOKEN_KEY = 'muzic2_player_replay_token';
 
   let isPlaying = false;
   let trackQueue = [];
   let queueIndex = 0;
   let shuffleEnabled = false;
   let repeatMode = 'none';
+  // One-time replay toggle state
+  let replayOnceEnabled = false;
+  let replayToken = null;
   let originalQueue = [];
 
   // Helpers
@@ -276,9 +281,12 @@
     shuffleBtn.style.color = isOn ? '#1ed760' : '';
   }
   function updateRepeatUI() {
-    const titles = { none: 'Повтор: выкл', one: 'Повтор: один', all: 'Повтор: все' };
-    repeatBtn.title = titles[repeatMode];
-    repeatBtn.classList.toggle('btn-active', repeatMode !== 'none');
+    // Repurposed: show one-time replay visual state
+    const isOn = !!replayOnceEnabled;
+    repeatBtn.title = isOn ? 'Повторить текущий трек один раз (вкл)' : 'Повторить текущий трек один раз (выкл)';
+    repeatBtn.classList.toggle('btn-active', isOn);
+    repeatBtn.setAttribute('aria-pressed', String(isOn));
+    repeatBtn.style.color = isOn ? '#1ed760' : '';
   }
 
   // Throttle helper to limit frequent storage writes
@@ -306,9 +314,14 @@
       volume: usingPopup ? (popupState.volume ?? audio.volume) : audio.volume,
       shuffle: shuffleEnabled,
       repeat: repeatMode,
-      queueIndex
+      queueIndex,
+      replayOnceEnabled,
+      replayToken
     };
     localStorage.setItem(PLAYER_STATE_KEY, JSON.stringify(state));
+    // Persist replay toggle separately for robustness
+    localStorage.setItem(REPLAY_ENABLED_KEY, replayOnceEnabled ? '1' : '0');
+    if (replayToken) localStorage.setItem(REPLAY_TOKEN_KEY, replayToken); else localStorage.removeItem(REPLAY_TOKEN_KEY);
   }
   const savePlayerStateThrottled = throttle(savePlayerState, 1000);
   function getSavedState() {
@@ -326,6 +339,8 @@
       shuffleEnabled = !!state.shuffle;
       repeatMode = state.repeat || 'none';
       queueIndex = typeof state.queueIndex === 'number' ? state.queueIndex : 0;
+      replayOnceEnabled = !!(state.replayOnceEnabled || (localStorage.getItem(REPLAY_ENABLED_KEY) === '1'));
+      replayToken = state.replayToken || localStorage.getItem(REPLAY_TOKEN_KEY) || null;
       updateShuffleUI();
       updateRepeatUI();
 
@@ -425,6 +440,15 @@
     renderQueueUI();
     // keep shuffle button visual in-sync after any track change
     updateShuffleUI();
+    // If the just-started track is the one-time replay duplicate, turn the toggle off
+    try {
+      const t = trackQueue[queueIndex];
+      if (t && replayOnceEnabled && replayToken && t._replayToken === replayToken) {
+        replayOnceEnabled = false;
+        replayToken = null;
+        updateRepeatUI();
+      }
+    } catch (e) {}
   }
   function playNext(auto = false) {
     if (!trackQueue.length) return;
@@ -587,7 +611,55 @@
     savePlayerState();
   };
   repeatBtn.onclick = () => {
-    repeatMode = repeatMode === 'none' ? 'one' : repeatMode === 'one' ? 'all' : 'none';
+    // Toggle one-time replay of the current track
+    if (!trackQueue.length) return;
+    if (!replayOnceEnabled) {
+      // Enable: insert a duplicate of current track right after it
+      const current = trackQueue[queueIndex];
+      if (!current) return;
+      // Remove existing pending duplicate if any
+      if (replayToken) {
+        const idx = trackQueue.findIndex(x => x && x._replayToken === replayToken);
+        if (idx >= 0 && idx !== queueIndex) trackQueue.splice(idx, 1);
+      }
+      const next = trackQueue[queueIndex + 1];
+      if (next && next.src === current.src) {
+        // Reuse next as the duplicate and tag it instead of adding a new one
+        replayToken = 'replay_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+        trackQueue[queueIndex + 1] = { ...next, _replayToken: replayToken };
+      } else {
+        replayToken = 'replay_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+        const dup = { ...current, _replayToken: replayToken };
+        trackQueue.splice(queueIndex + 1, 0, dup);
+      }
+      replayOnceEnabled = true;
+      saveQueue();
+      renderQueueUI();
+    } else {
+      // Disable: remove the pending duplicate from the queue
+      if (replayToken) {
+        const idx = trackQueue.findIndex(x => x && x._replayToken === replayToken);
+        if (idx >= 0) {
+          // Adjust queueIndex if needed
+          if (idx < queueIndex) queueIndex = Math.max(0, queueIndex - 1);
+          trackQueue.splice(idx, 1);
+          saveQueue();
+          renderQueueUI();
+        }
+      }
+      // Also handle immediate-next duplicate without token
+      if (!replayToken) {
+        const cur = trackQueue[queueIndex];
+        const next = trackQueue[queueIndex + 1];
+        if (cur && next && cur.src === next.src) {
+          trackQueue.splice(queueIndex + 1, 1);
+          saveQueue();
+          renderQueueUI();
+        }
+      }
+      replayOnceEnabled = false;
+      replayToken = null;
+    }
     updateRepeatUI();
     savePlayerState();
   };
@@ -622,10 +694,27 @@
         shuffleEnabled = !!s.shuffle;
         updateShuffleUI();
       }
-      if (typeof s.repeat === 'string') {
-        repeatMode = s.repeat;
-        updateRepeatUI();
+      // Restore one-time replay state and reconcile duplicate
+      replayOnceEnabled = !!(s.replayOnceEnabled || (localStorage.getItem(REPLAY_ENABLED_KEY) === '1'));
+      replayToken = s.replayToken || localStorage.getItem(REPLAY_TOKEN_KEY) || null;
+      if (replayOnceEnabled) {
+        let dupIdx = -1;
+        if (replayToken) dupIdx = trackQueue.findIndex(x => x && x._replayToken === replayToken);
+        if (dupIdx === -1) {
+          const cur = trackQueue[queueIndex];
+          const next = trackQueue[queueIndex + 1];
+          if (cur && next && cur.src === next.src) {
+            replayToken = replayToken || ('replay_' + Date.now());
+            trackQueue[queueIndex + 1] = { ...next, _replayToken: replayToken };
+            saveQueue();
+          } else {
+            // no duplicate present anymore; keep toggle off to avoid re-adding
+            replayOnceEnabled = false;
+            replayToken = null;
+          }
+        }
       }
+      updateRepeatUI();
       renderQueueUI();
     } catch (e) {}
     // If current audio source differs from saved one, switch to the saved, most recent track
