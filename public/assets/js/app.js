@@ -410,31 +410,33 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			if (currentType === 'all') {
 				// Show all results grouped by type
 				if (data.tracks.length > 0) {
-					html += '<div class="search-section"><h4>Треки</h4>';
+					html += '<div class="search-section"><h4>Треки</h4><div class="card-row search-tracks-row">';
 					html += data.tracks.map(track => createTrackCard(track)).join('');
-					html += '</div>';
+					html += '</div></div>';
 				}
 				
 				if (data.artists.length > 0) {
-					html += '<div class="search-section"><h4>Артисты</h4>';
+					html += '<div class="search-section"><h4>Артисты</h4><div class="artist-row search-artists-row">';
 					html += data.artists.map(artist => createArtistCard(artist)).join('');
-					html += '</div>';
+					html += '</div></div>';
 				}
 				
 				if (data.albums.length > 0) {
-					html += '<div class="search-section"><h4>Альбомы</h4>';
+					html += '<div class="search-section"><h4>Альбомы</h4><div class="tile-row search-albums-row">';
 					html += data.albums.map(album => createAlbumCard(album)).join('');
-					html += '</div>';
+					html += '</div></div>';
 				}
 			} else {
 				// Show specific type results
 				const results = data[currentType] || [];
 				if (results.length > 0) {
-					html = results.map(item => {
-						if (currentType === 'tracks') return createTrackCard(item);
-						if (currentType === 'artists') return createArtistCard(item);
-						if (currentType === 'albums') return createAlbumCard(item);
-					}).join('');
+					if (currentType === 'tracks') {
+						html = '<div class="card-row search-tracks-row">' + results.map(item => createTrackCard(item)).join('') + '</div>';
+					} else if (currentType === 'artists') {
+						html = '<div class="artist-row search-artists-row">' + results.map(item => createArtistCard(item)).join('') + '</div>';
+					} else if (currentType === 'albums') {
+						html = '<div class="tile-row search-albums-row">' + results.map(item => createAlbumCard(item)).join('') + '</div>';
+					}
 				}
 			}
 			
