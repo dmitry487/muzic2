@@ -84,7 +84,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	async function renderHome() {
 		mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
 		try {
-			const res = await fetch('/muzic2/public/src/api/home.php');
+			const res = await fetch('/muzic2/public/src/api/home.php?limit_tracks=8&limit_albums=6&limit_artists=6&limit_mixes=6&limit_favorites=6');
 			const data = await res.json();
 			// Load liked set for current user to render green hearts
 			try {
@@ -294,6 +294,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 					<h3>Вход</h3>
 					<input id="login-login" placeholder="Email или логин" autocomplete="username">
 					<input id="login-password" type="password" placeholder="Пароль" autocomplete="current-password">
+					<div id="login-error" class="modal-error" style="display:none"></div>
 					<div class="modal-actions">
 						<button id="login-submit" class="btn primary">Войти</button>
 						<button id="login-close" class="btn">Отмена</button>
@@ -304,6 +305,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 					<input id="reg-email" placeholder="Email" autocomplete="email">
 					<input id="reg-username" placeholder="Логин" autocomplete="username">
 					<input id="reg-password" type="password" placeholder="Пароль (мин. 6)" autocomplete="new-password">
+					<div id="reg-error" class="modal-error" style="display:none"></div>
 					<div class="modal-actions">
 						<button id="reg-submit" class="btn primary">Создать</button>
 						<button id="reg-close" class="btn">Отмена</button>
@@ -321,6 +323,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			.modal input{ width:100%; margin:.4rem 0; padding:.7rem .8rem; border:1px solid #333; border-radius:8px; background:#121212; color:#fff; outline:none; }
 			.modal input:focus{ border-color:#1db954; }
 			.modal-actions{ margin-top:.7rem; display:flex; gap:.5rem; justify-content:flex-end; }
+			.modal-error{ margin-top:.4rem; background:#2a1b1b; color:#ff6b6b; border:1px solid #4b2323; border-radius:8px; padding:.6rem .8rem; font-size:.92rem; }
 		`;
 		document.head.appendChild(styles);
 	}
@@ -344,23 +347,61 @@ if (mainContent && navHome && navSearch && navLibrary) {
 		const doLogin = async () => {
 			const login = document.getElementById('login-login').value.trim();
 			const password = document.getElementById('login-password').value;
-			if (!login || !password) return;
-			await fetch('/muzic2/src/api/login.php', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login, password }) });
-			const u = await (await fetch('/muzic2/src/api/user.php', { credentials: 'include' })).json();
-			currentUser = u.authenticated ? u.user : null; closeAll(); renderAuthHeader(); renderMyMusic();
+			const errBox = document.getElementById('login-error');
+			if (errBox) { errBox.style.display='none'; errBox.textContent=''; }
+			if (!login || !password) { if (errBox){ errBox.textContent='Введите логин и пароль'; errBox.style.display='block'; } return; }
+			try {
+				const res = await fetch('/muzic2/src/api/login.php', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login, password }) });
+				let ok = res.ok;
+				let payload = null;
+				try { payload = await res.json(); } catch(_) { payload = null; }
+				if (!ok) {
+					const msg = (payload && payload.error) ? payload.error : 'Ошибка авторизации';
+					if (errBox) { errBox.textContent = msg; errBox.style.display='block'; }
+					return;
+				}
+				const uRes = await fetch('/muzic2/src/api/user.php', { credentials: 'include' });
+				const u = await uRes.json();
+				if (u && u.authenticated && u.user) {
+					currentUser = u.user;
+					closeAll();
+					// Перезагрузка страницы для гарантированного применения состояния сессии везде
+					window.location.reload();
+				} else {
+					if (errBox) { errBox.textContent = 'Сессия не установлена'; errBox.style.display='block'; }
+				}
+			} catch (e) {
+				if (errBox) { errBox.textContent = 'Сетевая ошибка'; errBox.style.display='block'; }
+			}
 		};
 		const doRegister = async () => {
 			const email = document.getElementById('reg-email').value.trim();
 			const username = document.getElementById('reg-username').value.trim();
 			const password = document.getElementById('reg-password').value;
-			if (!email || !username || !password) return;
-			await fetch('/muzic2/src/api/register.php', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, username, password }) });
-			await doLoginPostRegister(username, password);
+			const errBox = document.getElementById('reg-error');
+			if (errBox) { errBox.style.display='none'; errBox.textContent=''; }
+			if (!email || !username || !password) { if (errBox){ errBox.textContent='Заполните все поля'; errBox.style.display='block'; } return; }
+			try {
+				const res = await fetch('/muzic2/src/api/register.php', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, username, password }) });
+				let ok = res.ok; let payload=null; try { payload = await res.json(); } catch(_) {}
+				if (!ok) { if (errBox){ errBox.textContent=(payload&&payload.error)||'Ошибка регистрации'; errBox.style.display='block'; } return; }
+				await doLoginPostRegister(username, password);
+			} catch (e) {
+				if (errBox) { errBox.textContent='Сетевая ошибка'; errBox.style.display='block'; }
+			}
 		};
 		async function doLoginPostRegister(login, password){
-			await fetch('/muzic2/src/api/login.php', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login, password }) });
-			const u = await (await fetch('/muzic2/src/api/user.php', { credentials: 'include' })).json();
-			currentUser = u.authenticated ? u.user : null; closeAll(); renderAuthHeader(); renderMyMusic();
+			const errBox = document.getElementById('login-error'); if (errBox){ errBox.style.display='none'; errBox.textContent=''; }
+			const res = await fetch('/muzic2/src/api/login.php', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login, password }) });
+			let ok = res.ok; let payload=null; try { payload = await res.json(); } catch(_) {}
+			if (!ok) { if (errBox){ errBox.textContent=(payload&&payload.error)||'Ошибка авторизации'; errBox.style.display='block'; } return; }
+			const uRes = await fetch('/muzic2/src/api/user.php', { credentials: 'include' });
+			const u = await uRes.json();
+			if (u && u.authenticated && u.user) {
+				currentUser = u.user; closeAll(); window.location.reload();
+			} else {
+				if (errBox){ errBox.textContent='Сессия не установлена'; errBox.style.display='block'; }
+			}
 		}
 		const loginSubmit = document.getElementById('login-submit');
 		const regSubmit = document.getElementById('reg-submit');
@@ -376,7 +417,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			row.className = 'tile-row';
 			html = items.map((item, idx) => `
 				<div class="tile" data-album="${encodeURIComponent(item.album)}" data-idx="${idx}">
-					<img class="tile-cover" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
+					<img class="tile-cover" loading="lazy" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
 					<div class="tile-title">${escapeHtml(item.album)}</div>
 					<div class="tile-desc">${escapeHtml(item.artist || '')}</div>
 					<div class="tile-play">&#9654;</div>
@@ -386,7 +427,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			row.className = 'tile-row';
 			html = items.map((item, idx) => `
 				<div class="tile" data-idx="${idx}">
-					<img class="tile-cover" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
+					<img class="tile-cover" loading="lazy" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
 					<div class="tile-title">${escapeHtml(item.album || item.title)}</div>
 					<div class="tile-desc">${escapeHtml(item.artist || '')}</div>
 					<div class="tile-play">&#9654;</div>
@@ -396,7 +437,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			row.className = 'artist-row';
 			html = items.map(item => `
 				<div class="artist-tile" data-artist="${encodeURIComponent(item.artist)}">
-					<img class="artist-avatar" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="artist">
+					<img class="artist-avatar" loading="lazy" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="artist">
 					<div class="artist-name">${escapeHtml(item.artist)}</div>
 				</div>
 			`).join('');
@@ -404,7 +445,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			row.className = 'card-row';
 			html = items.map((item, idx) => `
 				<div class="card" data-idx="${idx}">
-					<img class="card-cover" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
+					<img class="card-cover" loading="lazy" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
 					<div class="card-info">
                 <div class="card-title">${escapeHtml(item.title)}</div>
                 <div class="card-artist">${item.explicit? '<span class=\"exp-badge\" title=\"Нецензурная лексика\">E</span>':''}${escapeHtml(item.artist)}</div>
