@@ -5,7 +5,11 @@ header('Content-Type: application/json');
 
 $db = get_db_connection();
 $user_id = $_SESSION['user_id'] ?? null;
-if (!$user_id) { http_response_code(401); echo json_encode(['error' => 'Не авторизован']); exit; }
+if (!$user_id) { 
+    // Return empty likes for non-authenticated users
+    echo json_encode(['tracks' => []]); 
+    exit; 
+}
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -13,7 +17,7 @@ if ($method === 'GET') {
     // list liked tracks with track info
     $stmt = $db->prepare('SELECT t.* FROM likes l JOIN tracks t ON l.track_id = t.id WHERE l.user_id = ? ORDER BY l.created_at DESC');
     $stmt->execute([$user_id]);
-    echo json_encode(['tracks' => $stmt->fetchAll()]);
+    echo json_encode(['tracks' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
     exit;
 }
 
