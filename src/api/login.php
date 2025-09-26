@@ -14,11 +14,11 @@ if (!$login || !$password) {
 
 $db = get_db_connection();
 
-$stmt = $db->prepare('SELECT id, email, username, password_hash FROM users WHERE email = ? OR username = ?');
+$stmt = $db->prepare('SELECT id, email, username, password FROM users WHERE email = ? OR username = ?');
 $stmt->execute([$login, $login]);
 $user = $stmt->fetch();
 
-if (!$user || !password_verify($password, $user['password_hash'])) {
+if (!$user || !password_verify($password, $user['password'])) {
     http_response_code(401);
     echo json_encode(['error' => 'Неверный логин или пароль']);
     exit;

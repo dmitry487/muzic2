@@ -2,6 +2,7 @@ const mainContent = document.getElementById('main-content');
 const navHome = document.getElementById('nav-home');
 const navSearch = document.getElementById('nav-search');
 const navLibrary = document.getElementById('nav-library');
+const mainHeader = document.getElementById('main-header');
 
 // Guard: run only if home navigation exists on this page
 if (mainContent && navHome && navSearch && navLibrary) {
@@ -10,8 +11,8 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			renderHome();
 	} else if (page === 'Поиск') {
 		renderSearch();
-	} else if (page === 'Моя музыка') {
-			mainContent.innerHTML = '<h2>Моя музыка</h2><p>Контент скоро будет...</p>';
+		} else if (page === 'Моя музыка') {
+			renderMyMusic();
 		}
 	}
 
@@ -21,11 +22,76 @@ if (mainContent && navHome && navSearch && navLibrary) {
 
 	showPage('Главная');
 
+	// Session state
+	let currentUser = null;
+
+	// Ensure auth modals exist globally
+	ensureAuthModals();
+
+	(async function initSession() {
+		try {
+			const res = await fetch('/muzic2/src/api/user.php', { credentials: 'include' });
+			const data = await res.json();
+			currentUser = data.authenticated ? data.user : null;
+			renderAuthHeader();
+		} catch (e) {
+			currentUser = null;
+			renderAuthHeader();
+		}
+	})();
+
+	function mountUserPanel() {
+		if (!mainHeader) return null;
+		let panel = document.getElementById('user-panel');
+		if (!panel) {
+			panel = document.createElement('div');
+			panel.id = 'user-panel';
+			mainHeader.appendChild(panel);
+		}
+		return panel;
+	}
+
+	function renderAuthHeader() {
+		const panel = mountUserPanel();
+		if (!panel) return;
+		if (currentUser) {
+			panel.innerHTML = `
+				<div class="user-info">
+					<span class="username">${escapeHtml(currentUser.username || '')}</span>
+				</div>
+			`;
+		} else {
+			panel.innerHTML = `
+				<div class="auth-buttons">
+					<button id="header-login" class="btn primary">Войти</button>
+					<button id="header-register" class="btn">Регистрация</button>
+				</div>
+			`;
+			attachAuthModalTriggers();
+			const headerLogin = document.getElementById('header-login');
+			const headerRegister = document.getElementById('header-register');
+			if (headerLogin) headerLogin.onclick = () => {
+				const open = id => { document.querySelector('#auth-modals .modal-overlay').style.display='block'; document.getElementById(id).style.display='block'; };
+				open('login-modal');
+			};
+			if (headerRegister) headerRegister.onclick = () => {
+				const open = id => { document.querySelector('#auth-modals .modal-overlay').style.display='block'; document.getElementById(id).style.display='block'; };
+				open('register-modal');
+			};
+		}
+	}
+
 	async function renderHome() {
 		mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
 		try {
 			const res = await fetch('/muzic2/public/src/api/home.php');
 			const data = await res.json();
+			// Load liked set for current user to render green hearts
+			try {
+				const likesRes = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
+				const likes = await likesRes.json();
+				window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
+			} catch(e){ window.__likedSet = new Set(); }
 			mainContent.innerHTML = `
 				<section class="main-filters">
 					<button class="filter-btn active">Все</button>
@@ -56,6 +122,250 @@ if (mainContent && navHome && navSearch && navLibrary) {
 		} catch (e) {
 			mainContent.innerHTML = '<div class="error">Ошибка загрузки главной страницы</div>';
 		}
+	}
+
+	// =====================
+	// My Music (Favorites & Playlists)
+	// =====================
+	async function renderMyMusic() {
+		mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
+
+		injectMyMusicStyles();
+
+		// Require auth
+		if (!currentUser) {
+			mainContent.innerHTML = `
+				<section class="auth-required">
+					<h2>Моя музыка</h2>
+					<p>Войдите, чтобы увидеть любимые треки и плейлисты.</p>
+					<div class="auth-actions">
+						<button id="open-login" class="btn primary">Войти</button>
+						<button id="open-register" class="btn">Регистрация</button>
+					</div>
+				</section>
+			`;
+			attachAuthModalTriggers();
+			ensureAuthModals();
+			return;
+		}
+
+		try {
+			const listsRes = await fetch('/muzic2/src/api/playlists.php', { credentials: 'include' });
+			const playlistsData = await listsRes.json();
+			const playlists = playlistsData.playlists || [];
+
+			mainContent.innerHTML = `
+				<section class="my-section">
+					<div class="my-header">
+						<h2>Мои плейлисты</h2>
+						<div class="my-actions">
+							<button id="create-playlist" class="btn primary">Создать плейлист</button>
+						</div>
+					</div>
+					<div class="tile-row" id="playlists-row">
+						${playlists.map(pl => playlistTile(pl)).join('') || '<div class="empty">Пока нет плейлистов</div>'}
+					</div>
+				</section>
+				<div id="playlist-view"></div>
+			`;
+
+			document.getElementById('create-playlist').onclick = () => openCreatePlaylistDialog();
+
+			// Click handlers for playlist tiles
+			playlists.forEach(pl => {
+				const el = document.getElementById(`pl-${pl.id}`);
+				if (el) el.onclick = () => openPlaylist(pl.id, pl.name);
+			});
+		} catch (e) {
+			mainContent.innerHTML = '<div class="error">Ошибка загрузки</div>';
+		}
+	}
+
+	// Global delegation for heart toggle
+		document.addEventListener('click', async (e) => {
+		const btn = e.target.closest('.heart-btn');
+		if (!btn) return;
+		if (!currentUser) { attachAuthModalTriggers(); const open = id => { document.querySelector('#auth-modals .modal-overlay').style.display='block'; document.getElementById(id).style.display='block'; }; open('login-modal'); return; }
+		const trackId = Number(btn.getAttribute('data-track-id'));
+		if (!trackId) return;
+		if (btn.classList.contains('liked')) {
+			await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: trackId })});
+			btn.classList.remove('liked');
+			window.__likedSet && window.__likedSet.delete(trackId);
+				try{ document.dispatchEvent(new CustomEvent('likes:updated', { detail:{ trackId, liked:false } })); }catch(_){ }
+		} else {
+			await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: trackId })});
+			btn.classList.add('liked');
+			if (!window.__likedSet) window.__likedSet = new Set();
+			window.__likedSet.add(trackId);
+				try{ document.dispatchEvent(new CustomEvent('likes:updated', { detail:{ trackId, liked:true } })); }catch(_){ }
+		}
+	});
+
+	function playlistTile(pl) {
+		const cover = '/muzic2/public/assets/img/playlist-placeholder.png';
+		return `
+			<div class="tile" id="pl-${pl.id}">
+				<img class="tile-cover" src="${cover}" alt="cover">
+				<div class="tile-title">${escapeHtml(pl.name)}</div>
+				<div class="tile-desc">Плейлист</div>
+				<div class="tile-play">&#9654;</div>
+			</div>
+		`;
+	}
+
+	async function openPlaylist(playlistId, playlistName) {
+		const view = document.getElementById('playlist-view');
+		view.innerHTML = '<div class="loading">Загрузка плейлиста...</div>';
+		try {
+			const res = await fetch(`/muzic2/src/api/playlists.php?playlist_id=${playlistId}`, { credentials: 'include' });
+			const data = await res.json();
+			const tracks = data.tracks || [];
+			view.innerHTML = `
+				<section class="playlist-section">
+					<div class="playlist-header">
+						<h3>${escapeHtml(playlistName)}</h3>
+						<div class="playlist-actions">
+							<button class="btn" id="rename-pl">Переименовать</button>
+							<button class="btn danger" id="delete-pl">Удалить</button>
+						</div>
+					</div>
+					<div class="card-row">
+						${tracks.map(t => createTrackCard(t)).join('') || '<div class="empty">Нет треков</div>'}
+					</div>
+				</section>
+			`;
+
+			document.getElementById('rename-pl').onclick = async () => {
+				const name = prompt('Новое название', playlistName);
+				if (!name) return;
+				await fetch('/muzic2/src/api/playlists.php/rename', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ playlist_id: playlistId, name }) });
+				renderMyMusic();
+			};
+			document.getElementById('delete-pl').onclick = async () => {
+				if (!confirm('Удалить плейлист?')) return;
+				await fetch('/muzic2/src/api/playlists.php/delete', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ playlist_id: playlistId }) });
+				renderMyMusic();
+			};
+		} catch (e) {
+			view.innerHTML = '<div class="error">Ошибка загрузки плейлиста</div>';
+		}
+	}
+
+	async function openCreatePlaylistDialog() {
+		const name = prompt('Название плейлиста');
+		if (!name) return;
+		await fetch('/muzic2/src/api/playlists.php', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+		renderMyMusic();
+	}
+
+	function injectMyMusicStyles() {
+		if (document.getElementById('mymusic-styles')) return;
+		const s = document.createElement('style');
+		s.id = 'mymusic-styles';
+		s.textContent = `
+			.my-section { margin: 2rem 0; }
+			.my-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+			.my-actions { display: flex; gap: .5rem; }
+			.btn { background: #333; color: #fff; border: none; padding: .5rem 1rem; border-radius: 6px; cursor: pointer; }
+			.btn.primary { background: #1db954; }
+			.btn.danger { background: #c0392b; }
+			.empty { color: #666; padding: 1rem; }
+			.auth-required { text-align: center; padding: 3rem 1rem; }
+			.auth-actions { display: flex; gap: .5rem; justify-content: center; margin-top: 1rem; }
+			.card { position: relative; }
+			.heart-btn { position:absolute; right:.5rem; bottom:.5rem; background:#222; border:1px solid #333; color:#bbb; border-radius:999px; width:36px; height:36px; cursor:pointer; }
+			.heart-btn.liked { background:#1db954; border-color:#1db954; color:#fff; }
+		`;
+		document.head.appendChild(s);
+	}
+
+	// =====================
+	// Auth Modals (basic)
+	// =====================
+	function ensureAuthModals() {
+		if (document.getElementById('auth-modals')) return;
+		const wrap = document.createElement('div');
+		wrap.id = 'auth-modals';
+		wrap.innerHTML = `
+			<div class="modal-overlay" style="display:none"></div>
+			<div class="modal-center" style="display:none">
+				<div class="modal" id="login-modal" role="dialog" aria-modal="true" style="display:none">
+					<h3>Вход</h3>
+					<input id="login-login" placeholder="Email или логин" autocomplete="username">
+					<input id="login-password" type="password" placeholder="Пароль" autocomplete="current-password">
+					<div class="modal-actions">
+						<button id="login-submit" class="btn primary">Войти</button>
+						<button id="login-close" class="btn">Отмена</button>
+					</div>
+				</div>
+				<div class="modal" id="register-modal" role="dialog" aria-modal="true" style="display:none">
+					<h3>Регистрация</h3>
+					<input id="reg-email" placeholder="Email" autocomplete="email">
+					<input id="reg-username" placeholder="Логин" autocomplete="username">
+					<input id="reg-password" type="password" placeholder="Пароль (мин. 6)" autocomplete="new-password">
+					<div class="modal-actions">
+						<button id="reg-submit" class="btn primary">Создать</button>
+						<button id="reg-close" class="btn">Отмена</button>
+					</div>
+				</div>
+			</div>
+		`;
+		document.body.appendChild(wrap);
+		const styles = document.createElement('style');
+		styles.textContent = `
+			.modal-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.7); backdrop-filter: blur(2px); z-index:20000; }
+			.modal-center{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:20001; pointer-events:none; }
+			.modal{ position:relative; background:#181818; color:#fff; border:1px solid #2a2a2a; border-radius:12px; padding:1rem; width:92%; max-width:420px; box-shadow:0 20px 60px rgba(0,0,0,.6); pointer-events:auto; }
+			.modal h3{ margin:0 0 .8rem 0; font-weight:700; }
+			.modal input{ width:100%; margin:.4rem 0; padding:.7rem .8rem; border:1px solid #333; border-radius:8px; background:#121212; color:#fff; outline:none; }
+			.modal input:focus{ border-color:#1db954; }
+			.modal-actions{ margin-top:.7rem; display:flex; gap:.5rem; justify-content:flex-end; }
+		`;
+		document.head.appendChild(styles);
+	}
+
+	function attachAuthModalTriggers() {
+		const overlay = () => document.querySelector('#auth-modals .modal-overlay');
+		const center = () => document.querySelector('#auth-modals .modal-center');
+		const open = id => { ensureAuthModals(); const o=overlay(); const c=center(); o.style.display='block'; c.style.display='flex'; document.querySelectorAll('#auth-modals .modal').forEach(m=>m.style.display='none'); document.getElementById(id).style.display='block'; setTimeout(()=>{ const first=document.querySelector(`#${id} input`); if(first) first.focus(); }, 0); };
+		const closeAll = () => { const o=overlay(); const c=center(); if(o) o.style.display='none'; if(c) c.style.display='none'; document.querySelectorAll('#auth-modals .modal').forEach(m=>m.style.display='none'); };
+		const loginBtn = document.getElementById('open-login');
+		const regBtn = document.getElementById('open-register');
+		if (loginBtn) loginBtn.onclick = () => open('login-modal');
+		if (regBtn) regBtn.onclick = () => open('register-modal');
+		ensureAuthModals();
+		const loginClose = document.getElementById('login-close');
+		const regClose = document.getElementById('reg-close');
+		if (loginClose) loginClose.onclick = closeAll;
+		if (regClose) regClose.onclick = closeAll;
+		const ov = overlay(); if (ov) ov.onclick = closeAll;
+		document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeAll(); });
+		const doLogin = async () => {
+			const login = document.getElementById('login-login').value.trim();
+			const password = document.getElementById('login-password').value;
+			if (!login || !password) return;
+			await fetch('/muzic2/src/api/login.php', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login, password }) });
+			const u = await (await fetch('/muzic2/src/api/user.php', { credentials: 'include' })).json();
+			currentUser = u.authenticated ? u.user : null; closeAll(); renderAuthHeader(); renderMyMusic();
+		};
+		const doRegister = async () => {
+			const email = document.getElementById('reg-email').value.trim();
+			const username = document.getElementById('reg-username').value.trim();
+			const password = document.getElementById('reg-password').value;
+			if (!email || !username || !password) return;
+			await fetch('/muzic2/src/api/register.php', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, username, password }) });
+			await doLoginPostRegister(username, password);
+		};
+		async function doLoginPostRegister(login, password){
+			await fetch('/muzic2/src/api/login.php', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login, password }) });
+			const u = await (await fetch('/muzic2/src/api/user.php', { credentials: 'include' })).json();
+			currentUser = u.authenticated ? u.user : null; closeAll(); renderAuthHeader(); renderMyMusic();
+		}
+		const loginSubmit = document.getElementById('login-submit');
+		const regSubmit = document.getElementById('reg-submit');
+		if (loginSubmit) loginSubmit.onclick = doLogin;
+		if (regSubmit) regSubmit.onclick = doRegister;
 	}
 
 	function renderCards(rowId, items, type) {
@@ -448,16 +758,19 @@ if (mainContent && navHome && navSearch && navLibrary) {
 		}
 
 		function createTrackCard(track) {
-			return `
-				<div class="card" onclick="playTrack('${encodeURIComponent(track.src)}', '${encodeURIComponent(track.title)}', '${encodeURIComponent(track.artist)}', '${encodeURIComponent(track.cover)}')">
-					<img class="card-cover" src="/muzic2/${track.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
-					<div class="card-info">
-						<div class="card-title">${escapeHtml(track.title)}</div>
-						<div class="card-artist">${escapeHtml(track.artist)}</div>
-						<div class="card-type">${escapeHtml(track.album || '')}</div>
-					</div>
+			const likedClass = window.__likedSet && window.__likedSet.has(track.id) ? 'liked' : '';
+			const play = `playTrack({ src: '${encodeURIComponent(track.src)}', title: '${encodeURIComponent(track.title)}', artist: '${encodeURIComponent(track.artist)}', cover: '${encodeURIComponent(track.cover)}', id: ${track.id||0} })`;
+		return `
+			<div class="card">
+				<img class="card-cover" src="/muzic2/${track.cover || 'tracks/covers/placeholder.jpg'}" alt="cover" onclick="${play}">
+				<div class="card-info" onclick="${play}">
+					<div class="card-title">${escapeHtml(track.title)}</div>
+					<div class="card-artist">${escapeHtml(track.artist)}</div>
+					<div class="card-type">${escapeHtml(track.album || '')}</div>
 				</div>
-			`;
+				<button class="heart-btn ${likedClass}" data-track-id="${track.id}" title="В избранное">❤</button>
+			</div>
+		`;
 		}
 
 		function createArtistCard(artist) {

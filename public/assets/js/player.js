@@ -19,6 +19,8 @@
       .player-progress { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; }
       #seek-bar { width: 100%; }
       .player-right { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+      #like-btn { background: transparent; border: none; color: #bbb; cursor: pointer; padding: 6px; border-radius: 50%; pointer-events: auto; }
+      #like-btn.btn-active { color: #1ed760; }
       .volume-bar { width: 120px; }
       .btn-active { color: #1ed760; }
       /* Queue panel */
@@ -95,6 +97,7 @@
         </div>
       </div>
       <div class="player-right">
+        <button id="like-btn" type="button" title="В избранное">❤</button>
         <button id="queue-btn" title="Очередь">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="17" y2="18"/><polyline points="19 16 21 18 19 20"/></svg>
         </button>
@@ -199,6 +202,7 @@
   const volumeBtn = playerContainer.querySelector('#volume-btn');
   const fullscreenBtn = playerContainer.querySelector('#fullscreen-btn');
   const queueBtn = playerContainer.querySelector('#queue-btn');
+  const likeBtn = playerContainer.querySelector('#like-btn');
   const queuePanel = playerRoot.querySelector('#queue-panel');
   const queueClose = playerRoot.querySelector('#queue-close');
   const queueList = playerRoot.querySelector('#queue-list');
@@ -306,6 +310,8 @@
   let previousVolume = 1;
   let isFullscreen = false;
   let originalQueue = [];
+  let currentTrackId = null;
+  let likedSet = new Set();
 
   // Helpers
   function formatTime(sec) {
@@ -336,6 +342,54 @@
     repeatBtn.classList.toggle('btn-active', isOn);
     repeatBtn.setAttribute('aria-pressed', String(isOn));
     repeatBtn.style.color = isOn ? '#1ed760' : '';
+  }
+
+  // Likes helpers
+  async function loadLikes() {
+    try {
+      const r = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
+      const j = await r.json();
+      likedSet = new Set((j.tracks||[]).map(t=>t.id));
+    } catch (e) { likedSet = new Set(); }
+  }
+  function updatePlayerLikeUI() {
+    if (!likeBtn) return;
+    const liked = currentTrackId && likedSet.has(currentTrackId);
+    likeBtn.classList.toggle('btn-active', !!liked);
+    likeBtn.title = liked ? 'Убрать из любимых' : 'В избранное';
+  }
+  document.addEventListener('likes:updated', (e) => {
+    const d = e.detail || {}; const id = d.trackId; const liked = !!d.liked;
+    if (!id) return;
+    if (liked) likedSet.add(id); else likedSet.delete(id);
+    if (currentTrackId === id) updatePlayerLikeUI();
+  });
+  async function loadLikes() {
+    try {
+      const r = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
+      const j = await r.json();
+      likedSet = new Set((j.tracks||[]).map(t=>t.id));
+    } catch (e) { likedSet = new Set(); }
+  }
+  function updatePlayerLikeUI() {
+    if (!likeBtn) return;
+    const liked = currentTrackId && likedSet.has(currentTrackId);
+    likeBtn.classList.toggle('btn-active', !!liked);
+    likeBtn.title = liked ? 'Убрать из любимых' : 'В избранное';
+  }
+
+  async function loadLikes() {
+    try {
+      const r = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
+      const j = await r.json();
+      likedSet = new Set((j.tracks||[]).map(t=>t.id));
+    } catch (e) { likedSet = new Set(); }
+  }
+  function updatePlayerLikeUI() {
+    if (!likeBtn) return;
+    const liked = currentTrackId && likedSet.has(currentTrackId);
+    likeBtn.classList.toggle('btn-active', !!liked);
+    likeBtn.title = liked ? 'Убрать из любимых' : 'В избранное';
   }
 
   function updateMuteUI() {
@@ -566,6 +620,8 @@
     trackTitle.textContent = t.title || '';
     trackArtist.textContent = t.artist || '';
     cover.src = t.cover || cover.src;
+    currentTrackId = t.id || null;
+    updatePlayerLikeUI();
   }
   function playFromQueue(idx) {
     if (!trackQueue[idx]) return;
@@ -861,6 +917,48 @@
       enterFullscreen();
     }
   };
+  if (likeBtn) likeBtn.onclick = async () => {
+    if (!currentTrackId) return;
+    if (likedSet.has(currentTrackId)) {
+      await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: currentTrackId })});
+      likedSet.delete(currentTrackId);
+    } else {
+      await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: currentTrackId })});
+      likedSet.add(currentTrackId);
+    }
+    updatePlayerLikeUI();
+    try { document.dispatchEvent(new CustomEvent('likes:updated', { detail:{ trackId: currentTrackId, liked: likedSet.has(currentTrackId) } })); } catch(_) {}
+  };
+  if (likeBtn) likeBtn.onclick = async () => {
+    if (!currentTrackId) return;
+    // Ensure we have current liked set
+    if (!likedSet || typeof likedSet.has !== 'function') likedSet = new Set();
+    if (likedSet.has(currentTrackId)) {
+      await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: currentTrackId })});
+      likedSet.delete(currentTrackId);
+    } else {
+      await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: currentTrackId })});
+      likedSet.add(currentTrackId);
+    }
+    updatePlayerLikeUI();
+    // Broadcast change so hearts update elsewhere
+    try { document.dispatchEvent(new CustomEvent('likes:updated', { detail: { trackId: currentTrackId, liked: likedSet.has(currentTrackId) } })); } catch (_) {}
+  };
+
+  // Like button
+  likeBtn && (likeBtn.onclick = async () => {
+    // ensure likes loaded
+    if (!likedSet || !likedSet.size) await loadLikes();
+    if (!currentTrackId) return;
+    if (likedSet.has(currentTrackId)) {
+      await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: currentTrackId })});
+      likedSet.delete(currentTrackId);
+    } else {
+      await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: currentTrackId })});
+      likedSet.add(currentTrackId);
+    }
+    updatePlayerLikeUI();
+  });
 
   fullscreenClose.onclick = () => exitFullscreen();
   fullscreenBack.onclick = () => exitFullscreen();
@@ -966,7 +1064,14 @@
   });
 
   // Public API for other pages
-  window.playTrack = function ({ src, title, artist, cover: coverUrl, queue = null, queueStartIndex = 0, duration = 0 }) {
+  window.playTrack = function (arg) {
+    // Support legacy positional signature: playTrack(src, title, artist, cover)
+    let src, title, artist, coverUrl, queue = null, queueStartIndex = 0, duration = 0, id = undefined;
+    if (typeof arg === 'object' && arg !== null) {
+      ({ src, title, artist, cover: coverUrl, queue = null, queueStartIndex = 0, duration = 0, id } = arg);
+    } else {
+      src = arguments[0]; title = arguments[1]; artist = arguments[2]; coverUrl = arguments[3];
+    }
     function normalizeSrc(u){
       if (!u) return '';
       if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('data:')) return u;
@@ -991,7 +1096,8 @@
         title: q.title || '',
         artist: q.artist || '',
         cover: normalizeCover(q.cover || coverUrl || ''),
-        duration: q.duration || 0
+        duration: q.duration || 0,
+        id: q.id || q.track_id || undefined
       }));
       originalQueue = trackQueue.slice();
       queueIndex = Math.max(0, Math.min(queueStartIndex, trackQueue.length - 1));
@@ -1000,7 +1106,7 @@
       toggleQueuePanel(true);
     } else {
       // Single track
-      trackQueue = [{ src: normalizeSrc(src), title, artist, cover: normalizeCover(coverUrl || ''), duration }];
+      trackQueue = [{ src: normalizeSrc(src), title, artist, cover: normalizeCover(coverUrl || ''), duration, id }];
       originalQueue = trackQueue.slice();
       queueIndex = 0;
       saveQueue();
@@ -1049,6 +1155,8 @@
   updateRepeatUI();
   updateMuteUI();
   updateFullscreenUI();
+  // Load likes after render
+  loadLikes().then(updatePlayerLikeUI).catch(()=>{});
   renderQueueUI();
   // Ensure UI reflects current state after initial render
   setTimeout(updateShuffleUI, 0);

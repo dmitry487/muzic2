@@ -42,7 +42,7 @@ function attachImgFallback(imgEl) {
 }
 
 // Initialize artist page
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     const urlParams = new URLSearchParams(window.location.search);
     const artistName = urlParams.get('artist');
     
@@ -51,6 +51,13 @@ document.addEventListener('DOMContentLoaded', function() {
         if (artistName.toLowerCase().includes('kai angel')) {
             preloadKaiAngelImages();
         }
+        // Load liked tracks set for current user
+        try {
+            const resp = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
+            const json = await resp.json();
+            window.__likedSet = new Set((json.tracks||[]).map(t=>t.id));
+        } catch(e) { window.__likedSet = new Set(); }
+
         loadArtistData(artistName);
     } else {
         // Redirect to home if no artist specified
@@ -210,11 +217,25 @@ function createTrackElement(track, number) {
         }
     });
     
-    // Add like button functionality
+    // Init like button state and functionality
     const likeBtn = trackDiv.querySelector('.track-like-btn');
-    likeBtn.addEventListener('click', (e) => {
+    const icon = likeBtn.querySelector('i');
+    const isLiked = window.__likedSet && window.__likedSet.has(track.id);
+    if (isLiked) { icon.classList.remove('far'); icon.classList.add('fas'); likeBtn.style.color = '#1ed760'; }
+    likeBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        toggleLike(likeBtn);
+        if (!window.__likedSet) window.__likedSet = new Set();
+        if (window.__likedSet.has(track.id)) {
+            await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: track.id })});
+            window.__likedSet.delete(track.id);
+            icon.classList.remove('fas'); icon.classList.add('far'); likeBtn.style.color = '#b3b3b3';
+            try{ document.dispatchEvent(new CustomEvent('likes:updated', { detail:{ trackId: track.id, liked:false } })); }catch(_){ }
+        } else {
+            await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: track.id })});
+            window.__likedSet.add(track.id);
+            icon.classList.remove('far'); icon.classList.add('fas'); likeBtn.style.color = '#1ed760';
+            try{ document.dispatchEvent(new CustomEvent('likes:updated', { detail:{ trackId: track.id, liked:true } })); }catch(_){ }
+        }
     });
     
     return trackDiv;

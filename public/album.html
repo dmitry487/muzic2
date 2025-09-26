@@ -284,6 +284,10 @@
       }
     }
   </style>
+  <style>
+    .heart-btn{ background:transparent; border:none; color:#bbb; border-radius:999px; width:28px; height:28px; cursor:pointer; }
+    .heart-btn.liked{ color:#1db954; }
+  </style>
 </head>
 <body style="background: #181818; color: #fff;">
   <div id="main-content" style="padding-bottom: 120px;">
@@ -307,6 +311,7 @@
           <th>#</th>
           <th>Название</th>
           <th>Артист</th>
+          <th>❤</th>
           <th>⏱</th>
         </tr>
       </thead>
@@ -349,6 +354,7 @@
           <td class="track-num">${i+1}</td>
           <td class="track-title">${t.title}</td>
           <td class="track-artist">${t.artist}</td>
+          <td><button class="heart-btn" data-track-id="${t.id||''}">❤</button></td>
           <td class="track-duration">${t.duration ? formatTime(t.duration) : '—'}</td>
         `;
         // Кнопка Play
@@ -358,6 +364,7 @@
         playBtn.onclick = (e) => {
           e.stopPropagation();
           const queueRaw = data.tracks.map(tt => ({
+            id: tt.id,
             src: (function(){ const s = tt.src||''; if (/^https?:/i.test(s)) return s; const idx=s.indexOf('tracks/'); return idx!==-1?('/muzic2/'+s.slice(idx)):'/muzic2/'+s.replace(/^\/?/,''); })(),
             title: tt.title,
             artist: tt.artist,
@@ -377,6 +384,7 @@
         tr.onclick = (e) => {
           if (e.target !== playBtn) {
             const queueRaw = data.tracks.map(tt => ({
+              id: tt.id,
               src: (function(){ const s = tt.src||''; if (/^https?:/i.test(s)) return s; const idx=s.indexOf('tracks/'); return idx!==-1?('/muzic2/'+s.slice(idx)):'/muzic2/'+s.replace(/^\/?/,''); })(),
               title: tt.title,
               artist: tt.artist,
@@ -387,10 +395,43 @@
             window.playTrack && window.playTrack({ ...queue[i], queue, queueStartIndex: i });
           }
         };
+        // Heart toggle
+        const hb = tr.querySelector('.heart-btn');
+        hb.onclick = async (e) => {
+          e.stopPropagation();
+          const id = Number(hb.getAttribute('data-track-id'));
+          if (!id) return;
+          if (hb.classList.contains('liked')) {
+            await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: id })});
+            hb.classList.remove('liked');
+            try{ document.dispatchEvent(new CustomEvent('likes:updated', { detail:{ trackId: id, liked:false } })); }catch(_){ }
+          } else {
+            await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: id })});
+            hb.classList.add('liked');
+            try{ document.dispatchEvent(new CustomEvent('likes:updated', { detail:{ trackId: id, liked:true } })); }catch(_){ }
+          }
+        };
         tbody.appendChild(tr);
+      });
+      // Инициализируем состояния лайков для треков альбома
+      try {
+        const lr = await fetch('/muzic2/src/api/likes.php', { credentials:'include' });
+        const lj = await lr.json();
+        const likedSet = new Set((lj.tracks||[]).map(x=>x.id));
+        document.querySelectorAll('.heart-btn[data-track-id]')
+          .forEach(btn=>{ const id = Number(btn.getAttribute('data-track-id')); if (likedSet.has(id)) btn.classList.add('liked'); });
+      } catch(_) {}
+      // Подписка на глобальные изменения лайков
+      document.addEventListener('likes:updated', (e)=>{
+        const d = e.detail || {}; const id = d.trackId; const liked = !!d.liked;
+        if (!id) return;
+        document.querySelectorAll(`.heart-btn[data-track-id="${id}"]`).forEach(btn=>{
+          if (liked) btn.classList.add('liked'); else btn.classList.remove('liked');
+        });
       });
       // Очередь для плеера
       window.albumQueue = data.tracks.map(t => ({
+        id: t.id,
         src: (function(){ const s = t.src||''; if (/^https?:/i.test(s)) return s; const idx=s.indexOf('tracks/'); return idx!==-1?('/muzic2/'+s.slice(idx)):'/muzic2/'+s.replace(/^\/?/,''); })(),
         title: t.title,
         artist: t.artist,
