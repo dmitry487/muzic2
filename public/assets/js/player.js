@@ -45,6 +45,7 @@
       #fullscreen-info { position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); text-align: center; color: #fff; }
       #fullscreen-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.3rem; }
       #fullscreen-artist { font-size: 1rem; color: #b3b3b3; }
+      .exp-badge{ display:inline-block; width:16px; height:16px; line-height:16px; text-align:center; margin:0 6px 0 0; border:0; border-radius:3px; font-size:10px; font-weight:800; color:#2b2b2b; background:#cfcfcf; vertical-align:middle }
       #fullscreen-close { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.5); border: none; color: #fff; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
       #fullscreen-back { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.5); border: none; color: #fff; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
 
@@ -309,6 +310,7 @@
   const REPEAT_KEY = 'muzic2_player_repeat'; // none | one | all
   const REPLAY_ENABLED_KEY = 'muzic2_player_replay_once_enabled';
   const REPLAY_TOKEN_KEY = 'muzic2_player_replay_token';
+  const VIDEO_STATE_KEY = 'muzic2_player_video_state';
 
   let isPlaying = false;
   let trackQueue = [];
@@ -331,7 +333,13 @@
     return `${Math.floor(sec / 60)}:${('0' + (sec % 60)).slice(-2)}`;
   }
   function updatePlayPauseUI() {
-    const playing = popupActive ? !!popupState.isPlaying : !audio.paused;
+    // Prefer inline video state if video panel is open
+    let playing;
+    if (videoPanel && videoPanel.style.display === 'block' && inlineVideo) {
+      try { playing = !inlineVideo.paused && !inlineVideo.ended; } catch(_) { playing = !audio.paused; }
+    } else {
+      playing = popupActive ? !!popupState.isPlaying : !audio.paused;
+    }
     if (!playing) {
       playIcon.style.display = '';
       pauseIcon.style.display = 'none';
@@ -584,6 +592,22 @@
     // Persist original order to allow restoring after shuffle off
     localStorage.setItem(ORIGINAL_QUEUE_KEY, JSON.stringify(originalQueue && originalQueue.length ? originalQueue : trackQueue));
   }
+
+  // Video state persistence
+  function saveVideoState(state) {
+    try {
+      const toSave = {
+        open: !!(state && state.open),
+        url: state && state.url ? String(state.url) : (playerContainer.dataset && playerContainer.dataset.videoUrl) || '',
+        currentTime: typeof state.currentTime === 'number' ? state.currentTime : (inlineVideo && !isNaN(inlineVideo.currentTime) ? inlineVideo.currentTime : (audio.currentTime||0)),
+        playing: !!(state && state.playing)
+      };
+      localStorage.setItem(VIDEO_STATE_KEY, JSON.stringify(toSave));
+    } catch(_) {}
+  }
+  function loadVideoState() {
+    try { return JSON.parse(localStorage.getItem(VIDEO_STATE_KEY) || 'null'); } catch(_) { return null; }
+  }
   function loadQueue() {
     trackQueue = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
     queueIndex = parseInt(localStorage.getItem(QUEUE_INDEX_KEY) || '0', 10);
@@ -630,7 +654,10 @@
   // Core playback
   function setNowPlaying(t) {
     trackTitle.textContent = t.title || '';
-    trackArtist.textContent = t.artist || '';
+    // Render E badge before artist name (consistent with cards)
+    try {
+      trackArtist.innerHTML = (t.explicit ? '<span class="exp-badge" title="Нецензурная лексика">E</span>' : '') + escapeHtml(t.artist || '');
+    } catch(_) { trackArtist.textContent = t.artist || ''; }
     if (cover) cover.src = t.cover || (cover.src || '');
     currentTrackId = t.id || null;
     // Attach video URL (if any) to current track
@@ -728,6 +755,18 @@
       }
       // if posting failed, fall through to local audio
     }
+    // If inline video is visible, control video instead of audio
+    if (videoPanel && videoPanel.style.display === 'block' && inlineVideo) {
+      const paused = inlineVideo.paused || inlineVideo.ended;
+      if (paused) {
+        try { inlineVideo.currentTime = isNaN(audio.currentTime) ? (inlineVideo.currentTime||0) : (audio.currentTime||0); } catch(_) {}
+        inlineVideo.play().catch(()=>{});
+        try { audio.pause(); } catch(_) {}
+      } else {
+        try { inlineVideo.pause(); } catch(_) {}
+      }
+      return;
+    }
     if (!audio.src) {
       if (trackQueue[queueIndex]) { playFromQueue(queueIndex); return; }
       if (window.initialQueue && Array.isArray(window.initialQueue) && window.initialQueue.length > 0) {
@@ -763,6 +802,12 @@
     updatePlayPauseUI();
     document.getElementById('track-status').textContent = '';
     savePlayerState();
+    // If video panel is open, let video take over sound and sync time
+    if (videoPanel && videoPanel.style.display === 'block' && inlineVideo) {
+      try { inlineVideo.currentTime = isNaN(audio.currentTime) ? (inlineVideo.currentTime||0) : (audio.currentTime||0); } catch(_) {}
+      try { inlineVideo.play().catch(()=>{}); } catch(_) {}
+      try { audio.pause(); } catch(_) {}
+    }
   });
   audio.addEventListener('pause', () => {
     if (popupActive) return;
@@ -800,6 +845,10 @@
     }
     if (audio.duration) {
       audio.currentTime = (seekBar.value / 100) * audio.duration;
+    }
+    // Sync inline video position when visible
+    if (videoPanel && videoPanel.style.display === 'block' && inlineVideo && inlineVideo.duration) {
+      try { inlineVideo.currentTime = (seekBar.value / 100) * inlineVideo.duration; } catch(_) {}
     }
   };
   volumeBar.oninput = () => {
@@ -944,9 +993,11 @@
     inlineVideo.style.display = 'none';
     if (inlineCover) { inlineCover.style.display = 'none'; }
 
-    // If no URL – show cover
+    // If no URL – show cover but DO NOT restart or seek audio
     if (!url) {
       if (inlineCover) { inlineCover.src = coverSrc || ''; inlineCover.style.display = 'block'; }
+      // Keep video panel open as visualizer; ensure UI reflects current play state
+      updatePlayPauseUI();
       return;
     }
 
@@ -957,11 +1008,29 @@
       inlineVideo.removeEventListener('error', onError);
       inlineVideo.removeEventListener('loadeddata', onLoaded);
       inlineVideo.removeEventListener('canplay', onLoaded);
+      saveVideoState({ open: true, url, currentTime: audio.currentTime||0, playing: false });
     };
     const onLoaded = () => {
       if (inlineCover) inlineCover.style.display = 'none';
       inlineVideo.style.display = 'block';
-      try { inlineVideo.play().catch(()=>{}); } catch(_) {}
+      // Align to captured resume time (dataset) or current audio time with retries to avoid starting from 0
+      let resumeTime = 0; try { resumeTime = parseFloat(playerContainer.dataset.resumeTime || '0') || 0; } catch(_) {}
+      if (!resumeTime) { try { resumeTime = audio.currentTime || 0; } catch(_) {} }
+      const trySetTime = () => { try { inlineVideo.currentTime = resumeTime; } catch(_) {} };
+      trySetTime();
+      let attempts = 0;
+      const ensurePosition = () => {
+        attempts++;
+        try {
+          const ok = !isNaN(inlineVideo.currentTime) && Math.abs(inlineVideo.currentTime - resumeTime) < 0.35;
+          if (!ok && attempts < 10) { setTimeout(ensurePosition, 60); trySetTime(); return; }
+        } catch(_) { if (attempts < 10) { setTimeout(ensurePosition, 60); trySetTime(); return; } }
+        const shouldPlay = playerContainer.dataset.wasPlayingVideoSwitch === '1' || !audio.paused;
+        if (shouldPlay) { try { inlineVideo.play().catch(()=>{}); } catch(_) {} try { audio.pause(); } catch(_) {} }
+        updatePlayPauseUI();
+        saveVideoState({ open: true, url, currentTime: inlineVideo.currentTime||0, playing: shouldPlay });
+      };
+      setTimeout(ensurePosition, 0);
       inlineVideo.removeEventListener('error', onError);
       inlineVideo.removeEventListener('loadeddata', onLoaded);
       inlineVideo.removeEventListener('canplay', onLoaded);
@@ -980,10 +1049,43 @@
     const lower = (url||'').toLowerCase();
     const type = lower.endsWith('.webm') ? 'video/webm' : 'video/mp4';
     const source = document.createElement('source');
-    try { source.src = encodeURI(url); } catch(_) { source.src = url; }
+    // Do not double-encode. Assume url already properly encoded.
+    source.src = url;
     source.type = type;
     inlineVideo.appendChild(source);
     inlineVideo.load();
+
+    // Keep UI and audio time in sync with video when panel visible
+    try {
+      inlineVideo.addEventListener('timeupdate', () => {
+        if (videoPanel && videoPanel.style.display === 'block') {
+          try {
+            seekBar.value = inlineVideo.duration ? (inlineVideo.currentTime / inlineVideo.duration) * 100 : 0;
+            currentTimeEl.textContent = formatTime(inlineVideo.currentTime || 0);
+            if (!isNaN(inlineVideo.currentTime)) audio.currentTime = inlineVideo.currentTime;
+            savePlayerStateThrottled();
+          } catch(_) {}
+        }
+      });
+      inlineVideo.addEventListener('loadedmetadata', () => {
+        if (videoPanel && videoPanel.style.display === 'block') {
+          try { durationEl.textContent = formatTime(inlineVideo.duration || 0); } catch(_) {}
+        }
+      });
+      inlineVideo.addEventListener('seeked', () => {
+        if (videoPanel && videoPanel.style.display === 'block') {
+          try { audio.currentTime = inlineVideo.currentTime || 0; } catch(_) {}
+        }
+      });
+      inlineVideo.addEventListener('ended', () => {
+        if (videoPanel && videoPanel.style.display === 'block') {
+          playNext(true);
+        }
+      });
+      inlineVideo.addEventListener('play', () => { try { audio.pause(); } catch(_) {} updatePlayPauseUI(); saveVideoState({ open: true, url, currentTime: inlineVideo.currentTime||0, playing: true }); });
+      inlineVideo.addEventListener('pause', () => { updatePlayPauseUI(); saveVideoState({ open: true, url, currentTime: inlineVideo.currentTime||0, playing: false }); });
+      inlineVideo.addEventListener('timeupdate', () => { saveVideoState({ open: true, url, currentTime: inlineVideo.currentTime||0, playing: !inlineVideo.paused && !inlineVideo.ended }); });
+    } catch(_) {}
   }
 
   // Video button: toggle inline panel; play video if доступно, иначе обложку
@@ -1000,15 +1102,34 @@
     if (!videoPanel) return;
     const visible = videoPanel.style.display === 'block';
     if (visible) {
+      // Capture position and playing state BEFORE clearing the source
+      let t = 0; let wasPlaying = false; let hadMedia = false;
+      try { hadMedia = !!(inlineVideo.currentSrc || inlineVideo.readyState >= 1); } catch(_) { hadMedia=false; }
+      try { t = inlineVideo.currentTime || 0; wasPlaying = !inlineVideo.paused && !inlineVideo.ended; } catch(_) {}
       try { inlineVideo.pause(); } catch(_) {}
       inlineVideo.removeAttribute('src'); inlineVideo.load();
       if (inlineCover) inlineCover.style.display = 'none';
       videoPanel.style.display = 'none';
+      // Restore audio to captured position and resume if video was playing
+      const resumeAudio = () => {
+        // Only seek if video actually had media; otherwise don't jump to 0
+        if (hadMedia) { try { audio.currentTime = t; } catch(_) {} }
+        if (wasPlaying) { try { audio.play().catch(()=>{}); } catch(_) {} }
+      };
+      if (isNaN(audio.duration) || !isFinite(audio.duration) || audio.readyState < 1) {
+        const once = function(){ audio.removeEventListener('loadedmetadata', once); resumeAudio(); };
+        audio.addEventListener('loadedmetadata', once);
+      } else {
+        resumeAudio();
+      }
+      updatePlayPauseUI();
       return;
     }
+    // Capture current audio time and play-state for precise resume inside openInlineMedia
+    try { playerContainer.dataset.resumeTime = String(audio.currentTime || 0); playerContainer.dataset.wasPlayingVideoSwitch = (!audio.paused) ? '1' : '0'; } catch(_) {}
     openInlineMedia(url, (cover && cover.src) ? cover.src : '');
   };
-  if (videoClose) videoClose.onclick = () => { try { inlineVideo.pause(); } catch(_){}; inlineVideo.src=''; if (inlineCover) inlineCover.style.display='none'; videoPanel.style.display='none'; };
+  if (videoClose) videoClose.onclick = () => { let t=0, wasPlaying=false, hadMedia=false; try { hadMedia = !!(inlineVideo.currentSrc || inlineVideo.readyState >= 1); t = inlineVideo.currentTime || 0; wasPlaying = !inlineVideo.paused && !inlineVideo.ended; } catch(_){}; try { inlineVideo.pause(); } catch(_){}; inlineVideo.src=''; if (inlineCover) inlineCover.style.display='none'; videoPanel.style.display='none'; if (hadMedia) { try { audio.currentTime = t; } catch(_){} } if (wasPlaying) { try { audio.play().catch(()=>{}); } catch(_) {} } updatePlayPauseUI(); };
 
   fullscreenBtn.onclick = () => {
     if (isFullscreen) {
@@ -1099,7 +1220,55 @@
   });
   // Save on tab hide and before page unload to not lose position
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') savePlayerState();
+    if (document.visibilityState === 'hidden') {
+      // Save current state on hide
+      savePlayerState();
+      // If video is playing, note it so we can resume on return
+      try {
+        const wasVideoOpen = (videoPanel && videoPanel.style.display==='block');
+        const wasVideoPlaying = wasVideoOpen && inlineVideo && !inlineVideo.paused;
+        playerContainer.dataset.wasPlayingOnHide = (wasVideoPlaying || (!wasVideoOpen && !audio.paused)) ? '1' : '0';
+        // Persist video panel state
+        if (wasVideoOpen) {
+          saveVideoState({ open: true, url: (playerContainer.dataset && playerContainer.dataset.videoUrl) || '', currentTime: inlineVideo && !isNaN(inlineVideo.currentTime)? inlineVideo.currentTime : (audio.currentTime||0), playing: !!wasVideoPlaying });
+        } else {
+          saveVideoState({ open: false, url: (playerContainer.dataset && playerContainer.dataset.videoUrl) || '', currentTime: audio.currentTime||0, playing: !audio.paused });
+        }
+      } catch(_) {}
+    } else if (document.visibilityState === 'visible') {
+      // On return, if video panel open, resume video playback at synced time
+      const vstate = loadVideoState();
+      if (vstate && vstate.open) {
+        // Re-open video panel if it was open before navigation/tab switch
+        try {
+          const url = vstate.url || (playerContainer.dataset && playerContainer.dataset.videoUrl) || '';
+          openInlineMedia(url, (cover && cover.src) ? cover.src : '');
+          const apply = () => {
+            try { inlineVideo.currentTime = vstate.currentTime || 0; } catch(_) {}
+            if (vstate.playing) {
+              let tries = 0; const tryPlay = () => { tries++; inlineVideo.play().then(updatePlayPauseUI).catch(()=>{ if (tries < 5) setTimeout(tryPlay, 120); }); };
+              tryPlay();
+              try { audio.pause(); } catch(_) {}
+            }
+          };
+          if (inlineVideo && inlineVideo.readyState >= 1) apply(); else setTimeout(apply, 120);
+        } catch(_) {}
+      } else {
+        // If only audio was playing before hide, resume audio
+        const shouldResume = playerContainer.dataset.wasPlayingOnHide === '1';
+        if (shouldResume && audio.paused) {
+          // Make sure we don't jump to start if metadata not ready
+          const resume = () => { try { audio.play().catch(()=>{}); } catch(_) {} };
+          if (isNaN(audio.duration) || !isFinite(audio.duration) || audio.readyState < 1) {
+            const once = function(){ audio.removeEventListener('loadedmetadata', once); resume(); };
+            audio.addEventListener('loadedmetadata', once);
+          } else { resume(); }
+        }
+      }
+      // Clear flag
+      delete playerContainer.dataset.wasPlayingOnHide;
+      updatePlayPauseUI();
+    }
   });
   window.addEventListener('beforeunload', savePlayerState);
   // Ensure state persists on back/forward with bfcache

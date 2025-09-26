@@ -369,7 +369,8 @@
             title: tt.title,
             artist: tt.artist,
             cover: (function(){ const c = tt.cover||data.cover||'tracks/covers/placeholder.jpg'; if (/^https?:|^data:/i.test(c)) return c; const idx=c.indexOf('tracks/'); return idx!==-1?('/muzic2/'+c.slice(idx)):'/muzic2/'+c.replace(/^\/?/,''); })(),
-            duration: tt.duration||0
+            duration: tt.duration||0,
+            video_url: tt.video_url || ''
           }));
           const queue = queueRaw.map(ti => ({ ...ti, src: encodeURI(ti.src) }));
           window.playTrack && window.playTrack({
@@ -389,7 +390,8 @@
               title: tt.title,
               artist: tt.artist,
               cover: (function(){ const c = tt.cover||data.cover||'tracks/covers/placeholder.jpg'; if (/^https?:|^data:/i.test(c)) return c; const idx=c.indexOf('tracks/'); return idx!==-1?('/muzic2/'+c.slice(idx)):'/muzic2/'+c.replace(/^\/?/,''); })(),
-              duration: tt.duration||0
+              duration: tt.duration||0,
+              video_url: tt.video_url || ''
             }));
             const queue = queueRaw.map(ti => ({ ...ti, src: encodeURI(ti.src) }));
             window.playTrack && window.playTrack({ ...queue[i], queue, queueStartIndex: i });
@@ -436,7 +438,8 @@
         title: t.title,
         artist: t.artist,
         cover: (function(){ const c = t.cover||data.cover||'tracks/covers/placeholder.jpg'; if (/^https?:|^data:/i.test(c)) return c; const idx=c.indexOf('tracks/'); return idx!==-1?('/muzic2/'+c.slice(idx)):'/muzic2/'+c.replace(/^\/?/,''); })(),
-        duration: t.duration || 0
+        duration: t.duration || 0,
+        video_url: t.video_url || ''
       }));
       // Кнопка Play
       document.getElementById('album-play-btn').onclick = () => {

@@ -400,14 +400,14 @@ if (mainContent && navHome && navSearch && navLibrary) {
 					<div class="artist-name">${escapeHtml(item.artist)}</div>
 				</div>
 			`).join('');
-		} else if (type === 'track') {
+        } else if (type === 'track') {
 			row.className = 'card-row';
 			html = items.map((item, idx) => `
 				<div class="card" data-idx="${idx}">
 					<img class="card-cover" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
 					<div class="card-info">
-						<div class="card-title">${escapeHtml(item.title)}</div>
-						<div class="card-artist">${escapeHtml(item.artist)}</div>
+                <div class="card-title">${escapeHtml(item.title)}</div>
+                <div class="card-artist">${item.explicit? '<span class=\"exp-badge\" title=\"Нецензурная лексика\">E</span>':''}${escapeHtml(item.artist)}</div>
 						<div class="card-type">${item.album_type || ''}</div>
 					</div>
 				</div>
@@ -762,12 +762,12 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			const likedClass = window.__likedSet && window.__likedSet.has(track.id) ? 'liked' : '';
 			// Do not URL-encode values here; player will normalize paths. Escape single quotes for inline handler safety.
 			const esc = v => String(v==null?'':v).replace(/'/g, "\\'");
-			const play = `playTrack({ src: '${esc(track.src)}', title: '${esc(track.title)}', artist: '${esc(track.artist)}', cover: '${esc(track.cover)}', id: ${track.id||0}, video_url: '${esc(track.video_url||'')}' })`;
+			const play = `playTrack({ src: '${esc(track.src)}', title: '${esc(track.title)}', artist: '${esc(track.artist)}', cover: '${esc(track.cover)}', id: ${track.id||0}, video_url: '${esc(track.video_url||'')}', explicit: ${track.explicit?1:0} })`;
 		return `
 			<div class="card">
 				<img class="card-cover" src="/muzic2/${track.cover || 'tracks/covers/placeholder.jpg'}" alt="cover" onclick="${play}">
 				<div class="card-info" onclick="${play}">
-					<div class="card-title">${escapeHtml(track.title)}</div>
+					<div class="card-title">${escapeHtml(track.title)}${track.explicit? ' <span class="exp-badge" title="Нецензурная лексика">E</span>':''}</div>
 					<div class="card-artist">${escapeHtml(track.artist)}</div>
 					<div class="card-type">${escapeHtml(track.album || '')}</div>
 				</div>
