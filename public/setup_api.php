@@ -18,7 +18,12 @@ try {
     switch ($action) {
         case 'check_env':
             // Проверка PHP и подключения к БД
-            $db = get_db_connection();
+            try {
+                $db = get_db_connection();
+            } catch (Exception $e) {
+                echo json_encode(getResponse(false, [], 'Ошибка подключения к БД: ' . $e->getMessage()));
+                exit;
+            }
             $version = $db->query('SELECT VERSION()')->fetchColumn();
             
             echo json_encode(getResponse(true, [
@@ -30,7 +35,12 @@ try {
             
         case 'init_db':
             // Инициализация БД (аналог setup_db.php)
-            $db = get_db_connection();
+            try {
+                $db = get_db_connection();
+            } catch (Exception $e) {
+                echo json_encode(getResponse(false, [], 'Ошибка подключения к БД: ' . $e->getMessage()));
+                exit;
+            }
             $response = ['success' => false, 'executed' => [], 'health' => []];
             
             // Проверяем существование таблиц
@@ -78,7 +88,12 @@ try {
                 break;
             }
             
-            $db = get_db_connection();
+            try {
+                $db = get_db_connection();
+            } catch (Exception $e) {
+                echo json_encode(getResponse(false, [], 'Ошибка подключения к БД: ' . $e->getMessage()));
+                exit;
+            }
             $data = json_decode(file_get_contents($importFile), true);
             
             if (!$data || !isset($data['tracks'])) {
@@ -149,7 +164,12 @@ try {
             
         case 'check_health':
             // Проверка работоспособности
-            $db = get_db_connection();
+            try {
+                $db = get_db_connection();
+            } catch (Exception $e) {
+                echo json_encode(getResponse(false, [], 'Ошибка подключения к БД: ' . $e->getMessage()));
+                exit;
+            }
             
             $tracksCount = $db->query("SELECT COUNT(*) FROM tracks")->fetchColumn();
             $artistsCount = $db->query("SELECT COUNT(*) FROM artists")->fetchColumn();
