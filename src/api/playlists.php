@@ -34,6 +34,14 @@ if ($method === 'GET') {
         $stmt = $db->prepare('SELECT * FROM playlists WHERE user_id = ? ORDER BY created_at DESC');
         $stmt->execute([$user_id]);
         $playlists = $stmt->fetchAll();
+        
+        // Add special cover for "Любимые треки" playlist
+        foreach ($playlists as &$playlist) {
+            if ($playlist['name'] === 'Любимые треки') {
+                $playlist['cover'] = 'tracks/covers/favorites-playlist.png';
+            }
+        }
+        
         echo json_encode(['playlists' => $playlists]);
     }
     exit;

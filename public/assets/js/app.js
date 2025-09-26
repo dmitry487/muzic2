@@ -281,7 +281,14 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			// Click handlers for playlist tiles
 			playlists.forEach(pl => {
 				const el = document.getElementById(`pl-${pl.id}`);
-				if (el) el.onclick = () => openPlaylist(pl.id, pl.name);
+				if (el) {
+					el.onclick = (e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						openPlaylist(pl.id, pl.name);
+					};
+					el.style.cursor = 'pointer';
+				}
 			});
 		} catch (e) {
 			console.error('Ошибка загрузки "Моя музыка":', e);
@@ -350,7 +357,8 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	});
 
 	function playlistTile(pl) {
-		const cover = '/muzic2/public/assets/img/playlist-placeholder.png';
+		// Use special cover for "Любимые треки" playlist, otherwise use placeholder
+		const cover = pl.cover ? `/muzic2/${pl.cover}` : '/muzic2/public/assets/img/playlist-placeholder.png';
 		return `
 			<div class="tile" id="pl-${pl.id}">
 				<img class="tile-cover" src="${cover}" alt="cover">
@@ -362,12 +370,22 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	}
 
 	async function openPlaylist(playlistId, playlistName) {
+		alert('Открываем плейлист: ' + playlistName + ' (ID: ' + playlistId + ')');
 		const view = document.getElementById('playlist-view');
+		if (!view) {
+			alert('Элемент playlist-view не найден!');
+			return;
+		}
 		view.innerHTML = '<div class="loading">Загрузка плейлиста...</div>';
 		try {
 			const res = await fetch(`/muzic2/src/api/playlists.php?playlist_id=${playlistId}`, { credentials: 'include' });
+			if (!res.ok) {
+				alert('Ошибка API: ' + res.status + ' ' + res.statusText);
+				return;
+			}
 			const data = await res.json();
 			const tracks = data.tracks || [];
+			alert('Загружено треков: ' + tracks.length);
 			view.innerHTML = `
 				<section class="playlist-section">
 					<div class="playlist-header">
@@ -423,6 +441,48 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			.card { position: relative; }
 			.heart-btn { position:absolute; right:.5rem; bottom:.5rem; background:#222; border:1px solid #333; color:#bbb; border-radius:999px; width:36px; height:36px; cursor:pointer; }
 			.heart-btn.liked { background:#1db954; border-color:#1db954; color:#fff; }
+			
+			#playlist-view {
+				display: block;
+				margin-top: 2rem;
+			}
+			
+			.playlist-section {
+				background: #1a1a1a;
+				border-radius: 8px;
+				padding: 1.5rem;
+			}
+			
+			.playlist-header {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				margin-bottom: 1.5rem;
+				padding-bottom: 1rem;
+				border-bottom: 1px solid #333;
+			}
+			
+			.playlist-header h3 {
+				color: #fff;
+				margin: 0;
+				font-size: 1.5rem;
+			}
+			
+			.playlist-actions {
+				display: flex;
+				gap: 0.5rem;
+			}
+			
+			.playlist-actions .btn {
+				padding: 0.5rem 1rem;
+				font-size: 0.9rem;
+			}
+			
+			.playlist-actions .btn.danger {
+				background: #dc3545;
+				color: white;
+			}
+			
 		`;
 		document.head.appendChild(s);
 	}
