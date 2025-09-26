@@ -15,8 +15,7 @@ function get_db_connection() {
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         return $pdo;
     } catch (PDOException $e) {
-        // Do not emit JSON headers here; let callers decide the response format
-        http_response_code(500);
-        die('Database connection failed: ' . $e->getMessage());
+        // Throw exception instead of die() to allow proper error handling
+        throw new Exception('Database connection failed: ' . $e->getMessage());
     }
 } 
