@@ -631,7 +631,7 @@
   function setNowPlaying(t) {
     trackTitle.textContent = t.title || '';
     trackArtist.textContent = t.artist || '';
-    cover.src = t.cover || cover.src;
+    if (cover) cover.src = t.cover || (cover.src || '');
     currentTrackId = t.id || null;
     // Attach video URL (if any) to current track
     playerContainer.dataset.videoUrl = t.video_url || '';
@@ -1006,7 +1006,7 @@
       videoPanel.style.display = 'none';
       return;
     }
-    openInlineMedia(url, cover.src || '');
+    openInlineMedia(url, (cover && cover.src) ? cover.src : '');
   };
   if (videoClose) videoClose.onclick = () => { try { inlineVideo.pause(); } catch(_){}; inlineVideo.src=''; if (inlineCover) inlineCover.style.display='none'; videoPanel.style.display='none'; };
 
