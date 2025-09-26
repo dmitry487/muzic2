@@ -520,12 +520,12 @@ if (mainContent && navHome && navSearch && navLibrary) {
             (data.tracks||[]).forEach((t,i)=>{
 				const tr=document.createElement('tr');
 				tr.innerHTML = `<td class="track-num">${i+1}</td><td class="track-title">${escapeHtml(t.title||'')}</td><td class="track-artist">${escapeHtml(t.artist||'')}</td><td class="track-duration">${t.duration||0}</td>`;
-                const playBtn=document.createElement('button'); playBtn.className='track-play-btn'; playBtn.innerHTML='&#9654;'; playBtn.onclick=(e)=>{ e.stopPropagation(); const q=(data.tracks||[]).map(tt=>({ src: encodeURI('/muzic2/'+(tt.src||'')), title:tt.title, artist:tt.artist, cover:'/muzic2/'+(tt.cover||data.cover||'tracks/covers/placeholder.jpg'), video_url: tt.video_url||'' })); window.playTrack && window.playTrack({ ...q[i], queue:q, queueStartIndex:i }); };
+                const playBtn=document.createElement('button'); playBtn.className='track-play-btn'; playBtn.innerHTML='&#9654;'; playBtn.onclick=(e)=>{ e.stopPropagation(); const q=(data.tracks||[]).map(tt=>({ src: encodeURI('/muzic2/'+(tt.file_path||'')), title:tt.title, artist:tt.artist, cover:'/muzic2/'+(tt.cover||data.cover||'tracks/covers/placeholder.jpg'), video_url: tt.video_url||'' })); window.playTrack && window.playTrack({ ...q[i], queue:q, queueStartIndex:i }); };
 				tr.children[0].style.position='relative'; tr.children[0].appendChild(playBtn);
-                tr.onclick=(e)=>{ if(e.target!==playBtn){ const q=(data.tracks||[]).map(tt=>({ src: encodeURI('/muzic2/'+(tt.src||'')), title:tt.title, artist:tt.artist, cover:'/muzic2/'+(tt.cover||data.cover||'tracks/covers/placeholder.jpg'), video_url: tt.video_url||'' })); window.playTrack && window.playTrack({ ...q[i], queue:q, queueStartIndex:i }); } };
+                tr.onclick=(e)=>{ if(e.target!==playBtn){ const q=(data.tracks||[]).map(tt=>({ src: encodeURI('/muzic2/'+(tt.file_path||'')), title:tt.title, artist:tt.artist, cover:'/muzic2/'+(tt.cover||data.cover||'tracks/covers/placeholder.jpg'), video_url: tt.video_url||'' })); window.playTrack && window.playTrack({ ...q[i], queue:q, queueStartIndex:i }); } };
 				tbody.appendChild(tr);
 			});
-            document.getElementById('album-play-btn').onclick=()=>{ const q=(data.tracks||[]).map(tt=>({ src: encodeURI('/muzic2/'+(tt.src||'')), title:tt.title, artist:tt.artist, cover:'/muzic2/'+(tt.cover||data.cover||'tracks/covers/placeholder.jpg'), video_url: tt.video_url||'' })); if(q.length){ window.playTrack && window.playTrack({ ...q[0], queue:q, queueStartIndex:0 }); } };
+            document.getElementById('album-play-btn').onclick=()=>{ const q=(data.tracks||[]).map(tt=>({ src: encodeURI('/muzic2/'+(tt.file_path||'')), title:tt.title, artist:tt.artist, cover:'/muzic2/'+(tt.cover||data.cover||'tracks/covers/placeholder.jpg'), video_url: tt.video_url||'' })); if(q.length){ window.playTrack && window.playTrack({ ...q[0], queue:q, queueStartIndex:0 }); } };
 		} catch (e) {
 			mainContent.innerHTML = '<div class="error">Ошибка загрузки альбома</div>';
 		}
@@ -546,8 +546,8 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			`;
 			document.getElementById('artist-listeners').textContent = `${(data.monthly_listeners||0).toLocaleString('ru-RU')} слушателей за месяц`;
 			const list = document.getElementById('popular-tracks'); list.innerHTML='';
-			(data.top_tracks||[]).forEach((t,i)=>{ const d=document.createElement('div'); d.className='track-item-numbered'; d.innerHTML=`<div class="track-number">${i+1}</div><div class="track-title-primary">${escapeHtml(t.title||'')}</div>`; d.onclick=()=>{ const q=(data.top_tracks||[]).map(tt=>({ src: encodeURI('/muzic2/'+(tt.src||'')), title:tt.title, artist:tt.artist, cover:'/muzic2/'+(tt.cover||data.cover||'tracks/covers/placeholder.jpg') })); window.playTrack && window.playTrack({ ...q[i], queue:q, queueStartIndex:i }); }; list.appendChild(d); });
-			document.getElementById('play-all-btn').onclick=()=>{ const q=(data.top_tracks||[]).map(tt=>({ src: encodeURI('/muzic2/'+(tt.src||'')), title:tt.title, artist:tt.artist, cover:'/muzic2/'+(tt.cover||data.cover||'tracks/covers/placeholder.jpg') })); if(q.length){ window.playTrack && window.playTrack({ ...q[0], queue:q, queueStartIndex:0 }); } };
+			(data.top_tracks||[]).forEach((t,i)=>{ const d=document.createElement('div'); d.className='track-item-numbered'; d.innerHTML=`<div class="track-number">${i+1}</div><div class="track-title-primary">${escapeHtml(t.title||'')}</div>`; d.onclick=()=>{ const q=(data.top_tracks||[]).map(tt=>({ src: encodeURI('/muzic2/'+(tt.file_path||'')), title:tt.title, artist:tt.artist, cover:'/muzic2/'+(tt.cover||data.cover||'tracks/covers/placeholder.jpg') })); window.playTrack && window.playTrack({ ...q[i], queue:q, queueStartIndex:i }); }; list.appendChild(d); });
+			document.getElementById('play-all-btn').onclick=()=>{ const q=(data.top_tracks||[]).map(tt=>({ src: encodeURI('/muzic2/'+(tt.file_path||'')), title:tt.title, artist:tt.artist, cover:'/muzic2/'+(tt.cover||data.cover||'tracks/covers/placeholder.jpg') })); if(q.length){ window.playTrack && window.playTrack({ ...q[0], queue:q, queueStartIndex:0 }); } };
 		} catch (e) {
 			mainContent.innerHTML = '<div class="error">Ошибка загрузки артиста</div>';
 		}
@@ -762,7 +762,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			const likedClass = window.__likedSet && window.__likedSet.has(track.id) ? 'liked' : '';
 			// Do not URL-encode values here; player will normalize paths. Escape single quotes for inline handler safety.
 			const esc = v => String(v==null?'':v).replace(/'/g, "\\'");
-			const play = `playTrack({ src: '${esc(track.src)}', title: '${esc(track.title)}', artist: '${esc(track.artist)}', cover: '${esc(track.cover)}', id: ${track.id||0}, video_url: '${esc(track.video_url||'')}', explicit: ${track.explicit?1:0} })`;
+			const play = `playTrack({ src: '${esc(track.file_path)}', title: '${esc(track.title)}', artist: '${esc(track.artist)}', cover: '${esc(track.cover)}', id: ${track.id||0}, video_url: '${esc(track.video_url||'')}', explicit: ${track.explicit?1:0} })`;
 		return `
 			<div class="card">
 				<img class="card-cover" src="/muzic2/${track.cover || 'tracks/covers/placeholder.jpg'}" alt="cover" onclick="${play}">

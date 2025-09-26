@@ -63,7 +63,7 @@ try {
             'artist' => $track['artist'],
             'album' => $track['album'],
             'duration' => (int)$track['duration'],
-            'src' => $track['file_path'],
+            'file_path' => $track['file_path'],
             'cover' => $track['cover'],
             'video_url' => $track['video_url'],
             'explicit' => (int)$track['explicit']

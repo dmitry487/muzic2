@@ -95,6 +95,10 @@ async function loadArtistData(artistName) {
         currentArtist = data;
         artistTracks = data.top_tracks || [];
         
+        console.log('Artist data loaded:', data);
+        console.log('Top tracks count:', artistTracks.length);
+        console.log('First few tracks:', artistTracks.slice(0, 3).map(t => ({ title: t.title, artist: t.artist })));
+        
         renderArtistPage(data);
         
     } catch (error) {
@@ -160,6 +164,7 @@ function renderArtistPage(artist) {
     }
     
     // Render popular tracks
+    console.log('Rendering popular tracks:', artist.top_tracks);
     renderPopularTracks(artist.top_tracks || []);
     
     // Render albums
@@ -187,6 +192,10 @@ function renderPopularTracks(tracks) {
 
 // Create track element
 function createTrackElement(track, number) {
+    console.log('createTrackElement called with track:', track);
+    console.log('Track file_path:', track.file_path);
+    console.log('Track src:', track.src);
+    
     const trackDiv = document.createElement('div');
     trackDiv.className = 'track-item-numbered';
     trackDiv.dataset.trackId = track.id;
@@ -226,9 +235,9 @@ function createTrackElement(track, number) {
     attachImgFallback(img);
     
     // Add click event to play track
-    trackDiv.addEventListener('click', (e) => {
+    trackDiv.addEventListener('click', async (e) => {
         if (!e.target.closest('.track-like-btn') && !e.target.closest('.track-more-btn')) {
-        artistPlayTrack(track);
+        await artistPlayTrack(track);
         }
     });
     
@@ -364,9 +373,9 @@ function setupEventListeners() {
     // Play all button
     const playAllBtn = document.getElementById('play-all-btn');
     if (playAllBtn) {
-        playAllBtn.addEventListener('click', () => {
+        playAllBtn.addEventListener('click', async () => {
             if (artistTracks.length > 0) {
-                artistPlayTrack(artistTracks[0]);
+                await artistPlayTrack(artistTracks[0]);
             }
         });
     }
@@ -374,10 +383,10 @@ function setupEventListeners() {
     // Shuffle button
     const shuffleBtn = document.getElementById('shuffle-btn');
     if (shuffleBtn) {
-        shuffleBtn.addEventListener('click', () => {
+        shuffleBtn.addEventListener('click', async () => {
             if (artistTracks.length > 0) {
                 const randomTrack = artistTracks[Math.floor(Math.random() * artistTracks.length)];
-                artistPlayTrack(randomTrack);
+                await artistPlayTrack(randomTrack);
             }
         });
     }
@@ -396,7 +405,7 @@ function setupEventListeners() {
 }
 
 // Play track function
-function artistPlayTrack(track) {
+async function artistPlayTrack(track) {
     if (!track) return;
     
     // Update player with track info
@@ -413,7 +422,33 @@ function artistPlayTrack(track) {
     }
     
     // Build absolute src for audio
-    let src = track.src || track.file_path || '';
+    console.log('artistPlayTrack called with track:', track);
+    console.log('track.src:', track.src);
+    console.log('track.file_path:', track.file_path);
+    
+    // КАРДИНАЛЬНО НОВЫЙ ПОДХОД: НЕ используем track вообще, создаем src с нуля
+    let src = '';
+    
+    // Создаем src на основе file_path
+    if (track.file_path) {
+        if (track.file_path.startsWith('/muzic2/')) {
+            src = track.file_path;
+        } else if (track.file_path.startsWith('/tracks/')) {
+            src = '/muzic2' + track.file_path;
+        } else {
+            const idx = track.file_path.indexOf('tracks/');
+            src = idx !== -1 ? ('/muzic2/' + track.file_path.slice(idx)) : ('/muzic2/' + track.file_path.replace(/^\/+/, ''));
+        }
+    }
+    
+    console.log('Created src from scratch:', src);
+    
+    // КРИТИЧЕСКАЯ ПРОВЕРКА: если src все еще содержит URL страницы, используем только file_path
+    if (src && src.includes('artist.html')) {
+        console.log('CRITICAL: src still contains URL page, using only file_path');
+        src = track.file_path || '';
+        console.log('Critical fix - using file_path only:', src);
+    }
     if (src) {
         if (!/^https?:|^data:/i.test(src)) {
             if (src.startsWith('/muzic2/')) {
@@ -429,41 +464,98 @@ function artistPlayTrack(track) {
     }
     // Use global player
     if (window.playTrack) {
+        console.log('Setting up artist queue with', artistTracks.length, 'tracks');
+        console.log('artistTracks:', artistTracks);
+        
+        // Если треки артиста не загружены, загружаем их
+        if (artistTracks.length === 0) {
+            console.log('No artist tracks loaded, loading artist data...');
+            const urlParams = new URLSearchParams(window.location.search);
+            const artistName = urlParams.get('artist');
+            if (artistName) {
+                await loadArtistData(artistName);
+            } else {
+                console.error('No artist name available for loading tracks');
+                return;
+            }
+        }
+        
+        // Проверяем что треки загрузились
+        if (artistTracks.length === 0) {
+            console.error('Still no tracks after loading artist data');
+            return;
+        }
+        
+        console.log('Creating queue with', artistTracks.length, 'tracks');
+        
         // Создаем очередь из всех треков артиста
-        const artistQueue = artistTracks.map(t => ({
-            src: (function(){
-                let s = t.file_path || '';
-                if (!s) return '';
-                if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:')) return s;
-                if (s.startsWith('/muzic2/')) return s;
-                if (s.startsWith('/tracks/')) return '/muzic2' + s;
-                const idx = s.indexOf('tracks/');
-                return idx !== -1 ? ('/muzic2/' + s.slice(idx)) : ('/muzic2/' + s.replace(/^\/+/, ''));
-            })(),
-            title: t.title || '',
-            artist: t.artist || '',
-            cover: resolveCoverPath(t.cover),
-            duration: t.duration || 0,
-            video_url: t.video_url || '',
-            explicit: t.explicit || false
-        }));
+        const artistQueue = artistTracks.map(t => {
+            let trackSrc = t.file_path || '';
+            console.log('Original track file_path:', t.file_path);
+            console.log('Original track title:', t.title);
+            
+            if (trackSrc && !trackSrc.startsWith('http') && !trackSrc.startsWith('data:')) {
+                if (trackSrc.startsWith('/muzic2/')) {
+                    // keep as is
+                } else if (trackSrc.startsWith('/tracks/')) {
+                    trackSrc = '/muzic2' + trackSrc;
+                } else {
+                    const idx = trackSrc.indexOf('tracks/');
+                    trackSrc = idx !== -1 ? ('/muzic2/' + trackSrc.slice(idx)) : ('/muzic2/' + trackSrc.replace(/^\/+/, ''));
+                }
+            }
+            
+            console.log('Processed trackSrc:', trackSrc);
+            
+            const trackObj = {
+                src: trackSrc,
+                title: t.title || '',
+                artist: t.artist || '',
+                cover: resolveCoverPath(t.cover),
+                duration: t.duration || 0,
+                video_url: t.video_url || '',
+                explicit: t.explicit || false
+            };
+            console.log('Created track object:', trackObj);
+            return trackObj;
+        });
         
         // Находим индекс текущего трека в очереди
         const currentIndex = artistQueue.findIndex(t => t.title === track.title);
+        console.log('Current track index in queue:', currentIndex);
         
-        // Устанавливаем очередь и начинаем воспроизведение с текущего трека
+        // Устанавливаем очередь
         if (window.setQueue && typeof window.setQueue === 'function') {
             window.setQueue(artistQueue, currentIndex >= 0 ? currentIndex : 0);
+        } else {
+            console.log('setQueue function not available');
         }
         
-        window.playTrack({
-            src,
-            title: track.title || '',
-            artist: track.artist || '',
-            cover: (function(){ const c = resolveCoverPath(track.cover); return c.startsWith('data:') ? c : encodeURI(c); })(),
-            duration: track.duration || 0,
-            video_url: track.video_url || ''
-        });
+        // Воспроизводим текущий трек
+        // Устанавливаем очередь и воспроизводим трек напрямую
+        if (window.setQueue && typeof window.setQueue === 'function') {
+            window.setQueue(artistQueue, currentIndex >= 0 ? currentIndex : 0);
+            // Воспроизводим трек напрямую через playFromQueue, не через playTrack
+            if (window.playFromQueue && typeof window.playFromQueue === 'function') {
+                window.playFromQueue(currentIndex >= 0 ? currentIndex : 0);
+            } else {
+                // Fallback: используем playTrack с параметром queue
+                window.playTrack({
+                    queue: artistQueue,
+                    queueStartIndex: currentIndex >= 0 ? currentIndex : 0
+                });
+            }
+        } else {
+            // Fallback: используем обычный playTrack
+            window.playTrack({
+                src,
+                title: track.title || '',
+                artist: track.artist || '',
+                cover: (function(){ const c = resolveCoverPath(track.cover); return c.startsWith('data:') ? c : encodeURI(c); })(),
+                duration: track.duration || 0,
+                video_url: track.video_url || ''
+            });
+        }
     } else if (window.loadTrack) {
         window.loadTrack({ src, title: track.title || '', artist: track.artist || '', cover: (function(){ const c = resolveCoverPath(track.cover); return c.startsWith('data:') ? c : encodeURI(c); })(), duration: track.duration || 0 });
     }

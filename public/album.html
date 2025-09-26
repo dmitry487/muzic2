@@ -365,7 +365,7 @@
           e.stopPropagation();
           const queueRaw = data.tracks.map(tt => ({
             id: tt.id,
-            src: (function(){ const s = tt.src||''; if (/^https?:/i.test(s)) return s; const idx=s.indexOf('tracks/'); return idx!==-1?('/muzic2/'+s.slice(idx)):'/muzic2/'+s.replace(/^\/?/,''); })(),
+            src: (function(){ const s = tt.file_path||''; if (/^https?:/i.test(s)) return s; const idx=s.indexOf('tracks/'); return idx!==-1?('/muzic2/'+s.slice(idx)):'/muzic2/'+s.replace(/^\/?/,''); })(),
             title: tt.title,
             artist: tt.artist,
             cover: (function(){ const c = tt.cover||data.cover||'tracks/covers/placeholder.jpg'; if (/^https?:|^data:/i.test(c)) return c; const idx=c.indexOf('tracks/'); return idx!==-1?('/muzic2/'+c.slice(idx)):'/muzic2/'+c.replace(/^\/?/,''); })(),
@@ -386,7 +386,7 @@
           if (e.target !== playBtn) {
             const queueRaw = data.tracks.map(tt => ({
               id: tt.id,
-              src: (function(){ const s = tt.src||''; if (/^https?:/i.test(s)) return s; const idx=s.indexOf('tracks/'); return idx!==-1?('/muzic2/'+s.slice(idx)):'/muzic2/'+s.replace(/^\/?/,''); })(),
+              src: (function(){ const s = tt.file_path||''; if (/^https?:/i.test(s)) return s; const idx=s.indexOf('tracks/'); return idx!==-1?('/muzic2/'+s.slice(idx)):'/muzic2/'+s.replace(/^\/?/,''); })(),
               title: tt.title,
               artist: tt.artist,
               cover: (function(){ const c = tt.cover||data.cover||'tracks/covers/placeholder.jpg'; if (/^https?:|^data:/i.test(c)) return c; const idx=c.indexOf('tracks/'); return idx!==-1?('/muzic2/'+c.slice(idx)):'/muzic2/'+c.replace(/^\/?/,''); })(),
@@ -434,7 +434,7 @@
       // Очередь для плеера
       window.albumQueue = data.tracks.map(t => ({
         id: t.id,
-        src: (function(){ const s = t.src||''; if (/^https?:/i.test(s)) return s; const idx=s.indexOf('tracks/'); return idx!==-1?('/muzic2/'+s.slice(idx)):'/muzic2/'+s.replace(/^\/?/,''); })(),
+        src: (function(){ const s = t.file_path||''; if (/^https?:/i.test(s)) return s; const idx=s.indexOf('tracks/'); return idx!==-1?('/muzic2/'+s.slice(idx)):'/muzic2/'+s.replace(/^\/?/,''); })(),
         title: t.title,
         artist: t.artist,
         cover: (function(){ const c = t.cover||data.cover||'tracks/covers/placeholder.jpg'; if (/^https?:|^data:/i.test(c)) return c; const idx=c.indexOf('tracks/'); return idx!==-1?('/muzic2/'+c.slice(idx)):'/muzic2/'+c.replace(/^\/?/,''); })(),

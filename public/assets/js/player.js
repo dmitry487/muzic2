@@ -609,10 +609,17 @@
     try { return JSON.parse(localStorage.getItem(VIDEO_STATE_KEY) || 'null'); } catch(_) { return null; }
   }
   function loadQueue() {
-    trackQueue = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
+    const storedQueue = localStorage.getItem(QUEUE_KEY) || '[]';
+    console.log('Loading queue from localStorage:', storedQueue);
+    trackQueue = JSON.parse(storedQueue);
     queueIndex = parseInt(localStorage.getItem(QUEUE_INDEX_KEY) || '0', 10);
     if (isNaN(queueIndex) || queueIndex < 0) queueIndex = 0;
     try { originalQueue = JSON.parse(localStorage.getItem(ORIGINAL_QUEUE_KEY) || '[]'); } catch (e) { originalQueue = []; }
+    console.log('Loaded queue length:', trackQueue.length);
+    console.log('Loaded queue index:', queueIndex);
+    if (trackQueue.length > 0) {
+      console.log('First track in loaded queue:', trackQueue[0]);
+    }
   }
 
   // Queue UI
@@ -671,10 +678,29 @@
       }
     } catch (_) {}
   }
-  function playFromQueue(idx) {
-    if (!trackQueue[idx]) return;
+  window.playFromQueue = function(idx) {
+    console.log('playFromQueue called with index:', idx);
+    console.log('trackQueue length:', trackQueue.length);
+    console.log('Full trackQueue:', trackQueue);
+    if (!trackQueue[idx]) {
+      console.log('No track at index', idx);
+      console.log('Available indices:', trackQueue.map((t, i) => i));
+      return;
+    }
     queueIndex = idx;
     const t = trackQueue[idx];
+    console.log('Playing track:', t.title, 'from queue');
+    console.log('Track src:', t.src);
+    console.log('Track cover:', t.cover);
+    console.log('Track object:', t);
+    
+    // ПРОВЕРЯЕМ: если src содержит URL страницы, заменяем на file_path
+    if (t.src && t.src.includes('artist.html')) {
+      console.log('WARNING: Track src contains URL page, replacing with file_path');
+      t.src = t.file_path || '';
+      console.log('Replaced src with file_path:', t.src);
+    }
+    
     setNowPlaying(t);
     if (popupActive || ensurePopup(true)) {
       const ok = postToPopup({ cmd: 'playTrack', src: t.src, title: t.title, artist: t.artist, cover: t.cover, currentTime: 0, volume: volumeBar.value/100, autoplay: true });
@@ -690,10 +716,16 @@
         return;
       }
     } else {
+      console.log('Setting audio.src to:', t.src);
       audio.src = t.src;
       // start from beginning always when starting playback via control
       audio.currentTime = 0;
-      audio.play().catch(() => {});
+      console.log('Attempting to play audio...');
+      audio.play().catch((error) => {
+        console.error('Audio play failed:', error);
+        console.error('Audio src:', audio.src);
+        console.error('Audio readyState:', audio.readyState);
+      });
     }
     saveQueue();
     savePlayerState();
@@ -711,17 +743,28 @@
     } catch (e) {}
   }
   function playNext(auto = false) {
-    if (!trackQueue.length) return;
+    console.log('playNext called, auto:', auto, 'trackQueue length:', trackQueue.length, 'queueIndex:', queueIndex);
+    console.log('repeatMode:', repeatMode);
+    if (!trackQueue.length) {
+      console.log('No tracks in queue, cannot play next');
+      return;
+    }
     if (repeatMode === 'one' && auto) {
       // replay same
+      console.log('Replaying same track due to repeat mode');
       playFromQueue(queueIndex);
       return;
     }
     // Always follow current queue order; shuffle affects queue order, not next-pick randomness
     if (queueIndex + 1 < trackQueue.length) {
+      console.log('Playing next track at index:', queueIndex + 1);
+      console.log('Next track:', trackQueue[queueIndex + 1] ? trackQueue[queueIndex + 1].title : 'none');
       playFromQueue(queueIndex + 1);
     } else if (repeatMode === 'all') {
+      console.log('Repeating from beginning');
       playFromQueue(0);
+    } else {
+      console.log('No more tracks in queue');
     }
   }
   function playPrev() {
@@ -827,7 +870,12 @@
     durationEl.textContent = formatTime(audio.duration);
   });
   audio.addEventListener('ended', () => {
-    if (popupActive) return;
+    console.log('Audio ended event triggered');
+    if (popupActive) {
+      console.log('Popup is active, skipping playNext');
+      return;
+    }
+    console.log('Calling playNext(true)');
     playNext(true);
   });
 
@@ -974,7 +1022,10 @@
     updateRepeatUI();
     savePlayerState();
   };
-  nextBtn.onclick = () => playNext(false);
+  nextBtn.onclick = () => {
+    console.log('Next button clicked manually');
+    playNext(false);
+  };
   prevBtn.onclick = () => playPrev();
 
   queueBtn.onclick = () => toggleQueuePanel();
@@ -1334,6 +1385,9 @@
 
   // Public API for other pages
   window.playTrack = function (arg) {
+    console.log('playTrack called with:', arg);
+    console.log('Current trackQueue length before playTrack:', trackQueue.length);
+    
     // Support legacy positional signature: playTrack(src, title, artist, cover)
     let src, title, artist, coverUrl, queue = null, queueStartIndex = 0, duration = 0, id = undefined;
     if (typeof arg === 'object' && arg !== null) {
@@ -1341,6 +1395,9 @@
     } else {
       src = arguments[0]; title = arguments[1]; artist = arguments[2]; coverUrl = arguments[3];
     }
+    
+    console.log('playTrack queue parameter:', queue);
+    console.log('playTrack queueStartIndex:', queueStartIndex);
     function normalizeSrc(u){
       if (!u) return '';
       if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('data:')) return u;
@@ -1365,6 +1422,7 @@
       return '/muzic2/' + u.replace(/^\/+/, '');
     }
     if (queue && Array.isArray(queue) && queue.length > 0) {
+      console.log('Using provided queue with', queue.length, 'tracks');
       // Ensure ordered playback when album queue starts
       shuffleEnabled = false;
       updateShuffleUI();
@@ -1383,6 +1441,8 @@
       playFromQueue(queueIndex);
       toggleQueuePanel(true);
     } else {
+      console.log('No queue provided, creating single track queue');
+      console.log('This will overwrite existing queue of', trackQueue.length, 'tracks');
       // Single track
       trackQueue = [{ src: normalizeSrc(src), title, artist, cover: normalizeCover(coverUrl || ''), duration, id, video_url: normalizeVideo((arguments[0] && arguments[0].video_url) ? arguments[0].video_url : '') }];
       originalQueue = trackQueue.slice();
@@ -1410,7 +1470,7 @@
       return '/muzic2/' + u.replace(/^\/+/, '');
     }
     const t = {
-      src: normalizeSrc(track.src || track.file_path || ''),
+      src: normalizeSrc(track.file_path || ''),
       title: track.title || '',
       artist: track.artist || '',
       cover: normalizeCover(track.cover || ''),
@@ -1428,41 +1488,31 @@
 
   // Set queue function for external use
   window.setQueue = function(queue, startIndex = 0) {
-    if (!Array.isArray(queue) || queue.length === 0) return;
+    console.log('setQueue called with queue length:', queue ? queue.length : 'null', 'startIndex:', startIndex);
+    console.log('Current trackQueue length before setQueue:', trackQueue.length);
     
-    // Save queue to localStorage
-    localStorage.setItem('playerQueue', JSON.stringify(queue));
-    localStorage.setItem('queueIndex', startIndex.toString());
-    
-    // Update current track if startIndex is valid
-    if (startIndex >= 0 && startIndex < queue.length) {
-      const track = queue[startIndex];
-      if (track) {
-        // Update UI
-        document.getElementById('track-title').textContent = track.title || '';
-        document.getElementById('track-artist').textContent = track.artist || '';
-        const coverImg = document.querySelector('.cover');
-        if (coverImg) {
-          coverImg.src = track.cover || '';
-        }
-        
-        // Update audio source
-        if (audio) {
-          audio.src = track.src || '';
-          audio.load();
-        }
-        
-        // Update video if present
-        if (track.video_url && inlineVideo) {
-          inlineVideo.src = normalizeVideo(track.video_url);
-        }
-        
-        // Update queue UI
-        renderQueueUI();
-      }
+    if (!Array.isArray(queue) || queue.length === 0) {
+      console.log('Invalid queue provided to setQueue');
+      return;
     }
     
-    console.log('Queue set with', queue.length, 'tracks, starting from index', startIndex);
+    console.log('Setting queue with', queue.length, 'tracks, starting from index', startIndex);
+    console.log('First few tracks:', queue.slice(0, 3).map(t => ({ title: t.title, artist: t.artist, src: t.src })));
+    
+    // Update internal queue variables
+    trackQueue = queue;
+    queueIndex = startIndex;
+    
+    // Save queue to localStorage
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+    localStorage.setItem(QUEUE_INDEX_KEY, String(queueIndex));
+    
+    // Update queue UI
+    renderQueueUI();
+    
+    console.log('Queue set successfully, trackQueue length:', trackQueue.length, 'queueIndex:', queueIndex);
+    console.log('Current track in queue:', trackQueue[queueIndex] ? trackQueue[queueIndex].title : 'none');
+    console.log('Current track src:', trackQueue[queueIndex] ? trackQueue[queueIndex].src : 'none');
   };
 
   // Initialize from storage
