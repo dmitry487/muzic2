@@ -35,6 +35,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			currentUser = data.authenticated ? data.user : null;
 			renderAuthHeader();
 		} catch (e) {
+			console.error('Session init error:', e);
 			currentUser = null;
 			renderAuthHeader();
 		}
@@ -125,12 +126,36 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	}
 
 	// =====================
+	// Helper Functions
+	// =====================
+	function createAlbumCard(album) {
+		return `
+			<div class="tile" onclick="navigateTo('album', { album: '${encodeURIComponent(album.title)}' })">
+				<img class="tile-cover" loading="lazy" src="/muzic2/${album.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
+				<div class="tile-title">${escapeHtml(album.title)}</div>
+				<div class="tile-desc">${escapeHtml(album.artist || '')}</div>
+				<div class="tile-play">&#9654;</div>
+			</div>
+		`;
+	}
+
+	// =====================
 	// My Music (Favorites & Playlists)
 	// =====================
 	async function renderMyMusic() {
 		mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
 
 		injectMyMusicStyles();
+
+		// Check auth status
+		try {
+			const userRes = await fetch('/muzic2/src/api/user.php', { credentials: 'include' });
+			const userData = await userRes.json();
+			currentUser = userData.authenticated ? userData.user : null;
+		} catch (e) {
+			console.error('Ошибка проверки авторизации:', e);
+			currentUser = null;
+		}
 
 		// Require auth
 		if (!currentUser) {
@@ -154,7 +179,89 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			const playlistsData = await listsRes.json();
 			const playlists = playlistsData.playlists || [];
 
+			// Load liked albums
+			const likesRes = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
+			if (!likesRes.ok) {
+				throw new Error('Ошибка загрузки лайков: ' + likesRes.status);
+			}
+			const likesData = await likesRes.json();
+			const likedAlbums = likesData.albums || [];
+
+			// Get full album info for liked albums
+			let albumCards = '<div class="empty">Пока нет любимых альбомов</div>';
+			if (likedAlbums.length > 0) {
+				try {
+					// Get all albums from dedicated API
+					const allAlbumsRes = await fetch('/muzic2/src/api/all_albums.php');
+					const allAlbumsData = await allAlbumsRes.json();
+					const allAlbums = allAlbumsData.albums || [];
+					
+					// Match liked albums with full album data
+					const matchedAlbums = await Promise.all(likedAlbums.map(async (likedAlbum) => {
+						// Try exact match first
+						let matched = allAlbums.find(album => 
+							album.album && album.album.toLowerCase() === likedAlbum.album_title.toLowerCase()
+						);
+						
+						// If no exact match, try partial match
+						if (!matched) {
+							matched = allAlbums.find(album => 
+								album.album && album.album.toLowerCase().includes(likedAlbum.album_title.toLowerCase())
+							);
+						}
+						
+						// If still no match, try reverse partial match
+						if (!matched) {
+							matched = allAlbums.find(album => 
+								album.album && likedAlbum.album_title.toLowerCase().includes(album.album.toLowerCase())
+							);
+						}
+						
+						// If still no match, try to find by searching tracks
+						if (!matched) {
+							try {
+								const searchRes = await fetch(`/muzic2/src/api/search.php?q=${encodeURIComponent(likedAlbum.album_title)}&type=albums`);
+								const searchData = await searchRes.json();
+								if (searchData.albums && searchData.albums.length > 0) {
+									matched = searchData.albums[0];
+								}
+							} catch (e) {
+								// Ignore search errors
+							}
+						}
+						
+						return matched ? {
+							title: matched.album || matched.title,
+							artist: matched.artist,
+							cover: matched.cover
+						} : {
+							title: likedAlbum.album_title,
+							artist: 'Неизвестный артист',
+							cover: 'tracks/covers/placeholder.jpg'
+						};
+					}));
+					
+					albumCards = matchedAlbums.map(album => createAlbumCard(album)).join('');
+				} catch (e) {
+					console.error('Error loading album info:', e);
+					// Fallback: show albums with basic info
+					albumCards = likedAlbums.map(album => createAlbumCard({
+						title: album.album_title,
+						artist: 'Неизвестный артист',
+						cover: 'tracks/covers/placeholder.jpg'
+					})).join('');
+				}
+			}
+
 			mainContent.innerHTML = `
+				<section class="my-section">
+					<div class="my-header">
+						<h2>Любимые альбомы</h2>
+					</div>
+					<div class="tile-row" id="albums-row">
+						${albumCards}
+					</div>
+				</section>
 				<section class="my-section">
 					<div class="my-header">
 						<h2>Мои плейлисты</h2>
@@ -177,28 +284,68 @@ if (mainContent && navHome && navSearch && navLibrary) {
 				if (el) el.onclick = () => openPlaylist(pl.id, pl.name);
 			});
 		} catch (e) {
-			mainContent.innerHTML = '<div class="error">Ошибка загрузки</div>';
+			console.error('Ошибка загрузки "Моя музыка":', e);
+			mainContent.innerHTML = '<div class="error">Ошибка загрузки: ' + e.message + '</div>';
 		}
 	}
 
 	// Global delegation for heart toggle
 		document.addEventListener('click', async (e) => {
-		const btn = e.target.closest('.heart-btn');
+		const btn = e.target.closest('.heart-btn, .album-like-btn');
 		if (!btn) return;
 		if (!currentUser) { attachAuthModalTriggers(); const open = id => { document.querySelector('#auth-modals .modal-overlay').style.display='block'; document.getElementById(id).style.display='block'; }; open('login-modal'); return; }
+		
+		// Handle track likes
 		const trackId = Number(btn.getAttribute('data-track-id'));
-		if (!trackId) return;
-		if (btn.classList.contains('liked')) {
-			await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: trackId })});
-			btn.classList.remove('liked');
-			window.__likedSet && window.__likedSet.delete(trackId);
+		if (trackId) {
+			if (btn.classList.contains('liked')) {
+				await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: trackId })});
+				btn.classList.remove('liked');
+				window.__likedSet && window.__likedSet.delete(trackId);
 				try{ document.dispatchEvent(new CustomEvent('likes:updated', { detail:{ trackId, liked:false } })); }catch(_){ }
-		} else {
-			await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: trackId })});
-			btn.classList.add('liked');
-			if (!window.__likedSet) window.__likedSet = new Set();
-			window.__likedSet.add(trackId);
+			} else {
+				await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: trackId })});
+				btn.classList.add('liked');
+				if (!window.__likedSet) window.__likedSet = new Set();
+				window.__likedSet.add(trackId);
 				try{ document.dispatchEvent(new CustomEvent('likes:updated', { detail:{ trackId, liked:true } })); }catch(_){ }
+			}
+			return;
+		}
+		
+		// Handle album likes
+		const albumTitle = btn.getAttribute('data-album-title');
+		if (albumTitle) {
+			try {
+				if (btn.classList.contains('liked')) {
+					const res = await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
+					if (res.ok) {
+						btn.classList.remove('liked');
+						window.__likedAlbums && window.__likedAlbums.delete(albumTitle);
+						// Update all album buttons with same title
+						document.querySelectorAll(`[data-album-title="${albumTitle}"]`).forEach(b => b.classList.remove('liked'));
+						// Force reload album likes to sync state
+						setTimeout(() => loadAlbumLikes(), 100);
+					} else {
+						console.error('Failed to remove album like:', res.status);
+					}
+				} else {
+					const res = await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
+					if (res.ok) {
+						btn.classList.add('liked');
+						if (!window.__likedAlbums) window.__likedAlbums = new Set();
+						window.__likedAlbums.add(albumTitle);
+						// Update all album buttons with same title
+						document.querySelectorAll(`[data-album-title="${albumTitle}"]`).forEach(b => b.classList.add('liked'));
+						// Force reload album likes to sync state
+						setTimeout(() => loadAlbumLikes(), 100);
+					} else {
+						console.error('Failed to add album like:', res.status);
+					}
+				}
+			} catch (error) {
+				console.error('Error handling album like:', error);
+			}
 		}
 	});
 
@@ -514,11 +661,11 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	}
 
 	// SPA Navigation System
-	let currentPage = 'home';
+	window.currentPage = 'home';
 	let currentParams = {};
 
 	function navigateTo(page, params = {}) {
-		currentPage = page;
+		window.currentPage = page;
 		currentParams = params;
 		
 		// Update URL without reload
@@ -545,13 +692,13 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	// Handle browser back/forward
 	window.addEventListener('popstate', (event) => {
 		if (event.state) {
-			currentPage = event.state.page;
+			window.currentPage = event.state.page;
 			currentParams = event.state.params;
-			if (currentPage === 'home') {
+			if (window.currentPage === 'home') {
 				showPage('Главная');
-			} else if (currentPage === 'album') {
+			} else if (window.currentPage === 'album') {
 				renderAlbumSPA(currentParams.album);
-			} else if (currentPage === 'artist') {
+			} else if (window.currentPage === 'artist') {
 				renderArtistSPA(currentParams.artist);
 			}
 		} else {
@@ -583,7 +730,9 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	async function renderAlbumSPA(albumName){
 		mainContent.innerHTML = '<div class="loading">Загрузка альбома...</div>';
 		try {
-			const res = await fetch('/muzic2/src/api/album.php?album=' + encodeURIComponent(albumName));
+			// Decode the album name if it's URL encoded
+			const decodedAlbumName = decodeURIComponent(albumName);
+			const res = await fetch('/muzic2/src/api/album.php?album=' + encodeURIComponent(decodedAlbumName));
 			const data = await res.json();
 			if (data.error) { mainContent.innerHTML = '<div class="error">Альбом не найден</div>'; return; }
 			// Inject album page styles (from album.html) for correct layout
@@ -598,6 +747,9 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			.album-controls{display:flex;align-items:center;gap:1.2rem;margin-bottom:1.5rem}
 			.album-play-btn{background:#1db954;color:#fff;border:none;border-radius:50%;width:64px;height:64px;font-size:2.5rem;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px rgba(30,185,84,0.15);transition:background 0.18s,transform 0.18s}
 			.album-play-btn:hover{background:#17a74a;transform:scale(1.06)}
+			.album-like-btn{background:transparent;border:1px solid #535353;color:#bbb;border-radius:50%;width:48px;height:48px;font-size:1.5rem;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s}
+			.album-like-btn:hover{border-color:#fff;transform:scale(1.05)}
+			.album-like-btn.liked{background:#1db954;border-color:#1db954;color:#fff}
 			.tracks-table{width:100%;border-collapse:collapse;margin-bottom:2rem}
 			.tracks-table th,.tracks-table td{padding:0.7rem 1rem;text-align:left;color:#fff;font-size:1.08rem}
 			.tracks-table th{color:#b3b3b3;font-weight:600;font-size:1.02rem;border-bottom:1px solid #232323}
@@ -610,6 +762,17 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			.tracks-table td.track-title{font-weight:700;color:#fff}
 			.tracks-table td.track-title .track-artist{color:#b3b3b3;font-size:1.01rem;font-weight:400;margin-top:0.2rem}
 			.tracks-table td.track-duration{color:#b3b3b3;font-size:1.01rem;text-align:center;width:4.5rem;vertical-align:middle}
+			.tracks-table td.track-like{text-align:center;width:3rem;vertical-align:middle}
+			.tracks-table .heart-btn{background:transparent;border:none;color:#bbb;cursor:pointer;padding:4px;border-radius:50%;font-size:16px;transition:color 0.2s}
+			.tracks-table .heart-btn.liked{color:#1ed760}
+			.track-item-numbered{display:flex;align-items:center;gap:1rem;padding:0.5rem;border-radius:4px;cursor:pointer;transition:background 0.2s}
+			.track-item-numbered:hover{background:#232323}
+			.track-item-numbered .track-like{flex-shrink:0}
+			.track-item-numbered .heart-btn{background:transparent;border:none;color:#bbb;cursor:pointer;padding:4px;border-radius:50%;font-size:16px;transition:color 0.2s}
+			.track-item-numbered .heart-btn.liked{color:#1ed760}
+			.album-card{position:relative}
+			.album-heart-btn{position:absolute;right:0.5rem;bottom:0.5rem;background:#222;border:1px solid #333;color:#bbb;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:14px;transition:all 0.2s}
+			.album-heart-btn.liked{background:#1db954;border-color:#1db954;color:#fff}
 			.exp-badge{display:inline-block;width:16px;height:16px;line-height:16px;text-align:center;margin:0 6px 0 0;border:0;border-radius:3px;font-size:10px;font-weight:800;color:#2b2b2b;background:#cfcfcf;vertical-align:middle}
 			</style>`;
 			// Calculate album duration and track count
@@ -628,13 +791,17 @@ if (mainContent && navHome && navSearch && navLibrary) {
 						<div class="album-info">${escapeHtml(data.artist||'')} • 2025 • ${trackCount} треков, ${durationText}</div>
 					</div>
 				</div>
-				<div class="album-controls"><button class="album-play-btn" id="album-play-btn">▶</button></div>
+				<div class="album-controls">
+					<button class="album-play-btn" id="album-play-btn">▶</button>
+					<button class="album-like-btn heart-btn" id="album-like-btn" data-album-title="${escapeHtml(data.title||'')}" title="В избранные альбомы">❤</button>
+				</div>
 				<table class="tracks-table">
 					<thead>
 						<tr>
 							<th>#</th>
 							<th>Название</th>
 							<th>⏱</th>
+							<th>❤</th>
 						</tr>
 					</thead>
 					<tbody id="tracks-tbody"></tbody>
@@ -649,76 +816,40 @@ if (mainContent && navHome && navSearch && navLibrary) {
 				const seconds = duration % 60;
 				const durationFormatted = `${minutes}:${seconds.toString().padStart(2, '0')}`;
 				
-				// Add explicit badge if needed
-				const explicitBadge = t.explicit ? '<span class="exp-badge">E</span>' : '';
-				
+				const likedClass = window.__likedSet && window.__likedSet.has(t.id) ? 'liked' : '';
 				tr.innerHTML = `
 					<td class="track-num">${i+1}</td>
 					<td class="track-title">
-						${explicitBadge}${escapeHtml(t.title||'')}
+						${t.explicit ? '<span class="exp-badge">E</span>' : ''}${escapeHtml(t.title||'')}
 						<div class="track-artist">${escapeHtml(t.artist||'')}</div>
 					</td>
 					<td class="track-duration">${durationFormatted}</td>
+					<td class="track-like"><button class="heart-btn ${likedClass}" data-track-id="${t.id}" title="В избранное">❤</button></td>
 				`;
                 const playBtn=document.createElement('button'); playBtn.className='track-play-btn'; playBtn.innerHTML='&#9654;'; playBtn.onclick=(e)=>{ 
-					console.log('Play button clicked for track', i);
 					e.stopPropagation(); 
 					const q=(data.tracks||[]).map(tt=>{
-						console.log('Processing track:', tt);
 						const s = tt.src || tt.file_path || '';
-						console.log('Original src/file_path:', s);
-						let src = '';
-						if(!s) {
-							console.log('Empty src/file_path, skipping');
-							return null;
-						}
-						if(/^https?:/i.test(s)) {
-							src = s;
-						} else {
-							const idx = s.indexOf('tracks/');
-							src = idx !== -1 ? ('/muzic2/' + s.slice(idx)) : ('/muzic2/' + s.replace(/^\/+/, ''));
-						}
-						src = encodeURI(src);
-						console.log('Generated src:', src);
-						return { src, title: tt.title, artist: tt.artist, cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg'), video_url: tt.video_url || '' };
+						if(!s) return null;
+						const src = /^https?:/i.test(s) ? s : (s.indexOf('tracks/') !== -1 ? '/muzic2/' + s.slice(s.indexOf('tracks/')) : '/muzic2/' + s.replace(/^\/+/, ''));
+						return { src: encodeURI(src), title: tt.title, artist: tt.artist, cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg'), video_url: tt.video_url || '' };
 					}).filter(t => t !== null);
-					const filtered=q.filter(t=>t.src && !t.src.endsWith('/muzic2/')); 
-					console.log('Play button - filtered queue:', filtered);
-					if(filtered.length){ 
-						console.log('Play button - calling setQueue and playFromQueue');
-						window.setQueue && window.setQueue(filtered, i); 
+					if(q.length){ 
+						window.setQueue && window.setQueue(q, i); 
 						window.playFromQueue && window.playFromQueue(i); 
 					} 
 				};
 				tr.children[0].style.position='relative'; tr.children[0].appendChild(playBtn);
                 tr.onclick=(e)=>{ 
-					console.log('Track row clicked, target:', e.target, 'playBtn:', playBtn);
 					if(e.target!==playBtn){ 
-						console.log('Setting up queue for track', i);
 						const q=(data.tracks||[]).map(tt=>{
-							console.log('Processing track:', tt);
 							const s = tt.src || tt.file_path || '';
-							console.log('Original src/file_path:', s);
-							let src = '';
-							if(!s) {
-								console.log('Empty src/file_path, skipping');
-								return null;
-							}
-							if(/^https?:/i.test(s)) {
-								src = s;
-							} else {
-								const idx = s.indexOf('tracks/');
-								src = idx !== -1 ? ('/muzic2/' + s.slice(idx)) : ('/muzic2/' + s.replace(/^\/+/, ''));
-							}
-							src = encodeURI(src);
-							console.log('Generated src:', src);
-							return { src, title: tt.title, artist: tt.artist, cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg'), video_url: tt.video_url || '' };
+							if(!s) return null;
+							const src = /^https?:/i.test(s) ? s : (s.indexOf('tracks/') !== -1 ? '/muzic2/' + s.slice(s.indexOf('tracks/')) : '/muzic2/' + s.replace(/^\/+/, ''));
+							return { src: encodeURI(src), title: tt.title, artist: tt.artist, cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg'), video_url: tt.video_url || '' };
 						}).filter(t => t !== null);
-						const filtered=q.filter(t=>t.src && !t.src.endsWith('/muzic2/')); 
-						console.log('Filtered queue:', filtered);
-						if(filtered.length){ 
-							console.log('Calling setQueue and playFromQueue');
-							window.setQueue && window.setQueue(filtered, i); 
+						if(q.length){ 
+							window.setQueue && window.setQueue(q, i); 
 							window.playFromQueue && window.playFromQueue(i); 
 						} 
 					} 
@@ -726,34 +857,22 @@ if (mainContent && navHome && navSearch && navLibrary) {
 				tbody.appendChild(tr);
 			});
             document.getElementById('album-play-btn').onclick=()=>{ 
-				console.log('Album play button clicked');
 				const q=(data.tracks||[]).map(tt=>{
-					console.log('Processing track for album play:', tt);
 					const s = tt.src || tt.file_path || '';
-					console.log('Original src/file_path:', s);
-					let src = '';
-					if(!s) {
-						console.log('Empty src/file_path, skipping');
-						return null;
-					}
-					if(/^https?:/i.test(s)) {
-						src = s;
-					} else {
-						const idx = s.indexOf('tracks/');
-						src = idx !== -1 ? ('/muzic2/' + s.slice(idx)) : ('/muzic2/' + s.replace(/^\/+/, ''));
-					}
-					src = encodeURI(src);
-					console.log('Generated src:', src);
-					return { src, title: tt.title, artist: tt.artist, cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg'), video_url: tt.video_url || '' };
+					if(!s) return null;
+					const src = /^https?:/i.test(s) ? s : (s.indexOf('tracks/') !== -1 ? '/muzic2/' + s.slice(s.indexOf('tracks/')) : '/muzic2/' + s.replace(/^\/+/, ''));
+					return { src: encodeURI(src), title: tt.title, artist: tt.artist, cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg'), video_url: tt.video_url || '' };
 				}).filter(t => t !== null);
-				const filtered=q.filter(t=>t.src && !t.src.endsWith('/muzic2/')); 
-				console.log('Album play - filtered queue:', filtered);
-				if(filtered.length){ 
-					console.log('Album play - calling setQueue and playFromQueue');
-					window.setQueue && window.setQueue(filtered, 0); 
+				if(q.length){ 
+					window.setQueue && window.setQueue(q, 0); 
 					window.playFromQueue && window.playFromQueue(0); 
 				} 
 			};
+			
+			// Load album likes for this album after DOM is ready
+			setTimeout(() => {
+				loadAlbumLikes();
+			}, 100);
 		} catch (e) {
 			mainContent.innerHTML = '<div class="error">Ошибка загрузки альбома</div>';
 		}
@@ -827,7 +946,9 @@ if (mainContent && navHome && navSearch && navLibrary) {
 		`;
 		document.head.appendChild(artistControlStyles);
 		
-			const res = await fetch('/muzic2/public/src/api/artist.php?artist=' + encodeURIComponent(artistName));
+			// Decode the artist name if it's URL encoded
+			const decodedArtistName = decodeURIComponent(artistName);
+			const res = await fetch('/muzic2/public/src/api/artist.php?artist=' + encodeURIComponent(decodedArtistName));
 			const data = await res.json();
 			if (data.error) { mainContent.innerHTML = '<div class="error">Артист не найден</div>'; return; }
 			
@@ -894,32 +1015,25 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			(data.top_tracks||[]).forEach((t,i)=>{ 
 				const d=document.createElement('div'); 
 				d.className='track-item-numbered'; 
+				const likedClass = window.__likedSet && window.__likedSet.has(t.id) ? 'liked' : '';
 				d.innerHTML=`
 					<div class="track-number">${i+1}</div>
 					<div class="track-info">
-						<div class="track-title-primary">${escapeHtml(t.title||'')}</div>
+						<div class="track-title-primary">${t.explicit ? '<span class="exp-badge">E</span>' : ''}${escapeHtml(t.title||'')}</div>
 						<div class="track-artist-secondary">${escapeHtml(t.artist||'')}</div>
 					</div>
 					<div class="track-duration">${Math.floor((t.duration||0)/60)}:${((t.duration||0)%60).toString().padStart(2,'0')}</div>
+					<div class="track-like"><button class="heart-btn ${likedClass}" data-track-id="${t.id}" title="В избранное">❤</button></div>
 				`; 
 				d.onclick=()=>{ 
-					const q=(data.top_tracks||[]).map(tt=>({ 
-						src: (function(){ 
-							const s=tt.file_path||''; 
-							if(!s) return ''; 
-							if(/^https?:/i.test(s)) return s; 
-							const idx=s.indexOf('tracks/'); 
-							const abs = idx!==-1?('/muzic2/'+s.slice(idx)):'/muzic2/'+s.replace(/^\/?/,''); 
-							return encodeURI(abs); 
-						})(), 
-						title:tt.title, 
-						artist:tt.artist, 
-						cover:'/muzic2/'+(tt.cover||data.cover||'tracks/covers/placeholder.jpg'),
-						video_url: tt.video_url || ''
-					})); 
-					const filtered=q.filter(t=>t.src && !t.src.endsWith('/muzic2/')); 
-					if(filtered.length){ 
-						window.setQueue && window.setQueue(filtered, i); 
+					const q=(data.top_tracks||[]).map(tt=>{
+						const s = tt.file_path || '';
+						if(!s) return null;
+						const src = /^https?:/i.test(s) ? s : (s.indexOf('tracks/') !== -1 ? '/muzic2/' + s.slice(s.indexOf('tracks/')) : '/muzic2/' + s.replace(/^\/+/, ''));
+						return { src: encodeURI(src), title: tt.title, artist: tt.artist, cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg'), video_url: tt.video_url || '' };
+					}).filter(t => t !== null);
+					if(q.length){ 
+						window.setQueue && window.setQueue(q, i); 
 						window.playFromQueue && window.playFromQueue(i); 
 					} 
 				}; 
@@ -928,29 +1042,25 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			
 			// Play all button
 			document.getElementById('play-all-btn').onclick=()=>{ 
-				const q=(data.top_tracks||[]).map(tt=>({ 
-					src: (function(){ 
-						const s=tt.file_path||''; 
-						if(!s) return ''; 
-						if(/^https?:/i.test(s)) return s; 
-						const idx=s.indexOf('tracks/'); 
-						const abs = idx!==-1?('/muzic2/'+s.slice(idx)):'/muzic2/'+s.replace(/^\/?/,''); 
-						return encodeURI(abs); 
-					})(), 
-					title:tt.title, 
-					artist:tt.artist, 
-					cover:'/muzic2/'+(tt.cover||data.cover||'tracks/covers/placeholder.jpg'),
-					video_url: tt.video_url || ''
-				})); 
-				const filtered=q.filter(t=>t.src && !t.src.endsWith('/muzic2/')); 
-				if(filtered.length){ 
-					window.setQueue && window.setQueue(filtered, 0); 
+				const q=(data.top_tracks||[]).map(tt=>{
+					const s = tt.file_path || '';
+					if(!s) return null;
+					const src = /^https?:/i.test(s) ? s : (s.indexOf('tracks/') !== -1 ? '/muzic2/' + s.slice(s.indexOf('tracks/')) : '/muzic2/' + s.replace(/^\/+/, ''));
+					return { src: encodeURI(src), title: tt.title, artist: tt.artist, cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg'), video_url: tt.video_url || '' };
+				}).filter(t => t !== null);
+				if(q.length){ 
+					window.setQueue && window.setQueue(q, 0); 
 					window.playFromQueue && window.playFromQueue(0); 
 				} 
 			};
 			
 			// Load artist albums
 			loadArtistAlbums(artistName);
+			
+			// Load album likes after DOM is ready
+			setTimeout(() => {
+				loadAlbumLikes();
+			}, 100);
 		} catch (e) {
 			mainContent.innerHTML = '<div class="error">Ошибка загрузки артиста</div>';
 		}
@@ -971,13 +1081,127 @@ if (mainContent && navHome && navSearch && navLibrary) {
 						<img class="album-cover" loading="lazy" src="/muzic2/${album.cover || 'tracks/covers/placeholder.jpg'}" alt="album cover">
 						<div class="album-title">${escapeHtml(album.title || '')}</div>
 						<div class="album-artist">${escapeHtml(album.artist || '')}</div>
+						<button class="heart-btn album-heart-btn" data-album-title="${escapeHtml(album.title || '')}" title="В избранные альбомы">❤</button>
 					`;
-					albumDiv.onclick = () => navigateTo('album', { album: album.title });
+					albumDiv.onclick = (e) => {
+						if (!e.target.classList.contains('heart-btn')) {
+							navigateTo('album', { album: album.title });
+						}
+					};
 					albumsList.appendChild(albumDiv);
 				});
 			}
 		} catch (e) {
-			console.error('Error loading artist albums:', e);
+			// Silent fail for better performance
+		}
+	}
+
+	// Load album likes
+	async function loadAlbumLikes() {
+		try {
+			const res = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
+			const data = await res.json();
+			window.__likedAlbums = new Set((data.albums || []).map(a => a.album_title || a.title));
+			
+			// Update album heart buttons on artist pages
+			document.querySelectorAll('.album-heart-btn').forEach(btn => {
+				const albumTitle = btn.getAttribute('data-album-title');
+				if (window.__likedAlbums && window.__likedAlbums.has(albumTitle)) {
+					btn.classList.add('liked');
+				} else {
+					btn.classList.remove('liked');
+				}
+			});
+			
+			// Update album like button on album page
+			const albumLikeBtn = document.getElementById('album-like-btn');
+			if (albumLikeBtn) {
+				const albumTitle = albumLikeBtn.getAttribute('data-album-title');
+				if (window.__likedAlbums && window.__likedAlbums.has(albumTitle)) {
+					albumLikeBtn.classList.add('liked');
+				} else {
+					albumLikeBtn.classList.remove('liked');
+				}
+			}
+			
+			// Update "My Music" section if it's currently displayed
+			if (window.currentPage === 'home' && document.getElementById('albums-row')) {
+				updateMyMusicAlbums();
+			}
+		} catch (e) {
+			console.error('Error loading album likes:', e);
+			window.__likedAlbums = new Set();
+		}
+	}
+	
+	// Update albums in "My Music" section
+	async function updateMyMusicAlbums() {
+		const albumsRow = document.getElementById('albums-row');
+		if (!albumsRow) return;
+		
+		try {
+			const likesRes = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
+			const likesData = await likesRes.json();
+			const likedAlbums = likesData.albums || [];
+			
+			if (likedAlbums.length === 0) {
+				albumsRow.innerHTML = '<div class="empty">Пока нет любимых альбомов</div>';
+				return;
+			}
+			
+			// Get all albums from dedicated API
+			const allAlbumsRes = await fetch('/muzic2/src/api/all_albums.php');
+			const allAlbumsData = await allAlbumsRes.json();
+			const allAlbums = allAlbumsData.albums || [];
+			
+			// Match liked albums with full album data
+			const matchedAlbums = await Promise.all(likedAlbums.map(async (likedAlbum) => {
+				// Try exact match first
+				let matched = allAlbums.find(album => 
+					album.album && album.album.toLowerCase() === likedAlbum.album_title.toLowerCase()
+				);
+				
+				// If no exact match, try partial match
+				if (!matched) {
+					matched = allAlbums.find(album => 
+						album.album && album.album.toLowerCase().includes(likedAlbum.album_title.toLowerCase())
+					);
+				}
+				
+				// If still no match, try reverse partial match
+				if (!matched) {
+					matched = allAlbums.find(album => 
+						album.album && likedAlbum.album_title.toLowerCase().includes(album.album.toLowerCase())
+					);
+				}
+				
+				// If still no match, try to find by searching tracks
+				if (!matched) {
+					try {
+						const searchRes = await fetch(`/muzic2/src/api/search.php?q=${encodeURIComponent(likedAlbum.album_title)}&type=albums`);
+						const searchData = await searchRes.json();
+						if (searchData.albums && searchData.albums.length > 0) {
+							matched = searchData.albums[0];
+						}
+					} catch (e) {
+						// Ignore search errors
+					}
+				}
+				
+				return matched ? {
+					title: matched.album || matched.title,
+					artist: matched.artist,
+					cover: matched.cover
+				} : {
+					title: likedAlbum.album_title,
+					artist: 'Неизвестный артист',
+					cover: 'tracks/covers/placeholder.jpg'
+				};
+			}));
+			
+			albumsRow.innerHTML = matchedAlbums.map(album => createAlbumCard(album)).join('');
+		} catch (e) {
+			console.error('Error updating My Music albums:', e);
 		}
 	}
 
@@ -1214,16 +1438,6 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			`;
 		}
 
-		function createAlbumCard(album) {
-			return `
-				<div class="tile" onclick="navigateTo('album', { album: '${encodeURIComponent(album.title)}' })">
-					<img class="tile-cover" loading="lazy" src="/muzic2/${album.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
-					<div class="tile-title">${escapeHtml(album.title)}</div>
-					<div class="tile-desc">${escapeHtml(album.artist || '')}</div>
-					<div class="tile-play">&#9654;</div>
-				</div>
-			`;
-		}
 
 		function showSearchPlaceholder() {
 			searchResults.innerHTML = `
