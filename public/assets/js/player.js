@@ -146,49 +146,7 @@
       </div>
   `;
   
-  // Inject global Back button once (navigation won't stop audio because popup player handles playback)
-  (function ensureGlobalBackButton() {
-  if (document.getElementById('global-back-btn')) return;
-  const style = document.createElement('style');
-  style.id = 'global-back-style';
-  style.textContent = `
-  #global-back-btn {
-  position: fixed;
-  left: 12px;
-  top: 12px;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: none;
-  background: #1f1f1f;
-  color: #fff;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0,0,0,.3);
-  z-index: 10000;
-  display: grid;
-  place-items: center;
-  }
-  #global-back-btn:hover { background: #262626; }
-  #global-back-btn svg { pointer-events: none; }
-  `;
-  document.head.appendChild(style);
-  const btn = document.createElement('button');
-  btn.id = 'global-back-btn';
-  btn.title = 'Назад';
-  btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/><line x1="9" y1="12" x2="21" y2="12"/></svg>';
-  btn.onclick = function() {
-  try {
-  if (window.history && window.history.length > 1) {
-  window.history.back();
-  } else {
-  window.location.href = '/muzic2/public/index.php';
-  }
-  } catch (e) {
-  window.location.href = '/muzic2/public/index.php';
-  }
-  };
-  document.body.appendChild(btn);
-  })();
+  // Global back button removed per design (caused overlap). Use SPA navigation instead.
   
   // Elements (scoped to player container to avoid ID conflicts on page)
   const playerContainer = playerRoot.querySelector('#player');
