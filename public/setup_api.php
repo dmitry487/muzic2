@@ -71,7 +71,7 @@ try {
             
         case 'import_data':
             // Импорт данных из data/changes/latest.json
-            $importFile = __DIR__ . '/../../data/changes/latest.json';
+            $importFile = __DIR__ . '/../data/changes/latest.json';
             
             if (!file_exists($importFile)) {
                 echo json_encode(getResponse(false, [], 'Файл data/changes/latest.json не найден. Сначала экспортируйте данные на исходном устройстве.'));
