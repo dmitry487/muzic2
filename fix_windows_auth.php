@@ -114,7 +114,8 @@ echo "✅ Конфигурация обновлена для Windows<br>";
 echo "<h3>3. Тестирование API</h3>";
 
 // Тест регистрации
-$testData = json_encode(['email' => 'test2@test.com', 'username' => 'testuser2', 'password' => '123456']);
+$timestamp = time();
+$testData = json_encode(['email' => "test{$timestamp}@test.com", 'username' => "testuser{$timestamp}", 'password' => '123456']);
 $context = stream_context_create([
     'http' => [
         'method' => 'POST',
@@ -128,16 +129,19 @@ if ($result !== false) {
     $response = json_decode($result, true);
     if (isset($response['success'])) {
         echo "✅ API регистрации работает<br>";
+        $testUsername = "testuser{$timestamp}";
     } else {
         echo "❌ API регистрации ошибка: " . ($response['error'] ?? 'неизвестная ошибка') . "<br>";
+        $testUsername = "testuser"; // Используем существующего пользователя
     }
 } else {
     echo "❌ API регистрации недоступен<br>";
     echo "Ошибка: " . error_get_last()['message'] . "<br>";
+    $testUsername = "testuser"; // Используем существующего пользователя
 }
 
 // Тест авторизации
-$testData = json_encode(['login' => 'testuser', 'password' => '123456']);
+$testData = json_encode(['login' => $testUsername, 'password' => '123456']);
 $context = stream_context_create([
     'http' => [
         'method' => 'POST',
@@ -168,8 +172,8 @@ echo "4. Проверьте порт MySQL в настройках MAMP<br>";
 echo "5. Перезапустите MAMP<br>";
 
 echo "<h3>5. Тестовые данные</h3>";
-echo "Логин: <strong>testuser</strong><br>";
+echo "Логин: <strong>{$testUsername}</strong><br>";
 echo "Пароль: <strong>123456</strong><br>";
-echo "Email: <strong>test@test.com</strong><br>";
+echo "Email: <strong>test{$timestamp}@test.com</strong><br>";
 
 ?>
