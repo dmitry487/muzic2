@@ -429,6 +429,33 @@ function artistPlayTrack(track) {
     }
     // Use global player
     if (window.playTrack) {
+        // Создаем очередь из всех треков артиста
+        const artistQueue = artistTracks.map(t => ({
+            src: (function(){
+                let s = t.file_path || '';
+                if (!s) return '';
+                if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:')) return s;
+                if (s.startsWith('/muzic2/')) return s;
+                if (s.startsWith('/tracks/')) return '/muzic2' + s;
+                const idx = s.indexOf('tracks/');
+                return idx !== -1 ? ('/muzic2/' + s.slice(idx)) : ('/muzic2/' + s.replace(/^\/+/, ''));
+            })(),
+            title: t.title || '',
+            artist: t.artist || '',
+            cover: resolveCoverPath(t.cover),
+            duration: t.duration || 0,
+            video_url: t.video_url || '',
+            explicit: t.explicit || false
+        }));
+        
+        // Находим индекс текущего трека в очереди
+        const currentIndex = artistQueue.findIndex(t => t.title === track.title);
+        
+        // Устанавливаем очередь и начинаем воспроизведение с текущего трека
+        if (window.setQueue && typeof window.setQueue === 'function') {
+            window.setQueue(artistQueue, currentIndex >= 0 ? currentIndex : 0);
+        }
+        
         window.playTrack({
             src,
             title: track.title || '',

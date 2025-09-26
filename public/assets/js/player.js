@@ -1426,6 +1426,45 @@
     });
   }
 
+  // Set queue function for external use
+  window.setQueue = function(queue, startIndex = 0) {
+    if (!Array.isArray(queue) || queue.length === 0) return;
+    
+    // Save queue to localStorage
+    localStorage.setItem('playerQueue', JSON.stringify(queue));
+    localStorage.setItem('queueIndex', startIndex.toString());
+    
+    // Update current track if startIndex is valid
+    if (startIndex >= 0 && startIndex < queue.length) {
+      const track = queue[startIndex];
+      if (track) {
+        // Update UI
+        document.getElementById('track-title').textContent = track.title || '';
+        document.getElementById('track-artist').textContent = track.artist || '';
+        const coverImg = document.querySelector('.cover');
+        if (coverImg) {
+          coverImg.src = track.cover || '';
+        }
+        
+        // Update audio source
+        if (audio) {
+          audio.src = track.src || '';
+          audio.load();
+        }
+        
+        // Update video if present
+        if (track.video_url && inlineVideo) {
+          inlineVideo.src = normalizeVideo(track.video_url);
+        }
+        
+        // Update queue UI
+        renderQueueUI();
+      }
+    }
+    
+    console.log('Queue set with', queue.length, 'tracks, starting from index', startIndex);
+  };
+
   // Initialize from storage
   loadQueue();
   loadPlayerState();

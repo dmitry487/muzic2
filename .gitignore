@@ -12,4 +12,7 @@ data/exports/
 *.log
 public/admin/admin_api.log
 
+# Setup files (local only)
+public/setup.php
+public/setup_api.php
 
