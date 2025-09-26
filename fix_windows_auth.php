@@ -123,8 +123,8 @@ $context = stream_context_create([
     ]
 ]);
 
-$result = @file_get_contents('http://localhost:8888/muzic2/src/api/register.php', false, $context);
-if ($result) {
+$result = file_get_contents('http://localhost:8888/muzic2/src/api/register.php', false, $context);
+if ($result !== false) {
     $response = json_decode($result, true);
     if (isset($response['success'])) {
         echo "✅ API регистрации работает<br>";
@@ -133,6 +133,7 @@ if ($result) {
     }
 } else {
     echo "❌ API регистрации недоступен<br>";
+    echo "Ошибка: " . error_get_last()['message'] . "<br>";
 }
 
 // Тест авторизации
@@ -145,8 +146,8 @@ $context = stream_context_create([
     ]
 ]);
 
-$result = @file_get_contents('http://localhost:8888/muzic2/src/api/login.php', false, $context);
-if ($result) {
+$result = file_get_contents('http://localhost:8888/muzic2/src/api/login.php', false, $context);
+if ($result !== false) {
     $response = json_decode($result, true);
     if (isset($response['success'])) {
         echo "✅ API авторизации работает<br>";
@@ -155,6 +156,7 @@ if ($result) {
     }
 } else {
     echo "❌ API авторизации недоступен<br>";
+    echo "Ошибка: " . error_get_last()['message'] . "<br>";
 }
 
 echo "<h3>4. Инструкции</h3>";
