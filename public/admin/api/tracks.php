@@ -13,6 +13,8 @@ function admin_log($message){
 
 try {
     $db = get_db_connection();
+    // Ensure optional video_url column exists (idempotent)
+    try { $db->exec("ALTER TABLE tracks ADD COLUMN video_url VARCHAR(500) NULL"); } catch (Throwable $e) { /* ignore if exists */ }
     $method = $_SERVER['REQUEST_METHOD'];
 
     if ($method === 'GET') {
@@ -42,11 +44,12 @@ try {
         $album = trim((string)($body['album'] ?? ''));
         $file = trim((string)($body['file_path'] ?? ''));
         $cover = trim((string)($body['cover'] ?? ''));
+        $video_url = trim((string)($body['video_url'] ?? ''));
         $type = in_array(($body['album_type'] ?? 'album'), ['album','ep','single']) ? $body['album_type'] : 'album';
         $dur = (int)($body['duration'] ?? 0);
         if ($title==='' || $artist==='' || $album==='' || $file==='') throw new Exception('Заполните обязательные поля');
-        $st = $db->prepare('INSERT INTO tracks (title, artist, album, album_type, duration, file_path, cover) VALUES (?,?,?,?,?,?,?)');
-        $st->execute([$title,$artist,$album,$type,$dur,$file,$cover]);
+        $st = $db->prepare('INSERT INTO tracks (title, artist, album, album_type, duration, file_path, cover, video_url) VALUES (?,?,?,?,?,?,?,?)');
+        $st->execute([$title,$artist,$album,$type,$dur,$file,$cover,$video_url]);
         echo json_encode(['success'=>true, 'id'=>$db->lastInsertId()]);
         exit;
     }
@@ -54,7 +57,7 @@ try {
     if ($action === 'update') {
         $id = (int)($body['id'] ?? 0);
         if ($id <= 0) throw new Exception('Неверный ID');
-        $fields = ['title','artist','album','album_type','duration','file_path','cover'];
+        $fields = ['title','artist','album','album_type','duration','file_path','cover','video_url'];
         $set=[]; $params=[':id'=>$id];
         foreach ($fields as $f) {
             if (array_key_exists($f, $body)) {

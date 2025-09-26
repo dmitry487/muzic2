@@ -451,7 +451,8 @@ if (mainContent && navHome && navSearch && navLibrary) {
 						src: '/muzic2/' + (i.file_path || ''),
 						title: i.title,
 						artist: i.artist || '',
-						cover: '/muzic2/' + (i.cover || 'tracks/covers/placeholder.jpg')
+						cover: '/muzic2/' + (i.cover || 'tracks/covers/placeholder.jpg'),
+						video_url: i.video_url || ''
 					}));
 					window.playTrack({
 						...queue[idx],
@@ -516,15 +517,15 @@ if (mainContent && navHome && navSearch && navLibrary) {
 				<table class="tracks-table"><tbody id="tracks-tbody"></tbody></table>
 			`;
 			const tbody = document.getElementById('tracks-tbody');
-			(data.tracks||[]).forEach((t,i)=>{
+            (data.tracks||[]).forEach((t,i)=>{
 				const tr=document.createElement('tr');
 				tr.innerHTML = `<td class="track-num">${i+1}</td><td class="track-title">${escapeHtml(t.title||'')}</td><td class="track-artist">${escapeHtml(t.artist||'')}</td><td class="track-duration">${t.duration||0}</td>`;
-				const playBtn=document.createElement('button'); playBtn.className='track-play-btn'; playBtn.innerHTML='&#9654;'; playBtn.onclick=(e)=>{ e.stopPropagation(); const q=(data.tracks||[]).map(tt=>({ src: encodeURI('/muzic2/'+(tt.src||'')), title:tt.title, artist:tt.artist, cover:'/muzic2/'+(tt.cover||data.cover||'tracks/covers/placeholder.jpg') })); window.playTrack && window.playTrack({ ...q[i], queue:q, queueStartIndex:i }); };
+                const playBtn=document.createElement('button'); playBtn.className='track-play-btn'; playBtn.innerHTML='&#9654;'; playBtn.onclick=(e)=>{ e.stopPropagation(); const q=(data.tracks||[]).map(tt=>({ src: encodeURI('/muzic2/'+(tt.src||'')), title:tt.title, artist:tt.artist, cover:'/muzic2/'+(tt.cover||data.cover||'tracks/covers/placeholder.jpg'), video_url: tt.video_url||'' })); window.playTrack && window.playTrack({ ...q[i], queue:q, queueStartIndex:i }); };
 				tr.children[0].style.position='relative'; tr.children[0].appendChild(playBtn);
-				tr.onclick=(e)=>{ if(e.target!==playBtn){ const q=(data.tracks||[]).map(tt=>({ src: encodeURI('/muzic2/'+(tt.src||'')), title:tt.title, artist:tt.artist, cover:'/muzic2/'+(tt.cover||data.cover||'tracks/covers/placeholder.jpg') })); window.playTrack && window.playTrack({ ...q[i], queue:q, queueStartIndex:i }); } };
+                tr.onclick=(e)=>{ if(e.target!==playBtn){ const q=(data.tracks||[]).map(tt=>({ src: encodeURI('/muzic2/'+(tt.src||'')), title:tt.title, artist:tt.artist, cover:'/muzic2/'+(tt.cover||data.cover||'tracks/covers/placeholder.jpg'), video_url: tt.video_url||'' })); window.playTrack && window.playTrack({ ...q[i], queue:q, queueStartIndex:i }); } };
 				tbody.appendChild(tr);
 			});
-			document.getElementById('album-play-btn').onclick=()=>{ const q=(data.tracks||[]).map(tt=>({ src: encodeURI('/muzic2/'+(tt.src||'')), title:tt.title, artist:tt.artist, cover:'/muzic2/'+(tt.cover||data.cover||'tracks/covers/placeholder.jpg') })); if(q.length){ window.playTrack && window.playTrack({ ...q[0], queue:q, queueStartIndex:0 }); } };
+            document.getElementById('album-play-btn').onclick=()=>{ const q=(data.tracks||[]).map(tt=>({ src: encodeURI('/muzic2/'+(tt.src||'')), title:tt.title, artist:tt.artist, cover:'/muzic2/'+(tt.cover||data.cover||'tracks/covers/placeholder.jpg'), video_url: tt.video_url||'' })); if(q.length){ window.playTrack && window.playTrack({ ...q[0], queue:q, queueStartIndex:0 }); } };
 		} catch (e) {
 			mainContent.innerHTML = '<div class="error">Ошибка загрузки альбома</div>';
 		}
@@ -761,7 +762,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			const likedClass = window.__likedSet && window.__likedSet.has(track.id) ? 'liked' : '';
 			// Do not URL-encode values here; player will normalize paths. Escape single quotes for inline handler safety.
 			const esc = v => String(v==null?'':v).replace(/'/g, "\\'");
-			const play = `playTrack({ src: '${esc(track.src)}', title: '${esc(track.title)}', artist: '${esc(track.artist)}', cover: '${esc(track.cover)}', id: ${track.id||0} })`;
+			const play = `playTrack({ src: '${esc(track.src)}', title: '${esc(track.title)}', artist: '${esc(track.artist)}', cover: '${esc(track.cover)}', id: ${track.id||0}, video_url: '${esc(track.video_url||'')}' })`;
 		return `
 			<div class="card">
 				<img class="card-cover" src="/muzic2/${track.cover || 'tracks/covers/placeholder.jpg'}" alt="cover" onclick="${play}">

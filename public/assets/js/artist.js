@@ -47,6 +47,21 @@ document.addEventListener('DOMContentLoaded', async function() {
     const artistName = urlParams.get('artist');
     
     if (artistName) {
+        // Update header auth state (hide login/register if authenticated)
+        try {
+            const res = await fetch('/muzic2/src/api/user.php', { credentials: 'include' });
+            const data = await res.json();
+            const panel = document.getElementById('user-panel');
+            if (panel) {
+                if (data && data.authenticated && data.user) {
+                    panel.innerHTML = `<div class="user-info"><span class="username">${(data.user.username||'').replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))}</span></div>`;
+                } else {
+                    panel.innerHTML = `<button onclick="openLoginModal()" id="login-btn">Войти</button><button onclick="openRegisterModal()" id="register-btn">Регистрация</button>`;
+                }
+            }
+        } catch (e) {
+            // ignore header update errors
+        }
         // Preload images if it's Kai Angel
         if (artistName.toLowerCase().includes('kai angel')) {
             preloadKaiAngelImages();
@@ -213,7 +228,7 @@ function createTrackElement(track, number) {
     // Add click event to play track
     trackDiv.addEventListener('click', (e) => {
         if (!e.target.closest('.track-like-btn') && !e.target.closest('.track-more-btn')) {
-            artistPlayTrack(track);
+        artistPlayTrack(track);
         }
     });
     
@@ -419,7 +434,8 @@ function artistPlayTrack(track) {
             title: track.title || '',
             artist: track.artist || '',
             cover: (function(){ const c = resolveCoverPath(track.cover); return c.startsWith('data:') ? c : encodeURI(c); })(),
-            duration: track.duration || 0
+            duration: track.duration || 0,
+            video_url: track.video_url || ''
         });
     } else if (window.loadTrack) {
         window.loadTrack({ src, title: track.title || '', artist: track.artist || '', cover: (function(){ const c = resolveCoverPath(track.cover); return c.startsWith('data:') ? c : encodeURI(c); })(), duration: track.duration || 0 });

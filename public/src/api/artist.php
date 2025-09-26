@@ -53,7 +53,7 @@ if (!$artistInfo) {
 // Top tracks for this exact artist (may be empty)
 $topTracks = [];
 try {
-    $topTracksQuery = 'SELECT id, title, artist, album, duration, file_path, cover FROM tracks WHERE LOWER(artist) = LOWER(?) ORDER BY id ASC LIMIT 10';
+    $topTracksQuery = 'SELECT id, title, artist, album, duration, file_path, cover, video_url FROM tracks WHERE LOWER(artist) = LOWER(?) ORDER BY id ASC LIMIT 10';
     $topTracksStmt = $db->prepare($topTracksQuery);
     $topTracksStmt->execute([$artist]);
     foreach ($topTracksStmt as $track) {
@@ -64,7 +64,8 @@ try {
             'album' => $track['album'],
             'duration' => (int)$track['duration'],
             'src' => $track['file_path'],
-            'cover' => $track['cover']
+            'cover' => $track['cover'],
+            'video_url' => $track['video_url']
         ];
     }
 } catch (Throwable $e) {}

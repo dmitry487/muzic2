@@ -101,8 +101,8 @@
         <button id="queue-btn" title="Очередь">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="17" y2="18"/><polyline points="19 16 21 18 19 20"/></svg>
         </button>
-        <button id="lyrics-btn" title="Текст">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="17" x2="20" y2="17"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="7" x2="20" y2="7"/></svg>
+        <button id="video-btn" title="Видео">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2" ry="2"/><polygon points="10 9 15 12 10 15 10 9"/></svg>
         </button>
         <button id="device-btn" title="Устройство">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2h3"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2H3"/></svg>
@@ -136,6 +136,13 @@
       </div>
       <ul id="queue-list"></ul>
     </div>
+      <div id="video-panel" style="display:none; position: fixed; right: 12px; bottom: 76px; width: 420px; max-height: 55vh; background: #000; color: #fff; border: 1px solid #242424; border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,.5); overflow: hidden;">
+        <button id="video-close" title="Закрыть" style="position:absolute; top:8px; right:8px; width:28px; height:28px; border:none; border-radius:50%; background:#2a2a2a; color:#b3b3b3; cursor:pointer; display:grid; place-items:center; z-index:2;">×</button>
+        <div style="margin:0; padding:0;">
+          <video id="inline-video" style="display:none; width:100%; height:auto; max-height:55vh; background:#000;" controls playsinline></video>
+          <img id="inline-cover" alt="cover" style="display:none; width:100%; height:auto; max-height:55vh; object-fit:cover; background:#000;" />
+        </div>
+      </div>
   `;
   
   // Inject global Back button once (navigation won't stop audio because popup player handles playback)
@@ -201,11 +208,16 @@
   const volumeBar = playerContainer.querySelector('#volume-bar');
   const volumeBtn = playerContainer.querySelector('#volume-btn');
   const fullscreenBtn = playerContainer.querySelector('#fullscreen-btn');
+  const videoBtn = playerContainer.querySelector('#video-btn');
   const queueBtn = playerContainer.querySelector('#queue-btn');
   const likeBtn = playerContainer.querySelector('#like-btn');
   const queuePanel = playerRoot.querySelector('#queue-panel');
   const queueClose = playerRoot.querySelector('#queue-close');
   const queueList = playerRoot.querySelector('#queue-list');
+  const videoPanel = playerRoot.querySelector('#video-panel');
+  const videoClose = playerRoot.querySelector('#video-close');
+  const inlineVideo = playerRoot.querySelector('#inline-video');
+  const inlineCover = playerRoot.querySelector('#inline-cover');
   const fullscreenOverlay = playerRoot.querySelector('#fullscreen-overlay');
   const fullscreenCover = playerRoot.querySelector('#fullscreen-cover');
   const fullscreenVideo = playerRoot.querySelector('#fullscreen-video');
@@ -621,7 +633,16 @@
     trackArtist.textContent = t.artist || '';
     cover.src = t.cover || cover.src;
     currentTrackId = t.id || null;
+    // Attach video URL (if any) to current track
+    playerContainer.dataset.videoUrl = t.video_url || '';
+    try { console.debug('[player] setNowPlaying video_url =', t.video_url||''); } catch(_){ }
     updatePlayerLikeUI();
+    // If video panel opened, refresh its media to reflect the new track
+    try {
+      if (videoPanel && videoPanel.style.display === 'block') {
+        openInlineMedia(playerContainer.dataset.videoUrl || '', cover.src || '');
+      }
+    } catch (_) {}
   }
   function playFromQueue(idx) {
     if (!trackQueue[idx]) return;
@@ -910,6 +931,85 @@
   queueBtn.onclick = () => toggleQueuePanel();
   queueClose.onclick = () => toggleQueuePanel(false);
 
+  // Helper: open inline media panel with robust fallback from video to cover
+  function openInlineMedia(url, coverSrc) {
+    if (!videoPanel) return;
+    videoPanel.style.display = 'block';
+    // Reset states
+    try { inlineVideo.pause(); } catch(_) {}
+    // Reset sources
+    try { while (inlineVideo.firstChild) inlineVideo.removeChild(inlineVideo.firstChild); } catch(_){ }
+    inlineVideo.removeAttribute('src');
+    inlineVideo.load();
+    inlineVideo.style.display = 'none';
+    if (inlineCover) { inlineCover.style.display = 'none'; }
+
+    // If no URL – show cover
+    if (!url) {
+      if (inlineCover) { inlineCover.src = coverSrc || ''; inlineCover.style.display = 'block'; }
+      return;
+    }
+
+    // Setup event handlers for fallback
+    const onError = () => {
+      inlineVideo.style.display = 'none';
+      if (inlineCover) { inlineCover.src = coverSrc || ''; inlineCover.style.display = 'block'; }
+      inlineVideo.removeEventListener('error', onError);
+      inlineVideo.removeEventListener('loadeddata', onLoaded);
+      inlineVideo.removeEventListener('canplay', onLoaded);
+    };
+    const onLoaded = () => {
+      if (inlineCover) inlineCover.style.display = 'none';
+      inlineVideo.style.display = 'block';
+      try { inlineVideo.play().catch(()=>{}); } catch(_) {}
+      inlineVideo.removeEventListener('error', onError);
+      inlineVideo.removeEventListener('loadeddata', onLoaded);
+      inlineVideo.removeEventListener('canplay', onLoaded);
+      clearTimeout(fallbackTimer);
+    };
+    inlineVideo.addEventListener('error', onError);
+    inlineVideo.addEventListener('loadeddata', onLoaded);
+    inlineVideo.addEventListener('canplay', onLoaded);
+    // Показать видео сразу, а не ждать событий (если что — сработает onError)
+    inlineVideo.style.display = 'block';
+    if (inlineCover) inlineCover.style.display = 'none';
+    inlineVideo.poster = coverSrc || '';
+    // Safety fallback: если через 4s нет readyState>=2, оставляем видео, не скрываем его
+    const fallbackTimer = setTimeout(() => { /* noop, держим видео видимым */ }, 4000);
+    // Build <source> with explicit type to avoid MIME sniffing issues
+    const lower = (url||'').toLowerCase();
+    const type = lower.endsWith('.webm') ? 'video/webm' : 'video/mp4';
+    const source = document.createElement('source');
+    try { source.src = encodeURI(url); } catch(_) { source.src = url; }
+    source.type = type;
+    inlineVideo.appendChild(source);
+    inlineVideo.load();
+  }
+
+  // Video button: toggle inline panel; play video if доступно, иначе обложку
+  if (videoBtn) videoBtn.onclick = () => {
+    const ds = (playerContainer.dataset && typeof playerContainer.dataset.videoUrl !== 'undefined') ? playerContainer.dataset.videoUrl : '';
+    let url = ds && ds.trim() !== '' ? ds : ((trackQueue[queueIndex] && trackQueue[queueIndex].video_url) ? trackQueue[queueIndex].video_url : '');
+    // If looks like raw tracks/... path, route via proxy for proper Content-Type
+    if (url && !/^https?:/i.test(url) && url.indexOf('/public/src/api/video.php?f=') === -1) {
+      const i = url.indexOf('tracks/');
+      const rel = i !== -1 ? url.slice(i) : url.replace(/^\/+/, '');
+      url = '/muzic2/public/src/api/video.php?f=' + encodeURIComponent(rel);
+    }
+    try { console.debug('[player] video button URL =', url); } catch(_){ }
+    if (!videoPanel) return;
+    const visible = videoPanel.style.display === 'block';
+    if (visible) {
+      try { inlineVideo.pause(); } catch(_) {}
+      inlineVideo.removeAttribute('src'); inlineVideo.load();
+      if (inlineCover) inlineCover.style.display = 'none';
+      videoPanel.style.display = 'none';
+      return;
+    }
+    openInlineMedia(url, cover.src || '');
+  };
+  if (videoClose) videoClose.onclick = () => { try { inlineVideo.pause(); } catch(_){}; inlineVideo.src=''; if (inlineCover) inlineCover.style.display='none'; videoPanel.style.display='none'; };
+
   fullscreenBtn.onclick = () => {
     if (isFullscreen) {
       exitFullscreen();
@@ -1087,6 +1187,14 @@
       if (i !== -1) return '/muzic2/' + u.slice(i);
       return '/muzic2/' + u.replace(/^\/+/, '');
     }
+    function normalizeVideo(u){
+      if (!u) return '';
+      if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('data:')) return u;
+      if (u.startsWith('/')) return u;
+      const i = u.indexOf('tracks/');
+      if (i !== -1) return '/muzic2/' + u.slice(i);
+      return '/muzic2/' + u.replace(/^\/+/, '');
+    }
     if (queue && Array.isArray(queue) && queue.length > 0) {
       // Ensure ordered playback when album queue starts
       shuffleEnabled = false;
@@ -1097,7 +1205,8 @@
         artist: q.artist || '',
         cover: normalizeCover(q.cover || coverUrl || ''),
         duration: q.duration || 0,
-        id: q.id || q.track_id || undefined
+        id: q.id || q.track_id || undefined,
+        video_url: normalizeVideo(q.video_url || '')
       }));
       originalQueue = trackQueue.slice();
       queueIndex = Math.max(0, Math.min(queueStartIndex, trackQueue.length - 1));
@@ -1106,7 +1215,7 @@
       toggleQueuePanel(true);
     } else {
       // Single track
-      trackQueue = [{ src: normalizeSrc(src), title, artist, cover: normalizeCover(coverUrl || ''), duration, id }];
+      trackQueue = [{ src: normalizeSrc(src), title, artist, cover: normalizeCover(coverUrl || ''), duration, id, video_url: normalizeVideo((arguments[0] && arguments[0].video_url) ? arguments[0].video_url : '') }];
       originalQueue = trackQueue.slice();
       queueIndex = 0;
       saveQueue();

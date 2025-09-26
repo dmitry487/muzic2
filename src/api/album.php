@@ -21,7 +21,7 @@ if (!$albumRow) {
 $artist = $albumRow['artist'];
 $cover = $albumRow['cover'];
 
-$tracks = $db->prepare('SELECT id, title, artist, duration, file_path, cover FROM tracks WHERE TRIM(LOWER(album)) = TRIM(LOWER(?)) ORDER BY id ASC');
+$tracks = $db->prepare('SELECT id, title, artist, duration, file_path, cover, video_url FROM tracks WHERE TRIM(LOWER(album)) = TRIM(LOWER(?)) ORDER BY id ASC');
 $tracks->execute([$album]);
 $trackList = [];
 $totalDuration = 0;
@@ -32,7 +32,8 @@ foreach ($tracks as $t) {
         'artist' => $t['artist'],
         'duration' => (int)$t['duration'],
         'src' => $t['file_path'],
-        'cover' => $t['cover']
+        'cover' => $t['cover'],
+        'video_url' => $t['video_url']
     ];
     $totalDuration += (int)$t['duration'];
 }

@@ -19,8 +19,8 @@ if ($method === 'GET') {
     // If playlist_id provided, return tracks
     $playlist_id = $_GET['playlist_id'] ?? null;
     if ($playlist_id) {
-        // Return only needed fields and alias file_path as src for frontend playback
-        $stmt = $db->prepare('SELECT t.id, t.title, t.artist, t.album, t.duration, t.cover, t.file_path AS src FROM playlist_tracks pt JOIN tracks t ON pt.track_id = t.id WHERE pt.playlist_id = ? ORDER BY pt.position ASC');
+        // Return only needed fields and alias file_path as src for frontend playback; include optional video_url
+        $stmt = $db->prepare('SELECT t.id, t.title, t.artist, t.album, t.duration, t.cover, t.file_path AS src, t.video_url FROM playlist_tracks pt JOIN tracks t ON pt.track_id = t.id WHERE pt.playlist_id = ? ORDER BY pt.position ASC');
         $stmt->execute([$playlist_id]);
         echo json_encode(['tracks' => $stmt->fetchAll()]);
     } else {
