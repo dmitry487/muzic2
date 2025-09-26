@@ -2,6 +2,15 @@
 require_once __DIR__ . '/../../../src/config/db.php';
 header('Content-Type: application/json; charset=utf-8');
 
+function admin_log($message){
+    try {
+        $file = __DIR__ . '/../admin_api.log';
+        $prefix = '['.date('Y-m-d H:i:s').'] ' . ($_SERVER['REQUEST_URI'] ?? '') . ' ';
+        if (is_array($message) || is_object($message)) { $message = json_encode($message, JSON_UNESCAPED_UNICODE); }
+        @file_put_contents($file, $prefix . $message . "\n", FILE_APPEND);
+    } catch (Throwable $e) {}
+}
+
 try {
     $db = get_db_connection();
     $method = $_SERVER['REQUEST_METHOD'];
@@ -21,6 +30,7 @@ try {
     }
 
     $raw = file_get_contents('php://input');
+    admin_log(['method'=>$method,'raw'=>$raw]);
     $body = json_decode($raw, true);
     if (!is_array($body)) $body = [];
 
@@ -70,6 +80,7 @@ try {
 
     throw new Exception('Неизвестное действие');
 } catch (Throwable $e) {
+    admin_log(['error'=>$e->getMessage(), 'trace'=>$e->getTraceAsString()]);
     http_response_code(400);
     echo json_encode(['success'=>false, 'message'=>$e->getMessage()], JSON_UNESCAPED_UNICODE);
 }

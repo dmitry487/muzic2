@@ -10,7 +10,16 @@ if (!$artist) {
     exit;
 }
 
-// Try to find exact-match (case-insensitive) artist rows
+// Prefer explicit artists table first, so artists without tracks still resolve
+$explicitCover = null; $bio = null; $explicitName = null;
+try {
+    $row = $db->prepare('SELECT name, cover, bio FROM artists WHERE LOWER(name)=LOWER(?) LIMIT 1');
+    $row->execute([$artist]);
+    $ar = $row->fetch();
+    if ($ar) { $explicitName = $ar['name']; $explicitCover = $ar['cover']; $bio = $ar['bio']; }
+} catch (Throwable $e) {}
+
+// Try to find exact-match (case-insensitive) artist rows in tracks (for stats)
 $artistQuery = 'SELECT 
     artist,
     COUNT(*) as total_tracks,
@@ -25,69 +34,57 @@ $artistStmt = $db->prepare($artistQuery);
 $artistStmt->execute([$artist]);
 $artistInfo = $artistStmt->fetch();
 
+// If no tracks entry but explicit artist exists, synthesize minimal info
+if (!$artistInfo && $explicitName) {
+    $artistInfo = [
+        'artist' => $explicitName,
+        'total_tracks' => 0,
+        'total_albums' => 0,
+        'total_duration' => 0,
+        'cover' => $explicitCover
+    ];
+}
+
 if (!$artistInfo) {
     echo json_encode(['error' => 'Artist not found', 'debug_artist' => $artist]);
     exit;
 }
 
-// If we have explicit artists table, prefer its cover/bio
-$explicitCover = null; $bio = null;
+// Top tracks for this exact artist (may be empty)
+$topTracks = [];
 try {
-    $row = $db->prepare('SELECT cover, bio FROM artists WHERE LOWER(name)=LOWER(?) LIMIT 1');
-    $row->execute([$artist]);
-    $ar = $row->fetch();
-    if ($ar) { $explicitCover = $ar['cover']; $bio = $ar['bio']; }
+    $topTracksQuery = 'SELECT id, title, artist, album, duration, file_path, cover FROM tracks WHERE LOWER(artist) = LOWER(?) ORDER BY id ASC LIMIT 10';
+    $topTracksStmt = $db->prepare($topTracksQuery);
+    $topTracksStmt->execute([$artist]);
+    foreach ($topTracksStmt as $track) {
+        $topTracks[] = [
+            'id' => $track['id'],
+            'title' => $track['title'],
+            'artist' => $track['artist'],
+            'album' => $track['album'],
+            'duration' => (int)$track['duration'],
+            'src' => $track['file_path'],
+            'cover' => $track['cover']
+        ];
+    }
 } catch (Throwable $e) {}
 
-// Top tracks for this exact artist
-$topTracksQuery = 'SELECT 
-    id, title, artist, album, duration, file_path, cover
-FROM tracks 
-WHERE LOWER(artist) = LOWER(?) 
-ORDER BY id ASC 
-LIMIT 10';
-
-$topTracksStmt = $db->prepare($topTracksQuery);
-$topTracksStmt->execute([$artist]);
-$topTracks = [];
-
-foreach ($topTracksStmt as $track) {
-    $topTracks[] = [
-        'id' => $track['id'],
-        'title' => $track['title'],
-        'artist' => $track['artist'],
-        'album' => $track['album'],
-        'duration' => (int)$track['duration'],
-        'src' => $track['file_path'],
-        'cover' => $track['cover']
-    ];
-}
-
-// Albums for this exact artist
-$albumsQuery = 'SELECT 
-    album,
-    album_type,
-    COUNT(*) as track_count,
-    MIN(cover) as cover,
-    SUM(duration) as total_duration
-FROM tracks 
-WHERE LOWER(artist) = LOWER(?) 
-GROUP BY album, album_type
-ORDER BY album ASC';
-
-$albumsStmt = $db->prepare($albumsQuery);
-$albumsStmt->execute([$artist]);
+// Albums for this exact artist (may be empty)
 $albums = [];
-
-foreach ($albumsStmt as $album) {
-    $albums[] = [
-        'title' => $album['album'],
-        'type' => $album['album_type'],
-        'track_count' => (int)$album['track_count'],
-        'cover' => $album['cover'],
-        'total_duration' => (int)$album['total_duration']
-    ];
-}
+try {
+    $albumsQuery = 'SELECT album, album_type, COUNT(*) as track_count, MIN(cover) as cover, SUM(duration) as total_duration FROM tracks WHERE LOWER(artist) = LOWER(?) GROUP BY album, album_type ORDER BY album ASC';
+    $albumsStmt = $db->prepare($albumsQuery);
+    $albumsStmt->execute([$artist]);
+    foreach ($albumsStmt as $album) {
+        $albums[] = [
+            'title' => $album['album'],
+            'type' => $album['album_type'],
+            'track_count' => (int)$album['track_count'],
+            'cover' => $album['cover'],
+            'total_duration' => (int)$album['total_duration']
+        ];
+    }
+} catch (Throwable $e) {}
 
 $monthlyListeners = rand(100000, 10000000);
 

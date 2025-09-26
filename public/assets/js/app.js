@@ -759,7 +759,9 @@ if (mainContent && navHome && navSearch && navLibrary) {
 
 		function createTrackCard(track) {
 			const likedClass = window.__likedSet && window.__likedSet.has(track.id) ? 'liked' : '';
-			const play = `playTrack({ src: '${encodeURIComponent(track.src)}', title: '${encodeURIComponent(track.title)}', artist: '${encodeURIComponent(track.artist)}', cover: '${encodeURIComponent(track.cover)}', id: ${track.id||0} })`;
+			// Do not URL-encode values here; player will normalize paths. Escape single quotes for inline handler safety.
+			const esc = v => String(v==null?'':v).replace(/'/g, "\\'");
+			const play = `playTrack({ src: '${esc(track.src)}', title: '${esc(track.title)}', artist: '${esc(track.artist)}', cover: '${esc(track.cover)}', id: ${track.id||0} })`;
 		return `
 			<div class="card">
 				<img class="card-cover" src="/muzic2/${track.cover || 'tracks/covers/placeholder.jpg'}" alt="cover" onclick="${play}">

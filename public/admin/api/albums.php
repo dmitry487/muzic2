@@ -2,6 +2,15 @@
 require_once __DIR__ . '/../../../src/config/db.php';
 header('Content-Type: application/json; charset=utf-8');
 
+function admin_log($message){
+    try {
+        $file = __DIR__ . '/../admin_api.log';
+        $prefix = '['.date('Y-m-d H:i:s').'] ' . ($_SERVER['REQUEST_URI'] ?? '') . ' ';
+        if (is_array($message) || is_object($message)) { $message = json_encode($message, JSON_UNESCAPED_UNICODE); }
+        @file_put_contents($file, $prefix . $message . "\n", FILE_APPEND);
+    } catch (Throwable $e) {}
+}
+
 try {
     $db = get_db_connection();
     $method = $_SERVER['REQUEST_METHOD'];
@@ -20,10 +29,25 @@ try {
     }
 
     $raw = file_get_contents('php://input');
+    admin_log(['method'=>$method,'raw'=>$raw]);
     $body = json_decode($raw, true);
     if (!is_array($body)) $body = [];
 
     $action = $body['action'] ?? '';
+
+    if ($action === 'create') {
+        $album = trim((string)($body['album'] ?? ''));
+        $artist = trim((string)($body['artist'] ?? ''));
+        $cover  = trim((string)($body['cover'] ?? ''));
+        $type   = in_array(($body['album_type'] ?? 'album'), ['album','ep','single']) ? $body['album_type'] : 'album';
+        if ($album === '') throw new Exception('Введите название альбома');
+        if ($artist === '') throw new Exception('Введите имя артиста');
+        // Insert a minimal placeholder track so album appears in listings
+        $st = $db->prepare('INSERT INTO tracks (title, artist, album, album_type, duration, file_path, cover) VALUES (?,?,?,?,?,?,?)');
+        $st->execute(['Intro', $artist, $album, $type, 0, 'tracks/music/placeholder.mp3', $cover]);
+        echo json_encode(['success'=>true]);
+        exit;
+    }
 
     if ($action === 'update') {
         $album = trim((string)($body['album'] ?? ''));
@@ -34,6 +58,13 @@ try {
         $type = isset($body['album_type']) && in_array($body['album_type'], ['album','ep','single']) ? $body['album_type'] : null;
 
         $db->beginTransaction();
+        // If album does not exist in tracks table yet, and only album_new provided, treat as create by inserting a placeholder track entry is not ideal; instead return a clearer error
+        $existsStmt = $db->prepare('SELECT COUNT(*) AS c FROM tracks WHERE TRIM(LOWER(album))=TRIM(LOWER(?))');
+        $existsStmt->execute([$album]);
+        $exists = (int)($existsStmt->fetch()['c'] ?? 0) > 0;
+        if (!$exists && $album_new === '' && $artist === null && $cover === null && $type === null) {
+            throw new Exception('Альбом не найден. Укажите новое имя/поля или добавьте треки к альбому.');
+        }
         if ($artist !== null) { $st = $db->prepare('UPDATE tracks SET artist=? WHERE TRIM(LOWER(album))=TRIM(LOWER(?))'); $st->execute([$artist, $album]); }
         if ($cover !== null)  { $st = $db->prepare('UPDATE tracks SET cover=? WHERE TRIM(LOWER(album))=TRIM(LOWER(?))');  $st->execute([$cover,  $album]); }
         if ($type  !== null)  { $st = $db->prepare('UPDATE tracks SET album_type=? WHERE TRIM(LOWER(album))=TRIM(LOWER(?))'); $st->execute([$type,   $album]); }
@@ -43,8 +74,19 @@ try {
         exit;
     }
 
-    throw new Exception('Неизвес��ное действие');
+    if ($action === 'delete') {
+        $album = trim((string)($body['album'] ?? ''));
+        if ($album === '') { http_response_code(400); echo json_encode(['success'=>false,'message'=>'Введите текущее название альбома']); exit; }
+        // Delete all tracks with this album
+        $st = $db->prepare('DELETE FROM tracks WHERE TRIM(LOWER(album))=TRIM(LOWER(?))');
+        $st->execute([$album]);
+        echo json_encode(['success'=>true]);
+        exit;
+    }
+
+    throw new Exception('Неизвестное действие');
 } catch (Throwable $e) {
+    admin_log(['error'=>$e->getMessage(), 'trace'=>$e->getTraceAsString()]);
     http_response_code(400);
     echo json_encode(['success'=>false, 'message'=>$e->getMessage()], JSON_UNESCAPED_UNICODE);
 }

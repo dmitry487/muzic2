@@ -200,7 +200,10 @@ function editTrack(t){
       let cover = document.getElementById('f-cover').value.trim();
       const file = document.getElementById('f-file2').files[0];
       if (file){ cover = await upload(file); document.getElementById('f-cover').value = cover; }
-      const payload = { action:'update', id: t.id, title: document.getElementById('f-title').value.trim(), artist: document.getElementById('f-artist').value.trim(), album: document.getElementById('f-album').value.trim(), album_type: document.getElementById('f-type').value, file_path: document.getElementById('f-file').value.trim(), cover, duration: parseInt(document.getElementById('f-dur').value||0,10) };
+      const isCreate = !t.id || t.id === 0;
+      const payload = isCreate
+        ? { action:'create', title: document.getElementById('f-title').value.trim(), artist: document.getElementById('f-artist').value.trim(), album: document.getElementById('f-album').value.trim(), album_type: document.getElementById('f-type').value, file_path: document.getElementById('f-file').value.trim(), cover, duration: parseInt(document.getElementById('f-dur').value||0,10) }
+        : { action:'update', id: t.id, title: document.getElementById('f-title').value.trim(), artist: document.getElementById('f-artist').value.trim(), album: document.getElementById('f-album').value.trim(), album_type: document.getElementById('f-type').value, file_path: document.getElementById('f-file').value.trim(), cover, duration: parseInt(document.getElementById('f-dur').value||0,10) };
       const r = await fetch(API.tracks, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
       const j = await r.json(); if(!j.success) throw new Error(j.message||'Ошибка');
       closeModal(); load();
@@ -236,7 +239,7 @@ add.onclick = ()=>{
     editAlbum({album:'',artist:'',album_type:'album',cover:''});
   }
   else if (tab==='tracks'){
-    editTrack({title:'',artist:'',album:'',album_type:'album',file_path:'',cover:'',duration:0});
+    editTrack({id:0,title:'',artist:'',album:'',album_type:'album',file_path:'',cover:'',duration:0});
   }
 };
 
