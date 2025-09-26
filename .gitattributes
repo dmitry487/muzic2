@@ -1,0 +1,5 @@
+tracks/music/** filter=lfs diff=lfs merge=lfs -text
+tracks/video/** filter=lfs diff=lfs merge=lfs -text
+tracks/covers/** filter=lfs diff=lfs merge=lfs -text
+
+

@@ -1,0 +1,15 @@
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+node_modules/
+
+# Local exports
+muzic2_export_*.json
+data/exports/
+
+# Logs
+*.log
+public/admin/admin_api.log
+
+

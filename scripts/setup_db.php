@@ -1,0 +1,104 @@
+<?php
+// Minimal, idempotent DB setup helper for MAMP/CLI.
+// Usage (CLI): php scripts/setup_db.php
+// Usage (HTTP): /muzic2/scripts/setup_db.php (outputs JSON)
+
+declare(strict_types=1);
+
+$isHttp = (PHP_SAPI !== 'cli');
+if ($isHttp) { header('Content-Type: application/json; charset=utf-8'); }
+
+require_once __DIR__ . '/../src/config/db.php';
+
+function respond($ok, $data = []){
+    global $isHttp;
+    $payload = $data + ['success' => (bool)$ok];
+    if ($isHttp) { echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT); }
+    else { fwrite(STDOUT, ($ok?"OK":"ERR")."\n".json_encode($payload, JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT)."\n"); }
+    exit($ok?0:1);
+}
+
+function file_contents_or_null(string $path): ?string {
+    if (!is_file($path)) return null;
+    $s = @file_get_contents($path);
+    return ($s===false)?null:$s;
+}
+
+try {
+    $db = get_db_connection();
+
+    // Detect if main tables exist (tracks is core for the app)
+    $hasTracks = false;
+    try {
+        $db->query("SELECT 1 FROM tracks LIMIT 1");
+        $hasTracks = true;
+    } catch (Throwable $e) { $hasTracks = false; }
+
+    $executed = [];
+
+    // Run schema if tracks table missing
+    if (!$hasTracks) {
+        $schemaCandidates = [
+            __DIR__ . '/../db/schema.sql',
+        ];
+        foreach ($schemaCandidates as $schemaPath) {
+            $sql = file_contents_or_null($schemaPath);
+            if ($sql) {
+                // Split by ; at line end to avoid common pitfalls
+                $stmts = preg_split('/;\s*(\r?\n)+/u', $sql);
+                foreach ($stmts as $stmt) {
+                    $stmt = trim($stmt);
+                    if ($stmt === '' || strpos($stmt, '--') === 0) continue;
+                    $db->exec($stmt);
+                }
+                $executed[] = basename($schemaPath);
+                break; // first found schema is enough
+            }
+        }
+    }
+
+    // Ensure optional tables that code relies on (defensive)
+    try { $db->exec("CREATE TABLE IF NOT EXISTS artists (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL UNIQUE, cover VARCHAR(255), bio TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"); } catch (Throwable $e) {}
+    try { $db->exec("ALTER TABLE tracks ADD COLUMN video_url VARCHAR(500) NULL"); } catch (Throwable $e) {}
+    try { $db->exec("ALTER TABLE tracks ADD COLUMN explicit TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+
+    // Seeds: optional, run only if tracks is empty
+    $shouldSeed = false;
+    try { $cnt = (int)$db->query("SELECT COUNT(*) FROM tracks")->fetchColumn(); $shouldSeed = ($cnt === 0); } catch (Throwable $e) {}
+    if ($shouldSeed) {
+        $seedCandidates = [
+            __DIR__ . '/../db/seed.sql',
+            __DIR__ . '/../insert_tracks.sql',
+        ];
+        foreach ($seedCandidates as $seedPath) {
+            $sql = file_contents_or_null($seedPath);
+            if ($sql) {
+                $stmts = preg_split('/;\s*(\r?\n)+/u', $sql);
+                foreach ($stmts as $stmt) {
+                    $stmt = trim($stmt);
+                    if ($stmt === '' || strpos($stmt, '--') === 0) continue;
+                    $db->exec($stmt);
+                }
+                $executed[] = basename($seedPath);
+                // do not break: allow multiple seed files if both present
+            }
+        }
+    }
+
+    // Final health check
+    $health = [
+        'tracks' => false,
+        'artists' => false,
+    ];
+    try { $db->query("SELECT 1 FROM tracks LIMIT 1"); $health['tracks']=true; } catch (Throwable $e) {}
+    try { $db->query("SELECT 1 FROM artists LIMIT 1"); $health['artists']=true; } catch (Throwable $e) {}
+
+    respond(true, [
+        'executed' => $executed,
+        'health' => $health,
+    ]);
+} catch (Throwable $e) {
+    respond(false, ['error' => $e->getMessage()]);
+}
+
+
