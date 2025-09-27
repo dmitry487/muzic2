@@ -13,7 +13,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 try {
-    $pdo = new PDO('sqlite:../db/database.sqlite');
+    $pdo = new PDO('mysql:host=localhost;port=8889;dbname=muzic2', 'root', 'root');
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT);
     
     // Простой запрос без JOIN
