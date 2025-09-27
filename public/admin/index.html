@@ -113,16 +113,18 @@ function render(){
     items.forEach(a=>{
       const c=document.createElement('div'); c.className='card';
       const cover = a.artist_cover || a.track_cover || '';
-      c.innerHTML = `${img(cover)}<h3>${esc(a.artist||'Без имени')}</h3><div class='small'>Треков: ${a.tracks||0}</div><div class='row'><button class='btn primary'>Изменить</button></div>`;
+      c.innerHTML = `${img(cover)}<h3>${esc(a.artist||'Без имени')}</h3><div class='small'>Треков: ${a.tracks||0}</div><div class='row'><button class='btn primary'>Изменить</button><button class='btn' style='background:#3a1416;color:#ffb4b4'>Удалить</button></div>`;
       c.querySelector('.btn.primary').onclick = ()=> editArtist(a);
+      c.querySelectorAll('.btn')[1].onclick = ()=> delArtist(a);
       list.appendChild(c);
     });
   }
   if (tab==='albums'){
     items.forEach(al=>{
       const c=document.createElement('div'); c.className='card';
-      c.innerHTML = `${img(al.cover)}<h3>${esc(al.album||'Без названия')}</h3><div class='small'>Артист: ${esc(al.artist||'')}</div><div class='small'>Тип: ${esc(al.album_type||'')}</div><div class='small'>Треков: ${al.track_count||0}</div><div class='row'><button class='btn primary'>Изменить</button></div>`;
+      c.innerHTML = `${img(al.cover)}<h3>${esc(al.album||'Без названия')}</h3><div class='small'>Артист: ${esc(al.artist||'')}</div><div class='small'>Тип: ${esc(al.album_type||'')}</div><div class='small'>Треков: ${al.track_count||0}</div><div class='row'><button class='btn primary'>Изменить</button><button class='btn' style='background:#3a1416;color:#ffb4b4'>Удалить</button></div>`;
       c.querySelector('.btn.primary').onclick = ()=> editAlbum(al);
+      c.querySelectorAll('.btn')[1].onclick = ()=> delAlbum(al);
       list.appendChild(c);
     });
   }
@@ -216,6 +218,20 @@ async function delTrack(t){
   const r = await fetch(API.tracks, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'delete', id: t.id})});
   const j = await r.json();
   if (j.success){ ok('Трек удалён'); load(); } else { err(j.message||'Ошибка') }
+}
+
+async function delArtist(a){
+  if (!confirm(`Удалить артиста "${a.artist}"?`)) return;
+  const r = await fetch(API.artists, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'delete', name: a.artist})});
+  const j = await r.json();
+  if (j.success){ ok('Артист удалён'); load(); } else { err(j.message||'Ошибка') }
+}
+
+async function delAlbum(al){
+  if (!confirm(`Удалить альбом "${al.album}" от "${al.artist}"?`)) return;
+  const r = await fetch(API.albums, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'delete', album: al.album})});
+  const j = await r.json();
+  if (j.success){ ok('Альбом удалён'); load(); } else { err(j.message||'Ошибка') }
 }
 
 add.onclick = ()=>{
