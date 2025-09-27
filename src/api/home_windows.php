@@ -14,10 +14,29 @@ try {
     $tracksResult = $pdo->query("SELECT id, title, artist, album, album_type, duration, file_path, cover, video_url, explicit FROM tracks ORDER BY RAND() LIMIT 8");
     $tracks = $tracksResult ? $tracksResult->fetchAll(PDO::FETCH_ASSOC) : [];
     
-    $albumsResult = $pdo->query("SELECT DISTINCT album, artist, album_type, cover FROM tracks WHERE album IS NOT NULL ORDER BY RAND() LIMIT 6");
+    // Получаем уникальные альбомы случайным образом
+    $albumsResult = $pdo->query("
+        SELECT album, artist, album_type, cover 
+        FROM (
+            SELECT album, MIN(artist) as artist, MIN(album_type) as album_type, MIN(cover) as cover 
+            FROM tracks 
+            WHERE album IS NOT NULL 
+            GROUP BY album
+        ) AS unique_albums
+        ORDER BY RAND() 
+        LIMIT 6
+    ");
     $albums = $albumsResult ? $albumsResult->fetchAll(PDO::FETCH_ASSOC) : [];
     
-    $artistsResult = $pdo->query("SELECT DISTINCT artist, cover FROM tracks WHERE artist IS NOT NULL ORDER BY RAND() LIMIT 6");
+    // Получаем уникальных артистов случайным образом
+    $artistsResult = $pdo->query("
+        SELECT DISTINCT artist, MIN(cover) as cover 
+        FROM tracks 
+        WHERE artist IS NOT NULL 
+        GROUP BY artist
+        ORDER BY RAND() 
+        LIMIT 6
+    ");
     $artists = $artistsResult ? $artistsResult->fetchAll(PDO::FETCH_ASSOC) : [];
     
     // Случайные данные для favorites и mixes
