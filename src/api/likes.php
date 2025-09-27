@@ -1,4 +1,11 @@
 <?php
+// Auto-detect Windows and use optimized version
+if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+    include __DIR__ . '/likes_windows.php';
+    exit;
+}
+
+// Original Mac version below
 session_start();
 require_once __DIR__ . '/../config/db.php';
 header('Content-Type: application/json');
@@ -117,5 +124,3 @@ if ($method === 'DELETE') {
 http_response_code(405);
 echo json_encode(['error' => 'Метод не поддерживается']);
 ?>
-
-

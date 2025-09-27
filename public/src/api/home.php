@@ -1,4 +1,11 @@
 <?php
+// Auto-detect Windows and use optimized version
+if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+    include __DIR__ . '/home_windows.php';
+    exit;
+}
+
+// Original Mac version below
 require_once __DIR__ . '/../../../src/config/db.php';
 header('Content-Type: application/json');
 
@@ -98,3 +105,4 @@ echo json_encode([
     'favorites' => $favorites,
     'mixes' => $mixes
 ]);
+?>
