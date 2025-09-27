@@ -1,6 +1,9 @@
 <?php
 require_once __DIR__ . '/../config/db.php';
 header('Content-Type: application/json');
+header('Cache-Control: no-cache, no-store, must-revalidate');
+header('Pragma: no-cache');
+header('Expires: 0');
 
 $db = get_db_connection();
 $artist = isset($_GET['artist']) ? $_GET['artist'] : null;
@@ -83,11 +86,28 @@ foreach ($albumsStmt as $album) {
 // Получаем все треки для подсчета прослушиваний (пока заглушка)
 $monthlyListeners = rand(100000, 10000000); // Временная заглушка
 
+// Исправляем пути к обложкам
+$cover = $artistInfo['cover'] ? '/muzic2/' . $artistInfo['cover'] : null;
+error_log("Original cover: " . $artistInfo['cover']);
+error_log("Fixed cover: " . $cover);
+
+foreach ($topTracks as &$track) {
+    if ($track['cover']) {
+        $track['cover'] = '/muzic2/' . $track['cover'];
+    }
+}
+
+foreach ($albums as &$album) {
+    if ($album['cover']) {
+        $album['cover'] = '/muzic2/' . $album['cover'];
+    }
+}
+
 $response = [
     'name' => $artistInfo['artist'],
     'verified' => true, // Пока всех делаем верифицированными
     'monthly_listeners' => $monthlyListeners,
-    'cover' => $artistInfo['cover'],
+    'cover' => $cover,
     'total_tracks' => (int)$artistInfo['total_tracks'],
     'total_albums' => (int)$artistInfo['total_albums'],
     'total_duration' => (int)$artistInfo['total_duration'],

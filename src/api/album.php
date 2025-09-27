@@ -39,6 +39,15 @@ foreach ($tracks as $t) {
     $totalDuration += (int)$t['duration'];
 }
 
+// Исправляем пути к обложкам
+$cover = $cover ? '/muzic2/' . $cover : null;
+
+foreach ($trackList as &$track) {
+    if ($track['cover']) {
+        $track['cover'] = '/muzic2/' . $track['cover'];
+    }
+}
+
 $res = [
     'title' => $albumRow['album'],
     'artist' => $artist,
