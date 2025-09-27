@@ -3,10 +3,6 @@ if (location.protocol === 'https:') {
     location.replace('http:' + location.href.substring(5));
 }
 
-// Измеряем время загрузки
-window.startTime = Date.now();
-console.log('Page load started at:', window.startTime);
-
 const mainContent = document.getElementById('main-content');
 const navHome = document.getElementById('nav-home');
 const navSearch = document.getElementById('nav-search');
@@ -38,47 +34,10 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	ensureAuthModals();
 
 	(async function initSession() {
-		// Отключаем инициализацию сессии для Windows для тестирования
-		const isWindows = navigator.userAgent.indexOf('Windows') !== -1;
-		if (isWindows) {
-			console.log('Windows detected - skipping session init for speed test');
-			currentUser = null;
-			renderAuthHeader();
-			return;
-		}
-		
 		try {
-			// Пробуем разные пути для Windows и Mac с таймаутом
-			const apiPaths = [
-				'/muzic2/src/api/user.php',
-				'../src/api/user.php',
-				'src/api/user.php'
-			];
-			
-			let res = null;
-			for (const path of apiPaths) {
-				try {
-					const controller = new AbortController();
-					const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 секунды таймаут
-					
-					res = await fetch(path, { 
-						credentials: 'include',
-						signal: controller.signal
-					});
-					clearTimeout(timeoutId);
-					
-					if (res.ok) break;
-				} catch (e) {
-					continue;
-				}
-			}
-			
-			if (res && res.ok) {
-				const data = await res.json();
-				currentUser = data.authenticated ? data.user : null;
-			} else {
-				currentUser = null;
-			}
+			const res = await fetch('/muzic2/src/api/user.php', { credentials: 'include' });
+			const data = await res.json();
+			currentUser = data.authenticated ? data.user : null;
 			renderAuthHeader();
 		} catch (e) {
 			console.error('Session init error:', e);
@@ -131,74 +90,14 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	async function renderHome() {
 		mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
 		try {
-			// Пробуем разные пути для Windows и Mac с таймаутом
-			const homePaths = [
-				'/muzic2/public/src/api/home.php?limit_tracks=8&limit_albums=6&limit_artists=6&limit_mixes=6&limit_favorites=6',
-				'/muzic2/src/api/home.php',
-				'../src/api/home.php',
-				'src/api/home.php'
-			];
-			
-			let res = null;
-			for (const path of homePaths) {
-				try {
-					const controller = new AbortController();
-					const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 секунд таймаут
-					
-					res = await fetch(path, { signal: controller.signal });
-					clearTimeout(timeoutId);
-					
-					if (res.ok) break;
-				} catch (e) {
-					continue;
-				}
-			}
-			
-			if (!res || !res.ok) {
-				throw new Error('Не удалось загрузить данные');
-			}
-			
+			const res = await fetch('/muzic2/public/src/api/home.php?limit_tracks=8&limit_albums=6&limit_artists=6&limit_mixes=6&limit_favorites=6');
 			const data = await res.json();
 			// Load liked set for current user to render green hearts
-			// Отключаем лайки для Windows для тестирования
-			const isWindows = navigator.userAgent.indexOf('Windows') !== -1;
-			if (isWindows) {
-				console.log('Windows detected - skipping likes loading for speed test');
-				window.__likedSet = new Set();
-			} else {
-				try {
-					const likesPaths = [
-						'/muzic2/src/api/likes.php',
-						'../src/api/likes.php',
-						'src/api/likes.php'
-					];
-					
-					let likesRes = null;
-					for (const path of likesPaths) {
-						try {
-							const likesController = new AbortController();
-							const likesTimeoutId = setTimeout(() => likesController.abort(), 3000); // 3 секунды таймаут
-							
-							likesRes = await fetch(path, { 
-								credentials: 'include',
-								signal: likesController.signal
-							});
-							clearTimeout(likesTimeoutId);
-							
-							if (likesRes.ok) break;
-						} catch (e) {
-							continue;
-						}
-					}
-					
-					if (likesRes && likesRes.ok) {
-						const likes = await likesRes.json();
-						window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
-					} else {
-						window.__likedSet = new Set();
-					}
-				} catch(e){ window.__likedSet = new Set(); }
-			}
+			try {
+				const likesRes = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
+				const likes = await likesRes.json();
+				window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
+			} catch(e){ window.__likedSet = new Set(); }
 			mainContent.innerHTML = `
 				<section class="main-filters">
 					<button class="filter-btn active">Все</button>
@@ -226,30 +125,8 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			renderCards('albums-row', data.albums, 'album');
 			renderCards('tracks-row', data.tracks, 'track');
 			renderCards('artists-row', data.artists, 'artist');
-			
-			// Показываем время загрузки для Windows
-			const isWindows = navigator.userAgent.indexOf('Windows') !== -1;
-			if (isWindows) {
-				const loadTime = Date.now() - window.startTime;
-				console.log('Windows page load time:', loadTime + 'ms');
-				// Добавляем информацию о времени загрузки в заголовок
-				const header = document.querySelector('#main-header .logo');
-				if (header) {
-					header.textContent = `Muzic2 (${loadTime}ms)`;
-				}
-			}
 		} catch (e) {
-			mainContent.innerHTML = `
-				<div style="text-align: center; padding: 40px; color: #ff6b6b;">
-					<h2>Ошибка загрузки главной страницы</h2>
-					<p>Не удалось подключиться к серверу</p>
-					<p>Проверьте, что сервер запущен и доступен</p>
-					<button onclick="location.reload()" style="padding: 10px 20px; background: #1db954; color: white; border: none; border-radius: 5px; cursor: pointer;">Обновить страницу</button>
-					<p style="margin-top: 20px; font-size: 0.9em; color: #888;">
-						Если проблема повторяется, попробуйте открыть <a href="../index.html" style="color: #1db954;">упрощенную версию</a>
-					</p>
-				</div>
-			`;
+			mainContent.innerHTML = '<div class="error">Ошибка загрузки главной страницы</div>';
 		}
 	}
 
@@ -271,20 +148,6 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	// My Music (Favorites & Playlists)
 	// =====================
 	async function renderMyMusic() {
-		// Отключаем "Моя музыка" для Windows для тестирования
-		const isWindows = navigator.userAgent.indexOf('Windows') !== -1;
-		if (isWindows) {
-			console.log('Windows detected - showing simplified My Music for speed test');
-			mainContent.innerHTML = `
-				<div style="text-align: center; padding: 40px;">
-					<h2>Моя музыка</h2>
-					<p>Функция временно отключена для тестирования скорости на Windows</p>
-					<p>Время загрузки: ${Date.now() - window.startTime}ms</p>
-				</div>
-			`;
-			return;
-		}
-		
 		mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
 		injectMyMusicStyles();
 
@@ -1261,14 +1124,6 @@ if (mainContent && navHome && navSearch && navLibrary) {
 
 	// Load album likes
 	async function loadAlbumLikes() {
-		// Отключаем загрузку альбомных лайков для Windows для тестирования
-		const isWindows = navigator.userAgent.indexOf('Windows') !== -1;
-		if (isWindows) {
-			console.log('Windows detected - skipping album likes loading for speed test');
-			window.__likedAlbums = new Set();
-			return;
-		}
-		
 		try {
 			const res = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
 			const data = await res.json();
