@@ -1,4 +1,10 @@
 <?php
+// Автоматический роутер для Windows/Mac
+if (PHP_OS_FAMILY === 'Windows') {
+    include __DIR__ . '/home_windows.php';
+    exit;
+}
+
 require_once __DIR__ . '/../config/db.php';
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');

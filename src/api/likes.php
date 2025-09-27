@@ -1,4 +1,10 @@
 <?php
+// Автоматический роутер для Windows/Mac
+if (PHP_OS_FAMILY === 'Windows') {
+    include __DIR__ . '/likes_windows.php';
+    exit;
+}
+
 session_start();
 require_once __DIR__ . '/../config/db.php';
 header('Content-Type: application/json');
