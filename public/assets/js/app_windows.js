@@ -34,12 +34,21 @@ if (mainContent && navHome && navSearch && navLibrary) {
 
 	(async function initSession() {
 		try {
-			// Используем оптимизированные API для Windows
-			const res = await fetch('src/api/user_windows.php', { credentials: 'include' });
+			// Используем оптимизированные API для Windows с таймаутом
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 секунды таймаут
+			
+			const res = await fetch('src/api/user_windows.php', { 
+				credentials: 'include',
+				signal: controller.signal,
+				cache: 'no-cache'
+			});
+			clearTimeout(timeoutId);
 			const data = await res.json();
 			currentUser = data.authenticated ? data.user : null;
 			renderAuthHeader();
 		} catch (e) {
+			console.log('Session init failed, continuing without auth');
 			currentUser = null;
 			renderAuthHeader();
 		}
@@ -76,16 +85,35 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	async function renderHome() {
 		mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
 		try {
-			// Используем оптимизированный API для Windows
-			const res = await fetch('src/api/home_windows.php');
+			// Используем оптимизированный API для Windows с таймаутом
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 секунды таймаут
+			
+			const res = await fetch('src/api/home_windows.php', { 
+				signal: controller.signal,
+				cache: 'no-cache'
+			});
+			clearTimeout(timeoutId);
 			const data = await res.json();
 			
-			// Загружаем лайки
+			// Загружаем лайки параллельно с таймаутом
+			window.__likedSet = new Set();
 			try {
-				const likesRes = await fetch('src/api/likes_windows.php', { credentials: 'include' });
+				const likesController = new AbortController();
+				const likesTimeoutId = setTimeout(() => likesController.abort(), 2000); // 2 секунды таймаут
+				
+				const likesRes = await fetch('src/api/likes_windows.php', { 
+					credentials: 'include',
+					signal: likesController.signal,
+					cache: 'no-cache'
+				});
+				clearTimeout(likesTimeoutId);
 				const likes = await likesRes.json();
 				window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
-			} catch(e){ window.__likedSet = new Set(); }
+			} catch(e){ 
+				console.log('Likes loading failed, continuing without likes');
+				window.__likedSet = new Set(); 
+			}
 			
 			mainContent.innerHTML = `
 				<section class="main-filters">
