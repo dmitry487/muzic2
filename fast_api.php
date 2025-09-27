@@ -59,9 +59,24 @@ switch ($action) {
             break;
         }
         
-        $stmt = $pdo->prepare("SELECT id, name, track_count FROM playlists WHERE user_id = ?");
+        // Check if playlists table exists
+        $stmt = $pdo->query("SHOW TABLES LIKE 'playlists'");
+        if ($stmt->rowCount() == 0) {
+            echo json_encode([]);
+            break;
+        }
+        
+        $stmt = $pdo->prepare("SELECT id, name FROM playlists WHERE user_id = ? LIMIT 10");
         $stmt->execute([$_SESSION['user_id']]);
         $playlists = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Add track_count for each playlist
+        foreach ($playlists as &$playlist) {
+            $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM playlist_tracks WHERE playlist_id = ?");
+            $stmt->execute([$playlist['id']]);
+            $count = $stmt->fetch(PDO::FETCH_ASSOC);
+            $playlist['track_count'] = $count['count'];
+        }
         
         echo json_encode($playlists);
         break;
