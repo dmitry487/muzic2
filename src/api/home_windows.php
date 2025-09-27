@@ -24,6 +24,37 @@ try {
     $favorites = array_slice($tracks, 0, 3);
     $mixes = array_slice($tracks, 3, 3);
     
+    // Исправляем пути к обложкам
+    foreach ($tracks as &$track) {
+        if ($track['cover']) {
+            $track['cover'] = '/muzic2/' . $track['cover'];
+        }
+    }
+    
+    foreach ($albums as &$album) {
+        if ($album['cover']) {
+            $album['cover'] = '/muzic2/' . $album['cover'];
+        }
+    }
+    
+    foreach ($artists as &$artist) {
+        if ($artist['cover']) {
+            $artist['cover'] = '/muzic2/' . $artist['cover'];
+        }
+    }
+    
+    foreach ($favorites as &$track) {
+        if ($track['cover']) {
+            $track['cover'] = '/muzic2/' . $track['cover'];
+        }
+    }
+    
+    foreach ($mixes as &$track) {
+        if ($track['cover']) {
+            $track['cover'] = '/muzic2/' . $track['cover'];
+        }
+    }
+    
     echo json_encode([
         'tracks' => $tracks,
         'albums' => $albums,

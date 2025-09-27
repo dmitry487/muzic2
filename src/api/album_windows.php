@@ -31,6 +31,17 @@ try {
     $stmt->execute([$album]);
     $tracks = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
+    // Исправляем пути к обложкам
+    if ($albumInfo && $albumInfo['cover']) {
+        $albumInfo['cover'] = '/muzic2/' . $albumInfo['cover'];
+    }
+    
+    foreach ($tracks as &$track) {
+        if ($track['cover']) {
+            $track['cover'] = '/muzic2/' . $track['cover'];
+        }
+    }
+    
     echo json_encode([
         'album' => $albumInfo,
         'tracks' => $tracks
