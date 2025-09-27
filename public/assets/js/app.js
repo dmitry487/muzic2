@@ -907,7 +907,13 @@ if (mainContent && navHome && navSearch && navLibrary) {
 		try {
 			// Decode the album name if it's URL encoded
 			const decodedAlbumName = decodeURIComponent(albumName);
-			const res = await fetch('/muzic2/src/api/album.php?album=' + encodeURIComponent(decodedAlbumName));
+			
+			// Используем быстрый API для Windows
+			const apiUrl = isWindows ? 
+				`/muzic2/src/api/album_windows.php?album=${encodeURIComponent(decodedAlbumName)}` :
+				`/muzic2/src/api/album.php?album=${encodeURIComponent(decodedAlbumName)}`;
+			
+			const res = await fetch(apiUrl);
 			const data = await res.json();
 			if (data.error) { mainContent.innerHTML = '<div class="error">Альбом не найден</div>'; return; }
 			// Inject album page styles (from album.html) for correct layout
@@ -1123,7 +1129,13 @@ if (mainContent && navHome && navSearch && navLibrary) {
 		
 			// Decode the artist name if it's URL encoded
 			const decodedArtistName = decodeURIComponent(artistName);
-			const res = await fetch('/muzic2/public/src/api/artist.php?artist=' + encodeURIComponent(decodedArtistName));
+			
+			// Используем быстрый API для Windows
+			const apiUrl = isWindows ? 
+				`/muzic2/src/api/artist_windows.php?artist=${encodeURIComponent(decodedArtistName)}` :
+				`/muzic2/public/src/api/artist.php?artist=${encodeURIComponent(decodedArtistName)}`;
+			
+			const res = await fetch(apiUrl);
 			const data = await res.json();
 			if (data.error) { mainContent.innerHTML = '<div class="error">Артист не найден</div>'; return; }
 			
