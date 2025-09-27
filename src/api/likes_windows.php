@@ -3,6 +3,11 @@
 session_start();
 require_once __DIR__ . '/../config/db.php';
 header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Credentials: true');
+
+// Debug: Log that Windows version is being used
+error_log("Using Windows-optimized likes API");
 
 $db = get_db_connection();
 $user_id = $_SESSION['user_id'] ?? null;

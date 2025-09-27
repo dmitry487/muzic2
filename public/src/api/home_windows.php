@@ -2,6 +2,11 @@
 // Windows-optimized home API - minimal queries for speed
 require_once __DIR__ . '/../../../src/config/db.php';
 header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Credentials: true');
+
+// Debug: Log that Windows version is being used
+error_log("Using Windows-optimized home API");
 
 $db = get_db_connection();
 
