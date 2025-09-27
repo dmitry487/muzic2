@@ -278,16 +278,20 @@ if (mainContent && navHome && navSearch && navLibrary) {
 
 			document.getElementById('create-playlist').onclick = () => openCreatePlaylistDialog();
 
-			// Click handlers for playlist tiles
-			playlists.forEach(pl => {
-				const el = document.getElementById(`pl-${pl.id}`);
-				if (el) {
-					el.onclick = (e) => {
+			// Use event delegation for playlist clicks
+			document.addEventListener('click', (e) => {
+				console.log('Click detected on:', e.target);
+				if (e.target.closest('.playlist-tile')) {
+					console.log('Playlist tile clicked!');
+					const tile = e.target.closest('.playlist-tile');
+					const playlistId = tile.dataset.playlistId;
+					const playlistName = tile.dataset.playlistName;
+					console.log('Playlist ID:', playlistId, 'Name:', playlistName);
+					if (playlistId && playlistName) {
 						e.preventDefault();
 						e.stopPropagation();
-						openPlaylist(pl.id, pl.name);
-					};
-					el.style.cursor = 'pointer';
+						openPlaylist(playlistId, playlistName);
+					}
 				}
 			});
 		} catch (e) {
@@ -360,7 +364,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 		// Use special cover for "Любимые треки" playlist, otherwise use placeholder
 		const cover = pl.cover ? `/muzic2/${pl.cover}` : '/muzic2/public/assets/img/playlist-placeholder.png';
 		return `
-			<div class="tile" id="pl-${pl.id}">
+			<div class="tile playlist-tile" id="pl-${pl.id}" data-playlist-id="${pl.id}" data-playlist-name="${escapeHtml(pl.name)}" style="cursor: pointer;">
 				<img class="tile-cover" src="${cover}" alt="cover">
 				<div class="tile-title">${escapeHtml(pl.name)}</div>
 				<div class="tile-desc">Плейлист</div>
