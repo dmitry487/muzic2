@@ -144,35 +144,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	// =====================
 	async function renderMyMusic() {
 		mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
-
 		injectMyMusicStyles();
-
-		// Check auth status
-		try {
-			const userRes = await fetch('/muzic2/src/api/user.php', { credentials: 'include' });
-			const userData = await userRes.json();
-			currentUser = userData.authenticated ? userData.user : null;
-		} catch (e) {
-			console.error('Ошибка проверки авторизации:', e);
-			currentUser = null;
-		}
-
-		// Require auth
-		if (!currentUser) {
-			mainContent.innerHTML = `
-				<section class="auth-required">
-					<h2>Моя музыка</h2>
-					<p>Войдите, чтобы увидеть любимые треки и плейлисты.</p>
-					<div class="auth-actions">
-						<button id="open-login" class="btn primary">Войти</button>
-						<button id="open-register" class="btn">Регистрация</button>
-					</div>
-				</section>
-			`;
-			attachAuthModalTriggers();
-			ensureAuthModals();
-			return;
-		}
 
 		try {
 			const listsRes = await fetch('/muzic2/src/api/playlists.php', { credentials: 'include' });
@@ -181,9 +153,6 @@ if (mainContent && navHome && navSearch && navLibrary) {
 
 			// Load liked albums
 			const likesRes = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
-			if (!likesRes.ok) {
-				throw new Error('Ошибка загрузки лайков: ' + likesRes.status);
-			}
 			const likesData = await likesRes.json();
 			const likedAlbums = likesData.albums || [];
 
@@ -280,13 +249,10 @@ if (mainContent && navHome && navSearch && navLibrary) {
 
 			// Use event delegation for playlist clicks
 			document.addEventListener('click', (e) => {
-				console.log('Click detected on:', e.target);
 				if (e.target.closest('.playlist-tile')) {
-					console.log('Playlist tile clicked!');
 					const tile = e.target.closest('.playlist-tile');
 					const playlistId = tile.dataset.playlistId;
 					const playlistName = tile.dataset.playlistName;
-					console.log('Playlist ID:', playlistId, 'Name:', playlistName);
 					if (playlistId && playlistName) {
 						e.preventDefault();
 						e.stopPropagation();
@@ -295,8 +261,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 				}
 			});
 		} catch (e) {
-			console.error('Ошибка загрузки "Моя музыка":', e);
-			mainContent.innerHTML = '<div class="error">Ошибка загрузки: ' + e.message + '</div>';
+			mainContent.innerHTML = '<div class="error">Ошибка загрузки</div>';
 		}
 	}
 
@@ -374,22 +339,14 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	}
 
 	async function openPlaylist(playlistId, playlistName) {
-		alert('Открываем плейлист: ' + playlistName + ' (ID: ' + playlistId + ')');
 		const view = document.getElementById('playlist-view');
-		if (!view) {
-			alert('Элемент playlist-view не найден!');
-			return;
-		}
+		if (!view) return;
+		
 		view.innerHTML = '<div class="loading">Загрузка плейлиста...</div>';
 		try {
 			const res = await fetch(`/muzic2/src/api/playlists.php?playlist_id=${playlistId}`, { credentials: 'include' });
-			if (!res.ok) {
-				alert('Ошибка API: ' + res.status + ' ' + res.statusText);
-				return;
-			}
 			const data = await res.json();
 			const tracks = data.tracks || [];
-			alert('Загружено треков: ' + tracks.length);
 			view.innerHTML = `
 				<section class="playlist-section">
 					<div class="playlist-header">
@@ -1156,7 +1113,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 				});
 			}
 		} catch (e) {
-			// Silent fail for better performance
+			// Silent fail
 		}
 	}
 
@@ -1193,7 +1150,6 @@ if (mainContent && navHome && navSearch && navLibrary) {
 				updateMyMusicAlbums();
 			}
 		} catch (e) {
-			console.error('Error loading album likes:', e);
 			window.__likedAlbums = new Set();
 		}
 	}
@@ -1265,7 +1221,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			
 			albumsRow.innerHTML = matchedAlbums.map(album => createAlbumCard(album)).join('');
 		} catch (e) {
-			console.error('Error updating My Music albums:', e);
+			// Silent fail
 		}
 	}
 
