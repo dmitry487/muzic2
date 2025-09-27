@@ -1,0 +1,12 @@
+# Принудительно используем HTTP вместо HTTPS
+RewriteEngine On
+RewriteCond %{HTTPS} on
+RewriteRule ^(.*)$ http://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Разрешаем CORS для API
+Header always set Access-Control-Allow-Origin "*"
+Header always set Access-Control-Allow-Methods "GET, POST, OPTIONS"
+Header always set Access-Control-Allow-Headers "Content-Type"
+
+# Обработка ошибок
+ErrorDocument 404 /muzic2/index.html

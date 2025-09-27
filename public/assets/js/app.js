@@ -1,3 +1,8 @@
+// Принудительно используем HTTP вместо HTTPS
+if (location.protocol === 'https:') {
+    location.replace('http:' + location.href.substring(5));
+}
+
 const mainContent = document.getElementById('main-content');
 const navHome = document.getElementById('nav-home');
 const navSearch = document.getElementById('nav-search');
@@ -58,6 +63,17 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			console.error('Session init error:', e);
 			currentUser = null;
 			renderAuthHeader();
+			// Показываем сообщение об ошибке если не удалось загрузить API
+			if (mainContent) {
+				mainContent.innerHTML = `
+					<div style="text-align: center; padding: 40px; color: #ff6b6b;">
+						<h2>Ошибка загрузки</h2>
+						<p>Не удалось подключиться к серверу</p>
+						<p>Проверьте, что сервер запущен и доступен</p>
+						<button onclick="location.reload()" style="padding: 10px 20px; background: #1db954; color: white; border: none; border-radius: 5px; cursor: pointer;">Обновить страницу</button>
+					</div>
+				`;
+			}
 		}
 	})();
 
@@ -181,7 +197,17 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			renderCards('tracks-row', data.tracks, 'track');
 			renderCards('artists-row', data.artists, 'artist');
 		} catch (e) {
-			mainContent.innerHTML = '<div class="error">Ошибка загрузки главной страницы</div>';
+			mainContent.innerHTML = `
+				<div style="text-align: center; padding: 40px; color: #ff6b6b;">
+					<h2>Ошибка загрузки главной страницы</h2>
+					<p>Не удалось подключиться к серверу</p>
+					<p>Проверьте, что сервер запущен и доступен</p>
+					<button onclick="location.reload()" style="padding: 10px 20px; background: #1db954; color: white; border: none; border-radius: 5px; cursor: pointer;">Обновить страницу</button>
+					<p style="margin-top: 20px; font-size: 0.9em; color: #888;">
+						Если проблема повторяется, попробуйте открыть <a href="../index.html" style="color: #1db954;">упрощенную версию</a>
+					</p>
+				</div>
+			`;
 		}
 	}
 

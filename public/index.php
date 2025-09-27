@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Muzic2 — Музыкальный сервис</title>
     <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="icon" href="../favicon.ico" type="image/x-icon">
 </head>
 <body>
     <div id="app">
@@ -45,7 +46,54 @@
         </main>
         <div id="player-root"></div>
     </div>
-    <script src="assets/js/app.js"></script>
-    <script src="assets/js/player.js"></script>
+    <script>
+        // Принудительно используем HTTP вместо HTTPS
+        if (location.protocol === 'https:') {
+            location.replace('http:' + location.href.substring(5));
+        }
+        
+        // Проверяем загрузку ресурсов
+        function checkResource(url, callback) {
+            fetch(url)
+                .then(response => {
+                    if (response.ok) {
+                        callback(true);
+                    } else {
+                        callback(false);
+                    }
+                })
+                .catch(() => callback(false));
+        }
+        
+        // Загружаем JS файлы с fallback
+        function loadScript(src, fallbackSrc = null) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = () => {
+                    if (fallbackSrc) {
+                        const fallbackScript = document.createElement('script');
+                        fallbackScript.src = fallbackSrc;
+                        fallbackScript.onload = resolve;
+                        fallbackScript.onerror = reject;
+                        document.head.appendChild(fallbackScript);
+                    } else {
+                        reject();
+                    }
+                };
+                document.head.appendChild(script);
+            });
+        }
+        
+        // Загружаем все скрипты
+        Promise.all([
+            loadScript('assets/js/app.js'),
+            loadScript('assets/js/player.js')
+        ]).catch(error => {
+            console.error('Ошибка загрузки скриптов:', error);
+            document.body.innerHTML = '<div style="padding: 20px; text-align: center;"><h2>Ошибка загрузки</h2><p>Проверьте подключение к интернету и обновите страницу</p></div>';
+        });
+    </script>
 </body>
 </html> 
