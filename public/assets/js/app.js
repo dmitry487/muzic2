@@ -41,11 +41,11 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	ensureAuthModals();
 
 	(async function initSession() {
-		// Упрощенная инициализация сессии для Windows
+		// Ультра-быстрая инициализация сессии для Windows
 		if (isWindows) {
-			console.log('Windows detected - using simplified session init');
+			console.log('Windows detected - using ultra-fast session init');
 			try {
-				const res = await fetch('/muzic2/src/api/user.php', { credentials: 'include' });
+				const res = await fetch('/muzic2/src/api/user_windows.php', { credentials: 'include' });
 				const data = await res.json();
 				currentUser = data.authenticated ? data.user : null;
 				renderAuthHeader();
@@ -114,11 +114,11 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	async function renderHome() {
 		mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
 		
-		// Для Windows используем упрощенный API запрос
+		// Для Windows используем ультра-быстрый API
 		if (isWindows) {
-			console.log('Windows detected - using simplified API for speed test');
+			console.log('Windows detected - using ultra-fast API');
 			try {
-				const res = await fetch('/muzic2/public/src/api/home.php?limit_tracks=8&limit_albums=6&limit_artists=6&limit_mixes=6&limit_favorites=6');
+				const res = await fetch('/muzic2/src/api/home_windows.php');
 				const data = await res.json();
 				
 				// Отключаем лайки для Windows (самая медленная часть)
@@ -246,7 +246,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			injectMyMusicStyles();
 
 			try {
-				const listsRes = await fetch('/muzic2/src/api/playlists.php', { credentials: 'include' });
+				const listsRes = await fetch('/muzic2/src/api/playlists_windows.php', { credentials: 'include' });
 				const playlistsData = await listsRes.json();
 				const playlists = playlistsData.playlists || [];
 
