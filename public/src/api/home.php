@@ -1,18 +1,4 @@
 <?php
-// Auto-detect Windows and use optimized version
-// Check multiple ways to detect Windows
-$isWindows = (
-    strtoupper(substr(PHP_OS, 0, 3)) === 'WIN' ||
-    strpos(strtoupper(PHP_OS), 'WINDOWS') !== false ||
-    strpos(strtoupper(php_uname('s')), 'WINDOWS') !== false
-);
-
-if ($isWindows) {
-    include __DIR__ . '/home_windows.php';
-    exit;
-}
-
-// Original Mac version below
 require_once __DIR__ . '/../../../src/config/db.php';
 header('Content-Type: application/json');
 

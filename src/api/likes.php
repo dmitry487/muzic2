@@ -1,18 +1,4 @@
 <?php
-// Auto-detect Windows and use optimized version
-// Check multiple ways to detect Windows
-$isWindows = (
-    strtoupper(substr(PHP_OS, 0, 3)) === 'WIN' ||
-    strpos(strtoupper(PHP_OS), 'WINDOWS') !== false ||
-    strpos(strtoupper(php_uname('s')), 'WINDOWS') !== false
-);
-
-if ($isWindows) {
-    include __DIR__ . '/likes_windows.php';
-    exit;
-}
-
-// Original Mac version below
 session_start();
 require_once __DIR__ . '/../config/db.php';
 header('Content-Type: application/json');
