@@ -5,6 +5,8 @@ if (location.protocol === 'https:') {
 
 // Измеряем время загрузки только для Windows
 const isWindows = navigator.userAgent.indexOf('Windows') !== -1;
+console.log('User Agent:', navigator.userAgent);
+console.log('isWindows:', isWindows);
 if (isWindows) {
     window.startTime = Date.now();
     console.log('Windows detected - starting load timer');
@@ -115,6 +117,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 		mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
 		
 		// Для Windows используем ультра-быстрый API
+		console.log('renderHome - isWindows:', isWindows);
 		if (isWindows) {
 			console.log('Windows detected - using ultra-fast API');
 			try {
