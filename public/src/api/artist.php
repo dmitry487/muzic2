@@ -90,27 +90,11 @@ try {
 
 $monthlyListeners = rand(100000, 10000000);
 
-// Исправляем пути к обложкам
-$cover = $explicitCover ?: $artistInfo['cover'];
-$cover = $cover ? '/muzic2/' . $cover : null;
-
-foreach ($topTracks as &$track) {
-    if ($track['cover']) {
-        $track['cover'] = '/muzic2/' . $track['cover'];
-    }
-}
-
-foreach ($albums as &$album) {
-    if ($album['cover']) {
-        $album['cover'] = '/muzic2/' . $album['cover'];
-    }
-}
-
 $response = [
     'name' => $artistInfo['artist'],
     'verified' => true,
     'monthly_listeners' => $monthlyListeners,
-    'cover' => $cover,
+    'cover' => $explicitCover ?: $artistInfo['cover'],
     'bio' => $bio ?: null,
     'total_tracks' => (int)$artistInfo['total_tracks'],
     'total_albums' => (int)$artistInfo['total_albums'],
