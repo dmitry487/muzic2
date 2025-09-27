@@ -41,7 +41,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	ensureAuthModals();
 
 	(async function initSession() {
-		// Отключаем инициализацию сессии для Windows для тестирования скорости
+		// Отключаем инициализацию сессии только для Windows для тестирования скорости
 		if (isWindows) {
 			console.log('Windows detected - skipping session init for speed test');
 			currentUser = null;
@@ -49,6 +49,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			return;
 		}
 		
+		// Оригинальная логика для Mac
 		try {
 			const res = await fetch('/muzic2/src/api/user.php', { credentials: 'include' });
 			const data = await res.json();
@@ -104,27 +105,41 @@ if (mainContent && navHome && navSearch && navLibrary) {
 
 	async function renderHome() {
 		mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
-		try {
-			const res = await fetch('/muzic2/public/src/api/home.php?limit_tracks=8&limit_albums=6&limit_artists=6&limit_mixes=6&limit_favorites=6');
-			const data = await res.json();
-			// Load liked set for current user to render green hearts
-			// Отключаем лайки только для Windows для тестирования скорости
-			const isWindows = navigator.userAgent.indexOf('Windows') !== -1;
-			if (isWindows) {
-				console.log('Windows detected - skipping track likes for speed test');
-				window.__likedSet = new Set();
-			} else {
-				try {
-					const likesRes = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
-					const likes = await likesRes.json();
-					window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
-				} catch(e){ window.__likedSet = new Set(); }
-			}
+		
+		// Отключаем API запрос только для Windows для тестирования скорости
+		if (isWindows) {
+			console.log('Windows detected - using static data for speed test');
+			const staticData = {
+				tracks: [
+					{id: 1, title: 'Тестовый трек 1', artist: 'Тестовый артист', album: 'Тестовый альбом', album_type: 'album', duration: 180, file_path: 'test.mp3', cover: 'test.jpg'},
+					{id: 2, title: 'Тестовый трек 2', artist: 'Тестовый артист', album: 'Тестовый альбом', album_type: 'album', duration: 180, file_path: 'test.mp3', cover: 'test.jpg'}
+				],
+				albums: [
+					{album: 'Тестовый альбом', artist: 'Тестовый артист', album_type: 'album', cover: 'test.jpg'}
+				],
+				artists: [
+					{artist: 'Тестовый артист', cover: 'test.jpg'}
+				],
+				favorites: [
+					{id: 1, title: 'Тестовый трек 1', artist: 'Тестовый артист', album: 'Тестовый альбом', album_type: 'album', duration: 180, file_path: 'test.mp3', cover: 'test.jpg'}
+				],
+				mixes: [
+					{id: 2, title: 'Тестовый трек 2', artist: 'Тестовый артист', album: 'Тестовый альбом', album_type: 'album', duration: 180, file_path: 'test.mp3', cover: 'test.jpg'}
+				]
+			};
+			
+			window.__likedSet = new Set();
+			
+			// Рендерим статические данные для Windows
 			mainContent.innerHTML = `
 				<section class="main-filters">
 					<button class="filter-btn active">Все</button>
 					<button class="filter-btn">Музыка</button>
 					<button class="filter-btn">Артисты</button>
+				</section>
+				<section class="main-section" id="favorites-section">
+					<h3>Любимые треки</h3>
+					<div class="card-row" id="favorites-row"></div>
 				</section>
 				<section class="main-section" id="mixes-section">
 					<h3>Миксы дня</h3>
@@ -143,25 +158,70 @@ if (mainContent && navHome && navSearch && navLibrary) {
 					<div class="card-row" id="artists-row"></div>
 				</section>
 			`;
+			renderCards('favorites-row', staticData.favorites, 'track');
+			renderCards('mixes-row', staticData.mixes, 'track');
+			renderCards('albums-row', staticData.albums, 'album');
+			renderCards('tracks-row', staticData.tracks, 'track');
+			renderCards('artists-row', staticData.artists, 'artist');
+			
+			// Показываем время загрузки для Windows
+			const loadTime = Date.now() - (window.startTime || Date.now());
+			console.log('Windows page load time:', loadTime + 'ms');
+			const header = document.querySelector('#main-header .logo');
+			if (header) {
+				header.textContent = `Muzic2 (${loadTime}ms)`;
+			}
+			return;
+		}
+		
+		// Оригинальная логика для Mac
+		try {
+			const res = await fetch('/muzic2/public/src/api/home.php?limit_tracks=8&limit_albums=6&limit_artists=6&limit_mixes=6&limit_favorites=6');
+			const data = await res.json();
+			// Load liked set for current user to render green hearts
+			try {
+				const likesRes = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
+				const likes = await likesRes.json();
+				window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
+			} catch(e){ window.__likedSet = new Set(); }
+			
+			mainContent.innerHTML = `
+				<section class="main-filters">
+					<button class="filter-btn active">Все</button>
+					<button class="filter-btn">Музыка</button>
+					<button class="filter-btn">Артисты</button>
+				</section>
+				<section class="main-section" id="favorites-section">
+					<h3>Любимые треки</h3>
+					<div class="card-row" id="favorites-row"></div>
+				</section>
+				<section class="main-section" id="mixes-section">
+					<h3>Миксы дня</h3>
+					<div class="card-row" id="mixes-row"></div>
+				</section>
+				<section class="main-section" id="albums-section">
+					<h3>Случайные альбомы</h3>
+					<div class="card-row" id="albums-row"></div>
+				</section>
+				<section class="main-section" id="tracks-section">
+					<h3>Случайные треки</h3>
+					<div class="card-row" id="tracks-row"></div>
+				</section>
+				<section class="main-section" id="artists-section">
+					<h3>Артисты</h3>
+					<div class="card-row" id="artists-row"></div>
+				</section>
+			`;
+			renderCards('favorites-row', data.favorites, 'track');
 			renderCards('mixes-row', data.mixes, 'track');
 			renderCards('albums-row', data.albums, 'album');
 			renderCards('tracks-row', data.tracks, 'track');
 			renderCards('artists-row', data.artists, 'artist');
-			
-			// Показываем время загрузки только для Windows
-			if (isWindows) {
-				const loadTime = Date.now() - (window.startTime || Date.now());
-				console.log('Windows page load time:', loadTime + 'ms');
-				// Добавляем время в заголовок
-				const header = document.querySelector('#main-header .logo');
-				if (header) {
-					header.textContent = `Muzic2 (${loadTime}ms)`;
-				}
-			}
 		} catch (e) {
 			mainContent.innerHTML = '<div class="error">Ошибка загрузки главной страницы</div>';
 		}
 	}
+	
 
 	// =====================
 	// Helper Functions
@@ -181,7 +241,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	// My Music (Favorites & Playlists)
 	// =====================
 	async function renderMyMusic() {
-		// Отключаем "Моя музыка" для Windows для тестирования скорости
+		// Отключаем "Моя музыка" только для Windows для тестирования скорости
 		if (isWindows) {
 			console.log('Windows detected - showing simplified My Music for speed test');
 			mainContent.innerHTML = `
@@ -194,6 +254,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			return;
 		}
 		
+		// Оригинальная логика для Mac
 		mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
 		injectMyMusicStyles();
 
@@ -1170,13 +1231,14 @@ if (mainContent && navHome && navSearch && navLibrary) {
 
 	// Load album likes
 	async function loadAlbumLikes() {
-		// Отключаем альбомные лайки для Windows для тестирования скорости
+		// Отключаем альбомные лайки только для Windows для тестирования скорости
 		if (isWindows) {
 			console.log('Windows detected - skipping album likes for speed test');
 			window.__likedAlbums = new Set();
 			return;
 		}
 		
+		// Оригинальная логика для Mac
 		try {
 			const res = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
 			const data = await res.json();
