@@ -92,7 +92,7 @@
                     credentials: 'include'
                 });
                 const data = await res.json();
-                if (res.ok) {
+                if (res.ok && data.success) {
                     currentUser = data.user;
                     updateHeader();
                     renderHome();
