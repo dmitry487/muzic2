@@ -85,31 +85,73 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	async function renderHome() {
 		mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
 		try {
-			// Используем оптимизированный API для Windows с таймаутом
-			const controller = new AbortController();
-			const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 секунды таймаут
+			// Пробуем разные API пути для Windows
+			const apiPaths = [
+				'src/api/home_windows.php',
+				'src/api/home.php',
+				'../src/api/home.php',
+				'/muzic2/src/api/home.php'
+			];
 			
-			const res = await fetch('src/api/home_windows.php', { 
-				signal: controller.signal,
-				cache: 'no-cache'
-			});
-			clearTimeout(timeoutId);
-			const data = await res.json();
+			let data = null;
+			for (const path of apiPaths) {
+				try {
+					const controller = new AbortController();
+					const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 секунд таймаут
+					
+					const res = await fetch(path, { 
+						signal: controller.signal,
+						cache: 'no-cache'
+					});
+					clearTimeout(timeoutId);
+					
+					if (res.ok) {
+						data = await res.json();
+						console.log('Successfully loaded data from:', path);
+						break;
+					}
+				} catch (e) {
+					console.log('Failed to load from:', path, e.message);
+					continue;
+				}
+			}
+			
+			if (!data) {
+				throw new Error('Не удалось загрузить данные ни с одного API');
+			}
 			
 			// Загружаем лайки параллельно с таймаутом
 			window.__likedSet = new Set();
 			try {
-				const likesController = new AbortController();
-				const likesTimeoutId = setTimeout(() => likesController.abort(), 2000); // 2 секунды таймаут
+				const likesPaths = [
+					'src/api/likes_windows.php',
+					'src/api/likes.php',
+					'../src/api/likes.php',
+					'/muzic2/src/api/likes.php'
+				];
 				
-				const likesRes = await fetch('src/api/likes_windows.php', { 
-					credentials: 'include',
-					signal: likesController.signal,
-					cache: 'no-cache'
-				});
-				clearTimeout(likesTimeoutId);
-				const likes = await likesRes.json();
-				window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
+				for (const path of likesPaths) {
+					try {
+						const likesController = new AbortController();
+						const likesTimeoutId = setTimeout(() => likesController.abort(), 3000);
+						
+						const likesRes = await fetch(path, { 
+							credentials: 'include',
+							signal: likesController.signal,
+							cache: 'no-cache'
+						});
+						clearTimeout(likesTimeoutId);
+						
+						if (likesRes.ok) {
+							const likes = await likesRes.json();
+							window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
+							console.log('Successfully loaded likes from:', path);
+							break;
+						}
+					} catch (e) {
+						continue;
+					}
+				}
 			} catch(e){ 
 				console.log('Likes loading failed, continuing without likes');
 				window.__likedSet = new Set(); 

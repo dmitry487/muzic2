@@ -13,6 +13,9 @@ ini_set('log_errors', 0);
 try {
     // Прямое подключение к SQLite без лишних проверок
     $db_path = __DIR__ . '/../../db/database.sqlite';
+    if (!file_exists($db_path)) {
+        throw new Exception('Database file not found');
+    }
     $pdo = new PDO("sqlite:$db_path");
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT);
     
