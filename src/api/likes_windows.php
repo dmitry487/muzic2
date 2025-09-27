@@ -30,7 +30,7 @@ if ($method === 'GET') {
     $db->exec($createTable);
     
     // Windows: Simple liked tracks - minimal data for speed
-    $stmt = $db->prepare('SELECT t.id, t.title, t.artist, t.cover FROM likes l JOIN tracks t ON l.track_id = t.id WHERE l.user_id = ? LIMIT 20');
+    $stmt = $db->prepare('SELECT t.id, t.title, t.artist, t.album, t.album_type, t.duration, t.file_path, t.cover, t.video_url, t.explicit FROM likes l JOIN tracks t ON l.track_id = t.id WHERE l.user_id = ? LIMIT 20');
     $stmt->execute([$user_id]);
     $tracks = $stmt->fetchAll(PDO::FETCH_ASSOC);
     

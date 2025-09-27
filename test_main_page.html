@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Тест загрузки главной страницы</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .success { background: #d4edda; }
+        .error { background: #f8d7da; }
+        .loading { background: #fff3cd; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Тест загрузки главной страницы</h1>
+    
+    <div id="tests">
+        <div class="test loading">⏳ Запуск тестов...</div>
+    </div>
+
+    <script>
+        const testsDiv = document.getElementById('tests');
+        
+        function addTest(name, status, message) {
+            const div = document.createElement('div');
+            div.className = `test ${status}`;
+            div.innerHTML = `<strong>${name}:</strong> ${message}`;
+            testsDiv.appendChild(div);
+        }
+        
+        async function runTests() {
+            // Очистить loading
+            testsDiv.innerHTML = '';
+            
+            // Тест 1: Проверка user.php
+            try {
+                const start = performance.now();
+                const userRes = await fetch('/muzic2/src/api/user.php', { credentials: 'include' });
+                const userData = await userRes.json();
+                const time = Math.round(performance.now() - start);
+                
+                if (userRes.ok) {
+                    addTest('user.php', 'success', `✅ Работает (${time}ms) - Авторизован: ${userData.authenticated ? 'YES' : 'NO'}`);
+                } else {
+                    addTest('user.php', 'error', `❌ Ошибка ${userRes.status}: ${userData.error || 'Unknown error'}`);
+                }
+            } catch (e) {
+                addTest('user.php', 'error', `❌ Ошибка сети: ${e.message}`);
+            }
+            
+            // Тест 2: Проверка home.php
+            try {
+                const start = performance.now();
+                const homeRes = await fetch('/muzic2/public/src/api/home.php', { credentials: 'include' });
+                const homeData = await homeRes.json();
+                const time = Math.round(performance.now() - start);
+                
+                if (homeRes.ok) {
+                    const tracks = homeData.tracks ? homeData.tracks.length : 0;
+                    const albums = homeData.albums ? homeData.albums.length : 0;
+                    const artists = homeData.artists ? homeData.artists.length : 0;
+                    addTest('home.php', 'success', `✅ Работает (${time}ms) - Треков: ${tracks}, Альбомов: ${albums}, Артистов: ${artists}`);
+                } else {
+                    addTest('home.php', 'error', `❌ Ошибка ${homeRes.status}: ${homeData.error || 'Unknown error'}`);
+                }
+            } catch (e) {
+                addTest('home.php', 'error', `❌ Ошибка сети: ${e.message}`);
+            }
+            
+            // Тест 3: Проверка likes.php
+            try {
+                const start = performance.now();
+                const likesRes = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
+                const likesData = await likesRes.json();
+                const time = Math.round(performance.now() - start);
+                
+                if (likesRes.ok) {
+                    const tracks = likesData.tracks ? likesData.tracks.length : 0;
+                    const albums = likesData.albums ? likesData.albums.length : 0;
+                    addTest('likes.php', 'success', `✅ Работает (${time}ms) - Лайков треков: ${tracks}, Лайков альбомов: ${albums}`);
+                } else {
+                    addTest('likes.php', 'error', `❌ Ошибка ${likesRes.status}: ${likesData.error || 'Unknown error'}`);
+                }
+            } catch (e) {
+                addTest('likes.php', 'error', `❌ Ошибка сети: ${e.message}`);
+            }
+            
+            // Тест 4: Проверка app.js
+            try {
+                const appRes = await fetch('/muzic2/public/assets/js/app.js');
+                if (appRes.ok) {
+                    addTest('app.js', 'success', '✅ Файл загружается');
+                } else {
+                    addTest('app.js', 'error', `❌ Ошибка ${appRes.status}`);
+                }
+            } catch (e) {
+                addTest('app.js', 'error', `❌ Ошибка сети: ${e.message}`);
+            }
+            
+            // Тест 5: Проверка главной страницы
+            try {
+                const start = performance.now();
+                const mainRes = await fetch('/muzic2/public/index.php');
+                const time = Math.round(performance.now() - start);
+                
+                if (mainRes.ok) {
+                    addTest('index.php', 'success', `✅ Главная страница загружается (${time}ms)`);
+                } else {
+                    addTest('index.php', 'error', `❌ Ошибка ${mainRes.status}`);
+                }
+            } catch (e) {
+                addTest('index.php', 'error', `❌ Ошибка сети: ${e.message}`);
+            }
+            
+            // Итоговый результат
+            const allTests = testsDiv.querySelectorAll('.test');
+            const successCount = testsDiv.querySelectorAll('.test.success').length;
+            const totalCount = allTests.length;
+            
+            const summary = document.createElement('div');
+            summary.className = `test ${successCount === totalCount ? 'success' : 'error'}`;
+            summary.innerHTML = `<strong>📊 Итого:</strong> ${successCount}/${totalCount} тестов прошли успешно`;
+            testsDiv.appendChild(summary);
+        }
+        
+        // Запустить тесты при загрузке страницы
+        runTests();
+    </script>
+</body>
+</html>

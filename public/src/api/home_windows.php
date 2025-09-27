@@ -16,7 +16,7 @@ $limitAlbums = min(10, (int)($_GET['limit_albums'] ?? 10));
 $limitArtists = min(10, (int)($_GET['limit_artists'] ?? 10));
 
 // Windows: Simple random tracks - minimal data for speed
-$tracksStmt = $db->prepare('SELECT id, title, artist, cover FROM tracks ORDER BY RAND() LIMIT ?');
+$tracksStmt = $db->prepare('SELECT id, title, artist, album, album_type, duration, file_path, cover, video_url, explicit FROM tracks ORDER BY RAND() LIMIT ?');
 $tracksStmt->execute([$limitTracks]);
 $tracks = $tracksStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -31,12 +31,12 @@ $artistsStmt->execute([$limitArtists]);
 $artists = $artistsStmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Windows: Simple favorites - minimal data for speed
-$favoritesStmt = $db->prepare('SELECT id, title, artist, cover FROM tracks ORDER BY RAND() LIMIT ?');
+$favoritesStmt = $db->prepare('SELECT id, title, artist, album, album_type, duration, file_path, cover, video_url, explicit FROM tracks ORDER BY RAND() LIMIT ?');
 $favoritesStmt->execute([$limitTracks]);
 $favorites = $favoritesStmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Windows: Simple mixes - minimal data for speed  
-$mixesStmt = $db->prepare('SELECT id, title, artist, cover FROM tracks ORDER BY RAND() LIMIT ?');
+$mixesStmt = $db->prepare('SELECT id, title, artist, album, album_type, duration, file_path, cover, video_url, explicit FROM tracks ORDER BY RAND() LIMIT ?');
 $mixesStmt->execute([$limitTracks]);
 $mixes = $mixesStmt->fetchAll(PDO::FETCH_ASSOC);
 
