@@ -16,3 +16,5 @@ public/admin/admin_api.log
 public/setup.php
 public/setup_api.php
 
+public/setup_api.php
+src/config/db.php
