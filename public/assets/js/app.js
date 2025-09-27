@@ -346,7 +346,12 @@ if (mainContent && navHome && navSearch && navLibrary) {
 						// If still no match, try to find by searching tracks
 						if (!matched) {
 							try {
-								const searchRes = await fetch(`/muzic2/src/api/search.php?q=${encodeURIComponent(likedAlbum.album_title)}&type=albums`);
+								// Используем быстрый API для Windows
+								const searchApiUrl = isWindows ? 
+									`/muzic2/src/api/search_windows.php?q=${encodeURIComponent(likedAlbum.album_title)}&type=albums` :
+									`/muzic2/src/api/search.php?q=${encodeURIComponent(likedAlbum.album_title)}&type=albums`;
+								
+								const searchRes = await fetch(searchApiUrl);
 								const searchData = await searchRes.json();
 								if (searchData.albums && searchData.albums.length > 0) {
 									matched = searchData.albums[0];
@@ -1259,7 +1264,12 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	// Load artist albums
 	async function loadArtistAlbums(artistName) {
 		try {
-			const res = await fetch('/muzic2/src/api/search.php?q=' + encodeURIComponent(artistName) + '&type=albums');
+			// Используем быстрый API для Windows
+			const apiUrl = isWindows ? 
+				`/muzic2/src/api/search_windows.php?q=${encodeURIComponent(artistName)}&type=albums` :
+				`/muzic2/src/api/search.php?q=${encodeURIComponent(artistName)}&type=albums`;
+			
+			const res = await fetch(apiUrl);
 			const data = await res.json();
 			const albumsList = document.getElementById('albums-list');
 			if (albumsList && data.albums) {
@@ -1375,7 +1385,12 @@ if (mainContent && navHome && navSearch && navLibrary) {
 				// If still no match, try to find by searching tracks
 				if (!matched) {
 					try {
-						const searchRes = await fetch(`/muzic2/src/api/search.php?q=${encodeURIComponent(likedAlbum.album_title)}&type=albums`);
+						// Используем быстрый API для Windows
+						const searchApiUrl = isWindows ? 
+							`/muzic2/src/api/search_windows.php?q=${encodeURIComponent(likedAlbum.album_title)}&type=albums` :
+							`/muzic2/src/api/search.php?q=${encodeURIComponent(likedAlbum.album_title)}&type=albums`;
+						
+						const searchRes = await fetch(searchApiUrl);
 						const searchData = await searchRes.json();
 						if (searchData.albums && searchData.albums.length > 0) {
 							matched = searchData.albums[0];
@@ -1550,7 +1565,12 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			searchResults.innerHTML = '<div class="search-loading">Поиск...</div>';
 			
 			try {
-				const response = await fetch(`/muzic2/src/api/search.php?q=${encodeURIComponent(query)}&type=${type}`);
+				// Используем быстрый API для Windows
+				const apiUrl = isWindows ? 
+					`/muzic2/src/api/search_windows.php?q=${encodeURIComponent(query)}&type=${type}` :
+					`/muzic2/src/api/search.php?q=${encodeURIComponent(query)}&type=${type}`;
+				
+				const response = await fetch(apiUrl);
 				const data = await response.json();
 				
 				if (data.error) {
