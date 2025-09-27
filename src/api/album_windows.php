@@ -27,7 +27,7 @@ try {
     }
     
     // Треки альбома
-    $stmt = $pdo->prepare("SELECT id, title, artist, album, album_type, duration, file_path, cover FROM tracks WHERE album = ?");
+    $stmt = $pdo->prepare("SELECT id, title, artist, album, album_type, duration, file_path, cover, video_url, explicit FROM tracks WHERE album = ?");
     $stmt->execute([$album]);
     $tracks = $stmt->fetchAll(PDO::FETCH_ASSOC);
     

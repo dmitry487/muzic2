@@ -11,7 +11,7 @@ try {
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT);
     
     // Минимальные запросы без JOIN
-    $tracksResult = $pdo->query("SELECT id, title, artist, album, album_type, duration, file_path, cover FROM tracks LIMIT 8");
+    $tracksResult = $pdo->query("SELECT id, title, artist, album, album_type, duration, file_path, cover, video_url, explicit FROM tracks LIMIT 8");
     $tracks = $tracksResult ? $tracksResult->fetchAll(PDO::FETCH_ASSOC) : [];
     
     $albumsResult = $pdo->query("SELECT DISTINCT album, artist, album_type, cover FROM tracks WHERE album IS NOT NULL LIMIT 6");

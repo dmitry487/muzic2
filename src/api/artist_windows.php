@@ -32,7 +32,7 @@ try {
     $albums = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Треки артиста (только первые 20)
-    $stmt = $pdo->prepare("SELECT id, title, album, album_type, duration, file_path, cover FROM tracks WHERE artist = ? LIMIT 20");
+    $stmt = $pdo->prepare("SELECT id, title, album, album_type, duration, file_path, cover, video_url, explicit FROM tracks WHERE artist = ? LIMIT 20");
     $stmt->execute([$artist]);
     $tracks = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
