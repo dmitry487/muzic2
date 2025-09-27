@@ -35,7 +35,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 
 	(async function initSession() {
 		try {
-			// Пробуем разные пути для Windows и Mac
+			// Пробуем разные пути для Windows и Mac с таймаутом
 			const apiPaths = [
 				'/muzic2/src/api/user.php',
 				'../src/api/user.php',
@@ -45,7 +45,15 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			let res = null;
 			for (const path of apiPaths) {
 				try {
-					res = await fetch(path, { credentials: 'include' });
+					const controller = new AbortController();
+					const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 секунды таймаут
+					
+					res = await fetch(path, { 
+						credentials: 'include',
+						signal: controller.signal
+					});
+					clearTimeout(timeoutId);
+					
 					if (res.ok) break;
 				} catch (e) {
 					continue;
@@ -63,17 +71,6 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			console.error('Session init error:', e);
 			currentUser = null;
 			renderAuthHeader();
-			// Показываем сообщение об ошибке если не удалось загрузить API
-			if (mainContent) {
-				mainContent.innerHTML = `
-					<div style="text-align: center; padding: 40px; color: #ff6b6b;">
-						<h2>Ошибка загрузки</h2>
-						<p>Не удалось подключиться к серверу</p>
-						<p>Проверьте, что сервер запущен и доступен</p>
-						<button onclick="location.reload()" style="padding: 10px 20px; background: #1db954; color: white; border: none; border-radius: 5px; cursor: pointer;">Обновить страницу</button>
-					</div>
-				`;
-			}
 		}
 	})();
 
@@ -121,7 +118,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	async function renderHome() {
 		mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
 		try {
-			// Пробуем разные пути для Windows и Mac
+			// Пробуем разные пути для Windows и Mac с таймаутом
 			const homePaths = [
 				'/muzic2/public/src/api/home.php?limit_tracks=8&limit_albums=6&limit_artists=6&limit_mixes=6&limit_favorites=6',
 				'/muzic2/src/api/home.php',
@@ -132,7 +129,12 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			let res = null;
 			for (const path of homePaths) {
 				try {
-					res = await fetch(path);
+					const controller = new AbortController();
+					const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 секунд таймаут
+					
+					res = await fetch(path, { signal: controller.signal });
+					clearTimeout(timeoutId);
+					
 					if (res.ok) break;
 				} catch (e) {
 					continue;
@@ -155,7 +157,15 @@ if (mainContent && navHome && navSearch && navLibrary) {
 				let likesRes = null;
 				for (const path of likesPaths) {
 					try {
-						likesRes = await fetch(path, { credentials: 'include' });
+						const likesController = new AbortController();
+						const likesTimeoutId = setTimeout(() => likesController.abort(), 3000); // 3 секунды таймаут
+						
+						likesRes = await fetch(path, { 
+							credentials: 'include',
+							signal: likesController.signal
+						});
+						clearTimeout(likesTimeoutId);
+						
 						if (likesRes.ok) break;
 					} catch (e) {
 						continue;

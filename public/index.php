@@ -86,26 +86,13 @@
             });
         }
         
-        // Определяем Windows и загружаем соответствующие скрипты
-        const isWindows = navigator.userAgent.indexOf('Windows') !== -1;
-        const appScript = isWindows ? 'assets/js/app_windows.js' : 'assets/js/app.js';
-        
-        console.log('Detected OS:', isWindows ? 'Windows' : 'Other');
-        console.log('Loading script:', appScript);
-        
         // Загружаем все скрипты
         Promise.all([
-            loadScript(appScript),
+            loadScript('assets/js/app.js'),
             loadScript('assets/js/player.js')
         ]).catch(error => {
             console.error('Ошибка загрузки скриптов:', error);
-            // Fallback на обычную версию
-            if (isWindows) {
-                console.log('Fallback to regular app.js');
-                loadScript('assets/js/app.js');
-            } else {
-                document.body.innerHTML = '<div style="padding: 20px; text-align: center;"><h2>Ошибка загрузки</h2><p>Проверьте подключение к интернету и обновите страницу</p></div>';
-            }
+            document.body.innerHTML = '<div style="padding: 20px; text-align: center;"><h2>Ошибка загрузки</h2><p>Проверьте подключение к интернету и обновите страницу</p></div>';
         });
     </script>
 </body>
