@@ -33,10 +33,16 @@ try {
     
     // Не изменяем пути к обложкам - они должны быть как в оригинальном API
     
-    echo json_encode([
-        'album' => $albumInfo,
+    // Формируем ответ в том же формате, что и оригинальный API
+    $response = [
+        'title' => $albumInfo['album'],
+        'artist' => $albumInfo['artist'],
+        'cover' => $albumInfo['cover'],
+        'total_duration' => array_sum(array_column($tracks, 'duration')),
         'tracks' => $tracks
-    ]);
+    ];
+    
+    echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     
 } catch (Exception $e) {
     echo json_encode(['error' => 'Database error']);
