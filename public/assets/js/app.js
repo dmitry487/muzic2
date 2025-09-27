@@ -3,6 +3,10 @@ if (location.protocol === 'https:') {
     location.replace('http:' + location.href.substring(5));
 }
 
+// Измеряем время загрузки
+window.startTime = Date.now();
+console.log('Page load started at:', window.startTime);
+
 const mainContent = document.getElementById('main-content');
 const navHome = document.getElementById('nav-home');
 const navSearch = document.getElementById('nav-search');
@@ -34,6 +38,15 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	ensureAuthModals();
 
 	(async function initSession() {
+		// Отключаем инициализацию сессии для Windows для тестирования
+		const isWindows = navigator.userAgent.indexOf('Windows') !== -1;
+		if (isWindows) {
+			console.log('Windows detected - skipping session init for speed test');
+			currentUser = null;
+			renderAuthHeader();
+			return;
+		}
+		
 		try {
 			// Пробуем разные пути для Windows и Mac с таймаутом
 			const apiPaths = [
@@ -147,38 +160,45 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			
 			const data = await res.json();
 			// Load liked set for current user to render green hearts
-			try {
-				const likesPaths = [
-					'/muzic2/src/api/likes.php',
-					'../src/api/likes.php',
-					'src/api/likes.php'
-				];
-				
-				let likesRes = null;
-				for (const path of likesPaths) {
-					try {
-						const likesController = new AbortController();
-						const likesTimeoutId = setTimeout(() => likesController.abort(), 3000); // 3 секунды таймаут
-						
-						likesRes = await fetch(path, { 
-							credentials: 'include',
-							signal: likesController.signal
-						});
-						clearTimeout(likesTimeoutId);
-						
-						if (likesRes.ok) break;
-					} catch (e) {
-						continue;
+			// Отключаем лайки для Windows для тестирования
+			const isWindows = navigator.userAgent.indexOf('Windows') !== -1;
+			if (isWindows) {
+				console.log('Windows detected - skipping likes loading for speed test');
+				window.__likedSet = new Set();
+			} else {
+				try {
+					const likesPaths = [
+						'/muzic2/src/api/likes.php',
+						'../src/api/likes.php',
+						'src/api/likes.php'
+					];
+					
+					let likesRes = null;
+					for (const path of likesPaths) {
+						try {
+							const likesController = new AbortController();
+							const likesTimeoutId = setTimeout(() => likesController.abort(), 3000); // 3 секунды таймаут
+							
+							likesRes = await fetch(path, { 
+								credentials: 'include',
+								signal: likesController.signal
+							});
+							clearTimeout(likesTimeoutId);
+							
+							if (likesRes.ok) break;
+						} catch (e) {
+							continue;
+						}
 					}
-				}
-				
-				if (likesRes && likesRes.ok) {
-					const likes = await likesRes.json();
-					window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
-				} else {
-					window.__likedSet = new Set();
-				}
-			} catch(e){ window.__likedSet = new Set(); }
+					
+					if (likesRes && likesRes.ok) {
+						const likes = await likesRes.json();
+						window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
+					} else {
+						window.__likedSet = new Set();
+					}
+				} catch(e){ window.__likedSet = new Set(); }
+			}
 			mainContent.innerHTML = `
 				<section class="main-filters">
 					<button class="filter-btn active">Все</button>
@@ -206,6 +226,18 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			renderCards('albums-row', data.albums, 'album');
 			renderCards('tracks-row', data.tracks, 'track');
 			renderCards('artists-row', data.artists, 'artist');
+			
+			// Показываем время загрузки для Windows
+			const isWindows = navigator.userAgent.indexOf('Windows') !== -1;
+			if (isWindows) {
+				const loadTime = Date.now() - window.startTime;
+				console.log('Windows page load time:', loadTime + 'ms');
+				// Добавляем информацию о времени загрузки в заголовок
+				const header = document.querySelector('#main-header .logo');
+				if (header) {
+					header.textContent = `Muzic2 (${loadTime}ms)`;
+				}
+			}
 		} catch (e) {
 			mainContent.innerHTML = `
 				<div style="text-align: center; padding: 40px; color: #ff6b6b;">
@@ -239,6 +271,20 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	// My Music (Favorites & Playlists)
 	// =====================
 	async function renderMyMusic() {
+		// Отключаем "Моя музыка" для Windows для тестирования
+		const isWindows = navigator.userAgent.indexOf('Windows') !== -1;
+		if (isWindows) {
+			console.log('Windows detected - showing simplified My Music for speed test');
+			mainContent.innerHTML = `
+				<div style="text-align: center; padding: 40px;">
+					<h2>Моя музыка</h2>
+					<p>Функция временно отключена для тестирования скорости на Windows</p>
+					<p>Время загрузки: ${Date.now() - window.startTime}ms</p>
+				</div>
+			`;
+			return;
+		}
+		
 		mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
 		injectMyMusicStyles();
 
@@ -1215,6 +1261,14 @@ if (mainContent && navHome && navSearch && navLibrary) {
 
 	// Load album likes
 	async function loadAlbumLikes() {
+		// Отключаем загрузку альбомных лайков для Windows для тестирования
+		const isWindows = navigator.userAgent.indexOf('Windows') !== -1;
+		if (isWindows) {
+			console.log('Windows detected - skipping album likes loading for speed test');
+			window.__likedAlbums = new Set();
+			return;
+		}
+		
 		try {
 			const res = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
 			const data = await res.json();
