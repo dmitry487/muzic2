@@ -41,6 +41,14 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	ensureAuthModals();
 
 	(async function initSession() {
+		// Отключаем инициализацию сессии для Windows для тестирования скорости
+		if (isWindows) {
+			console.log('Windows detected - skipping session init for speed test');
+			currentUser = null;
+			renderAuthHeader();
+			return;
+		}
+		
 		try {
 			const res = await fetch('/muzic2/src/api/user.php', { credentials: 'include' });
 			const data = await res.json();
@@ -173,6 +181,19 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	// My Music (Favorites & Playlists)
 	// =====================
 	async function renderMyMusic() {
+		// Отключаем "Моя музыка" для Windows для тестирования скорости
+		if (isWindows) {
+			console.log('Windows detected - showing simplified My Music for speed test');
+			mainContent.innerHTML = `
+				<div style="text-align: center; padding: 40px;">
+					<h2>Моя музыка</h2>
+					<p>Функция временно отключена для тестирования скорости на Windows</p>
+					<p>Время загрузки: ${Date.now() - window.startTime}ms</p>
+				</div>
+			`;
+			return;
+		}
+		
 		mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
 		injectMyMusicStyles();
 
@@ -1149,6 +1170,13 @@ if (mainContent && navHome && navSearch && navLibrary) {
 
 	// Load album likes
 	async function loadAlbumLikes() {
+		// Отключаем альбомные лайки для Windows для тестирования скорости
+		if (isWindows) {
+			console.log('Windows detected - skipping album likes for speed test');
+			window.__likedAlbums = new Set();
+			return;
+		}
+		
 		try {
 			const res = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
 			const data = await res.json();
