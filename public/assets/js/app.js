@@ -30,9 +30,29 @@ if (mainContent && navHome && navSearch && navLibrary) {
 
 	(async function initSession() {
 		try {
-			const res = await fetch('/muzic2/src/api/user.php', { credentials: 'include' });
-			const data = await res.json();
-			currentUser = data.authenticated ? data.user : null;
+			// Пробуем разные пути для Windows и Mac
+			const apiPaths = [
+				'/muzic2/src/api/user.php',
+				'../src/api/user.php',
+				'src/api/user.php'
+			];
+			
+			let res = null;
+			for (const path of apiPaths) {
+				try {
+					res = await fetch(path, { credentials: 'include' });
+					if (res.ok) break;
+				} catch (e) {
+					continue;
+				}
+			}
+			
+			if (res && res.ok) {
+				const data = await res.json();
+				currentUser = data.authenticated ? data.user : null;
+			} else {
+				currentUser = null;
+			}
 			renderAuthHeader();
 		} catch (e) {
 			console.error('Session init error:', e);
@@ -85,13 +105,53 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	async function renderHome() {
 		mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
 		try {
-			const res = await fetch('/muzic2/public/src/api/home.php?limit_tracks=8&limit_albums=6&limit_artists=6&limit_mixes=6&limit_favorites=6');
+			// Пробуем разные пути для Windows и Mac
+			const homePaths = [
+				'/muzic2/public/src/api/home.php?limit_tracks=8&limit_albums=6&limit_artists=6&limit_mixes=6&limit_favorites=6',
+				'/muzic2/src/api/home.php',
+				'../src/api/home.php',
+				'src/api/home.php'
+			];
+			
+			let res = null;
+			for (const path of homePaths) {
+				try {
+					res = await fetch(path);
+					if (res.ok) break;
+				} catch (e) {
+					continue;
+				}
+			}
+			
+			if (!res || !res.ok) {
+				throw new Error('Не удалось загрузить данные');
+			}
+			
 			const data = await res.json();
 			// Load liked set for current user to render green hearts
 			try {
-				const likesRes = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
-				const likes = await likesRes.json();
-				window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
+				const likesPaths = [
+					'/muzic2/src/api/likes.php',
+					'../src/api/likes.php',
+					'src/api/likes.php'
+				];
+				
+				let likesRes = null;
+				for (const path of likesPaths) {
+					try {
+						likesRes = await fetch(path, { credentials: 'include' });
+						if (likesRes.ok) break;
+					} catch (e) {
+						continue;
+					}
+				}
+				
+				if (likesRes && likesRes.ok) {
+					const likes = await likesRes.json();
+					window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
+				} else {
+					window.__likedSet = new Set();
+				}
 			} catch(e){ window.__likedSet = new Set(); }
 			mainContent.innerHTML = `
 				<section class="main-filters">
