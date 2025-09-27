@@ -3,6 +3,13 @@ if (location.protocol === 'https:') {
     location.replace('http:' + location.href.substring(5));
 }
 
+// Измеряем время загрузки только для Windows
+const isWindows = navigator.userAgent.indexOf('Windows') !== -1;
+if (isWindows) {
+    window.startTime = Date.now();
+    console.log('Windows detected - starting load timer');
+}
+
 const mainContent = document.getElementById('main-content');
 const navHome = document.getElementById('nav-home');
 const navSearch = document.getElementById('nav-search');
@@ -93,11 +100,18 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			const res = await fetch('/muzic2/public/src/api/home.php?limit_tracks=8&limit_albums=6&limit_artists=6&limit_mixes=6&limit_favorites=6');
 			const data = await res.json();
 			// Load liked set for current user to render green hearts
-			try {
-				const likesRes = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
-				const likes = await likesRes.json();
-				window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
-			} catch(e){ window.__likedSet = new Set(); }
+			// Отключаем лайки только для Windows для тестирования скорости
+			const isWindows = navigator.userAgent.indexOf('Windows') !== -1;
+			if (isWindows) {
+				console.log('Windows detected - skipping track likes for speed test');
+				window.__likedSet = new Set();
+			} else {
+				try {
+					const likesRes = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
+					const likes = await likesRes.json();
+					window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
+				} catch(e){ window.__likedSet = new Set(); }
+			}
 			mainContent.innerHTML = `
 				<section class="main-filters">
 					<button class="filter-btn active">Все</button>
@@ -125,6 +139,17 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			renderCards('albums-row', data.albums, 'album');
 			renderCards('tracks-row', data.tracks, 'track');
 			renderCards('artists-row', data.artists, 'artist');
+			
+			// Показываем время загрузки только для Windows
+			if (isWindows) {
+				const loadTime = Date.now() - (window.startTime || Date.now());
+				console.log('Windows page load time:', loadTime + 'ms');
+				// Добавляем время в заголовок
+				const header = document.querySelector('#main-header .logo');
+				if (header) {
+					header.textContent = `Muzic2 (${loadTime}ms)`;
+				}
+			}
 		} catch (e) {
 			mainContent.innerHTML = '<div class="error">Ошибка загрузки главной страницы</div>';
 		}
