@@ -28,16 +28,29 @@ try {
     ");
     $albums = $albumsResult ? $albumsResult->fetchAll(PDO::FETCH_ASSOC) : [];
     
-    // Получаем уникальных артистов случайным образом
+    // Получаем уникальных артистов случайным образом - сначала из таблицы artists
     $artistsResult = $pdo->query("
-        SELECT DISTINCT artist, MIN(cover) as cover 
-        FROM tracks 
-        WHERE artist IS NOT NULL 
-        GROUP BY artist
+        SELECT a.name as artist, a.cover 
+        FROM artists a 
         ORDER BY RAND() 
         LIMIT 6
     ");
     $artists = $artistsResult ? $artistsResult->fetchAll(PDO::FETCH_ASSOC) : [];
+    
+    // Если не хватает артистов, дополняем из tracks
+    if (count($artists) < 6) {
+        $tracksArtistsResult = $pdo->query("
+            SELECT artist, MIN(cover) as cover 
+            FROM tracks 
+            WHERE artist IS NOT NULL 
+            AND artist NOT IN (SELECT name FROM artists)
+            GROUP BY artist
+            ORDER BY RAND() 
+            LIMIT " . (6 - count($artists)) . "
+        ");
+        $tracksArtists = $tracksArtistsResult ? $tracksArtistsResult->fetchAll(PDO::FETCH_ASSOC) : [];
+        $artists = array_merge($artists, $tracksArtists);
+    }
     
     // Случайные данные для favorites и mixes
     $favoritesResult = $pdo->query("SELECT id, title, artist, album, album_type, duration, file_path, cover, video_url, explicit FROM tracks ORDER BY RAND() LIMIT 3");

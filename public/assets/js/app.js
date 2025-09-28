@@ -1264,35 +1264,63 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	// Load artist albums
 	async function loadArtistAlbums(artistName) {
 		try {
-			// Используем быстрый API для Windows
-			const apiUrl = isWindows ? 
-				`/muzic2/src/api/search_windows.php?q=${encodeURIComponent(artistName)}&type=albums` :
-				`/muzic2/src/api/search.php?q=${encodeURIComponent(artistName)}&type=albums`;
-			
-			const res = await fetch(apiUrl);
-			const data = await res.json();
 			const albumsList = document.getElementById('albums-list');
-			if (albumsList && data.albums) {
-				albumsList.innerHTML = '';
-				data.albums.slice(0, 6).forEach(album => {
-					const albumDiv = document.createElement('div');
-					albumDiv.className = 'album-card';
-					albumDiv.innerHTML = `
-						<img class="album-cover" loading="lazy" src="/muzic2/${album.cover || 'tracks/covers/placeholder.jpg'}" alt="album cover">
-						<div class="album-title">${escapeHtml(album.title || '')}</div>
-						<div class="album-artist">${escapeHtml(album.artist || '')}</div>
-						<button class="heart-btn album-heart-btn" data-album-title="${escapeHtml(album.title || '')}" title="В избранные альбомы">❤</button>
-					`;
-					albumDiv.onclick = (e) => {
-						if (!e.target.classList.contains('heart-btn')) {
-							navigateTo('album', { album: album.title });
-						}
-					};
-					albumsList.appendChild(albumDiv);
-				});
+			if (!albumsList) return;
+			
+			// Для Windows используем данные из artist_windows.php
+			if (isWindows) {
+				// Получаем данные артиста, которые уже загружены
+				const apiUrl = `/muzic2/src/api/artist_windows.php?artist=${encodeURIComponent(artistName)}`;
+				const res = await fetch(apiUrl);
+				const data = await res.json();
+				
+				if (data.albums && data.albums.length > 0) {
+					albumsList.innerHTML = '';
+					data.albums.slice(0, 6).forEach(album => {
+						const albumDiv = document.createElement('div');
+						albumDiv.className = 'album-card';
+						albumDiv.innerHTML = `
+							<img class="album-cover" loading="lazy" src="/muzic2/${album.cover || 'tracks/covers/placeholder.jpg'}" alt="album cover">
+							<div class="album-title">${escapeHtml(album.album || '')}</div>
+							<div class="album-artist">${escapeHtml(artistName)}</div>
+							<button class="heart-btn album-heart-btn" data-album-title="${escapeHtml(album.album || '')}" title="В избранные альбомы">❤</button>
+						`;
+						albumDiv.onclick = (e) => {
+							if (!e.target.classList.contains('heart-btn')) {
+								navigateTo('album', { album: album.album });
+							}
+						};
+						albumsList.appendChild(albumDiv);
+					});
+				}
+			} else {
+				// Оригинальная логика для Mac
+				const apiUrl = `/muzic2/src/api/search.php?q=${encodeURIComponent(artistName)}&type=albums`;
+				const res = await fetch(apiUrl);
+				const data = await res.json();
+				
+				if (data.albums && data.albums.length > 0) {
+					albumsList.innerHTML = '';
+					data.albums.slice(0, 6).forEach(album => {
+						const albumDiv = document.createElement('div');
+						albumDiv.className = 'album-card';
+						albumDiv.innerHTML = `
+							<img class="album-cover" loading="lazy" src="/muzic2/${album.cover || 'tracks/covers/placeholder.jpg'}" alt="album cover">
+							<div class="album-title">${escapeHtml(album.title || '')}</div>
+							<div class="album-artist">${escapeHtml(album.artist || '')}</div>
+							<button class="heart-btn album-heart-btn" data-album-title="${escapeHtml(album.title || '')}" title="В избранные альбомы">❤</button>
+						`;
+						albumDiv.onclick = (e) => {
+							if (!e.target.classList.contains('heart-btn')) {
+								navigateTo('album', { album: album.title });
+							}
+						};
+						albumsList.appendChild(albumDiv);
+					});
+				}
 			}
 		} catch (e) {
-			// Silent fail
+			console.error('Error loading artist albums:', e);
 		}
 	}
 
