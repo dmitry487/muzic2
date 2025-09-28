@@ -16,10 +16,17 @@ try {
     $pdo = new PDO('mysql:host=localhost;port=8889;dbname=muzic2', 'root', 'root');
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT);
     
-    // Простой запрос для артиста
-    $stmt = $pdo->prepare("SELECT DISTINCT artist, MIN(cover) as cover FROM tracks WHERE artist = ? GROUP BY artist LIMIT 1");
+    // Сначала проверяем таблицу artists для правильной обложки
+    $stmt = $pdo->prepare("SELECT name, cover FROM artists WHERE name = ? LIMIT 1");
     $stmt->execute([$artist]);
     $artistInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    // Если нет в таблице artists, берем из tracks
+    if (!$artistInfo) {
+        $stmt = $pdo->prepare("SELECT DISTINCT artist, MIN(cover) as cover FROM tracks WHERE artist = ? GROUP BY artist LIMIT 1");
+        $stmt->execute([$artist]);
+        $artistInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+    }
     
     if (!$artistInfo) {
         echo json_encode(['error' => 'Artist not found']);
@@ -52,7 +59,7 @@ try {
     
     // Формируем ответ в том же формате, что и оригинальный API
     $response = [
-        'name' => $artistInfo['artist'],
+        'name' => $artistInfo['name'] ?? $artistInfo['artist'],
         'verified' => true,
         'monthly_listeners' => rand(100000, 10000000),
         'cover' => $artistInfo['cover'],
