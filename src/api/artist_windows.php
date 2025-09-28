@@ -17,7 +17,7 @@ try {
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT);
     
     // Простой запрос для артиста
-    $stmt = $pdo->prepare("SELECT DISTINCT artist, cover FROM tracks WHERE artist = ? LIMIT 1");
+    $stmt = $pdo->prepare("SELECT DISTINCT artist, MIN(cover) as cover FROM tracks WHERE artist = ? GROUP BY artist LIMIT 1");
     $stmt->execute([$artist]);
     $artistInfo = $stmt->fetch(PDO::FETCH_ASSOC);
     
@@ -26,17 +26,29 @@ try {
         exit;
     }
     
-    // Альбомы артиста (упрощенно)
-    $stmt = $pdo->prepare("SELECT DISTINCT album, album_type, cover FROM tracks WHERE artist = ? AND album IS NOT NULL");
+    // Альбомы артиста (упрощенно) - группируем по альбому
+    $stmt = $pdo->prepare("SELECT album, MIN(album_type) as album_type, MIN(cover) as cover FROM tracks WHERE artist = ? AND album IS NOT NULL GROUP BY album ORDER BY album");
     $stmt->execute([$artist]);
     $albums = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Треки артиста (только первые 20)
-    $stmt = $pdo->prepare("SELECT id, title, album, album_type, duration, file_path, cover, video_url, explicit FROM tracks WHERE artist = ? LIMIT 20");
+    $stmt = $pdo->prepare("SELECT id, title, album, album_type, duration, file_path, cover, video_url, explicit FROM tracks WHERE artist = ? ORDER BY id LIMIT 20");
     $stmt->execute([$artist]);
     $tracks = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Не изменяем пути к обложкам - они должны быть как в оригинальном API
+    // Подсчитываем общее количество треков и альбомов
+    $stmt = $pdo->prepare("SELECT COUNT(*) as total_tracks FROM tracks WHERE artist = ?");
+    $stmt->execute([$artist]);
+    $totalTracks = $stmt->fetch(PDO::FETCH_ASSOC)['total_tracks'];
+    
+    $stmt = $pdo->prepare("SELECT COUNT(DISTINCT album) as total_albums FROM tracks WHERE artist = ? AND album IS NOT NULL");
+    $stmt->execute([$artist]);
+    $totalAlbums = $stmt->fetch(PDO::FETCH_ASSOC)['total_albums'];
+    
+    // Подсчитываем общую длительность
+    $stmt = $pdo->prepare("SELECT SUM(duration) as total_duration FROM tracks WHERE artist = ?");
+    $stmt->execute([$artist]);
+    $totalDuration = $stmt->fetch(PDO::FETCH_ASSOC)['total_duration'] ?? 0;
     
     // Формируем ответ в том же формате, что и оригинальный API
     $response = [
@@ -45,9 +57,9 @@ try {
         'monthly_listeners' => rand(100000, 10000000),
         'cover' => $artistInfo['cover'],
         'bio' => null,
-        'total_tracks' => count($tracks),
-        'total_albums' => count($albums),
-        'total_duration' => array_sum(array_column($tracks, 'duration')),
+        'total_tracks' => (int)$totalTracks,
+        'total_albums' => (int)$totalAlbums,
+        'total_duration' => (int)$totalDuration,
         'top_tracks' => $tracks,
         'albums' => $albums
     ];
