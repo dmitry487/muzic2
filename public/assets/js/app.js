@@ -42,7 +42,20 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	// Ensure auth modals exist globally
 	ensureAuthModals();
 
+	// Wait for DOM to be ready
+	function waitForDOM() {
+		return new Promise((resolve) => {
+			if (document.readyState === 'loading') {
+				document.addEventListener('DOMContentLoaded', resolve);
+			} else {
+				resolve();
+			}
+		});
+	}
+
 	(async function initSession() {
+		// Wait for DOM to be ready
+		await waitForDOM();
 		// Ультра-быстрая инициализация сессии для Windows
 		if (isWindows) {
 			console.log('Windows detected - using ultra-fast session init');
@@ -55,6 +68,13 @@ if (mainContent && navHome && navSearch && navLibrary) {
 				console.error('Windows session init error:', e);
 				currentUser = null;
 				renderAuthHeader();
+			}
+			
+			// Принудительно показываем кнопки авторизации, если пользователь не авторизован
+			if (!currentUser) {
+				setTimeout(() => {
+					renderAuthHeader();
+				}, 100);
 			}
 			return;
 		}
@@ -69,6 +89,13 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			console.error('Session init error:', e);
 			currentUser = null;
 			renderAuthHeader();
+		}
+		
+		// Принудительно показываем кнопки авторизации, если пользователь не авторизован
+		if (!currentUser) {
+			setTimeout(() => {
+				renderAuthHeader();
+			}, 100);
 		}
 	})();
 
@@ -86,6 +113,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	function renderAuthHeader() {
 		const panel = mountUserPanel();
 		if (!panel) return;
+		
 		if (currentUser) {
 			panel.innerHTML = `
 				<div class="user-info">
