@@ -11,8 +11,11 @@ $limitArtists = max(1, min(24, (int)($_GET['limit_artists'] ?? 6)));
 $limitFavorites = max(1, min(24, (int)($_GET['limit_favorites'] ?? 6)));
 $limitMixes = max(1, min(24, (int)($_GET['limit_mixes'] ?? 6)));
 
-// Random tracks selection
-$tracksStmt = $db->prepare('SELECT id, title, artist, album, album_type, duration, file_path, cover, video_url, explicit FROM tracks ORDER BY RAND() LIMIT :lim');
+// Random tracks selection with feats
+$tracksStmt = $db->prepare('SELECT t.id, t.title, t.artist, t.album, t.album_type, t.duration, t.file_path, t.cover, t.video_url, t.explicit,
+       (SELECT GROUP_CONCAT(ta.artist ORDER BY ta.artist SEPARATOR ", ") FROM track_artists ta WHERE ta.track_id=t.id AND ta.role="featured") AS feats
+  FROM tracks t
+ ORDER BY RAND() LIMIT :lim');
 $tracksStmt->bindValue(':lim', $limitTracks, PDO::PARAM_INT);
 $tracksStmt->execute();
 $tracks = $tracksStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -81,12 +84,16 @@ try {
     $artists = $fallbackStmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-$favoritesStmt = $db->prepare('SELECT id, title, artist, album, album_type, duration, file_path, cover, video_url, explicit FROM tracks ORDER BY RAND() LIMIT :lim');
+$favoritesStmt = $db->prepare('SELECT t.id, t.title, t.artist, t.album, t.album_type, t.duration, t.file_path, t.cover, t.video_url, t.explicit,
+       (SELECT GROUP_CONCAT(ta.artist ORDER BY ta.artist SEPARATOR ", ") FROM track_artists ta WHERE ta.track_id=t.id AND ta.role="featured") AS feats
+  FROM tracks t ORDER BY RAND() LIMIT :lim');
 $favoritesStmt->bindValue(':lim', $limitFavorites, PDO::PARAM_INT);
 $favoritesStmt->execute();
 $favorites = $favoritesStmt->fetchAll(PDO::FETCH_ASSOC);
 
-$mixesStmt = $db->prepare('SELECT id, title, artist, album, album_type, duration, file_path, cover, video_url, explicit FROM tracks ORDER BY RAND() LIMIT :lim');
+$mixesStmt = $db->prepare('SELECT t.id, t.title, t.artist, t.album, t.album_type, t.duration, t.file_path, t.cover, t.video_url, t.explicit,
+       (SELECT GROUP_CONCAT(ta.artist ORDER BY ta.artist SEPARATOR ", ") FROM track_artists ta WHERE ta.track_id=t.id AND ta.role="featured") AS feats
+  FROM tracks t ORDER BY RAND() LIMIT :lim');
 $mixesStmt->bindValue(':lim', $limitMixes, PDO::PARAM_INT);
 $mixesStmt->execute();
 $mixes = $mixesStmt->fetchAll(PDO::FETCH_ASSOC);

@@ -806,7 +806,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 					<img class="card-cover" loading="lazy" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
 					<div class="card-info">
                 <div class="card-title">${escapeHtml(item.title)}</div>
-                <div class="card-artist">${item.explicit? '<span class=\"exp-badge\" title=\"Нецензурная лексика\">E</span>':''}${escapeHtml(item.artist)}</div>
+                <div class="card-artist">${item.explicit? '<span class=\"exp-badge\" title=\"Нецензурная лексика\">E</span>':''}${escapeHtml(item.feats && String(item.feats).trim() ? `${item.artist}, ${item.feats}` : item.artist)}</div>
 						<div class="card-type">${item.album_type || ''}</div>
 					</div>
 				</div>
@@ -836,15 +836,16 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			row.onclick = function(e) {
 				let el = e.target;
 				while (el && el !== row && !el.hasAttribute('data-idx')) el = el.parentElement;
-				if (el && el.hasAttribute('data-idx')) {
+                if (el && el.hasAttribute('data-idx')) {
 					const idx = parseInt(el.getAttribute('data-idx'), 10);
-					const queue = items.map(i => ({
-						src: '/muzic2/' + (i.file_path || ''),
-						title: i.title,
-						artist: i.artist || '',
-						cover: '/muzic2/' + (i.cover || 'tracks/covers/placeholder.jpg'),
-						video_url: i.video_url || ''
-					}));
+                    const queue = items.map(i => ({
+                        src: '/muzic2/' + (i.file_path || ''),
+                        title: i.title,
+                        artist: i.artist || '',
+                        feats: i.feats || '',
+                        cover: '/muzic2/' + (i.cover || 'tracks/covers/placeholder.jpg'),
+                        video_url: i.video_url || ''
+                    }));
 					window.playTrack({
 						...queue[idx],
 						queue,
@@ -999,13 +1000,18 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			const seconds = totalDuration % 60;
 			const durationText = `${minutes} мин. ${seconds} сек.`;
 			
-			mainContent.innerHTML = albumStyles + `
+            // Compose combined artist text with feats aggregated across tracks
+            const featsSet = new Set((data.tracks||[]).flatMap(t => (t.feats? String(t.feats).split(',').map(x=>x.trim()).filter(Boolean):[])));
+            const featsText = Array.from(featsSet).filter(n=>n && n.toLowerCase()!==String(data.artist||'').toLowerCase()).join(', ');
+            const albumArtistCombined = featsText ? `${data.artist||''}, ${featsText}` : (data.artist||'');
+            
+            mainContent.innerHTML = albumStyles + `
 				<div class="album-header">
 					<img class="album-cover" loading="lazy" src="/muzic2/${data.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
 					<div class="album-meta">
 						<div class="album-title">${escapeHtml(data.title||'')}</div>
-						<div class="album-artist">${escapeHtml(data.artist||'')}</div>
-						<div class="album-info">${escapeHtml(data.artist||'')} • 2025 • ${trackCount} треков, ${durationText}</div>
+						<div class="album-artist">${escapeHtml(albumArtistCombined)}</div>
+						<div class="album-info">${escapeHtml(albumArtistCombined)} • 2025 • ${trackCount} треков, ${durationText}</div>
 					</div>
 				</div>
 				<div class="album-controls">
@@ -1034,11 +1040,12 @@ if (mainContent && navHome && navSearch && navLibrary) {
 				const durationFormatted = `${minutes}:${seconds.toString().padStart(2, '0')}`;
 				
 				const likedClass = window.__likedSet && window.__likedSet.has(t.id) ? 'liked' : '';
-				tr.innerHTML = `
+                const combinedArtist = (t.feats && String(t.feats).trim()) ? `${t.artist||''}, ${t.feats}` : (t.artist||'');
+                tr.innerHTML = `
 					<td class="track-num">${i+1}</td>
 					<td class="track-title">
 						${t.explicit ? '<span class="exp-badge">E</span>' : ''}${escapeHtml(t.title||'')}
-						<div class="track-artist">${escapeHtml(t.artist||'')}</div>
+						<div class="track-artist">${escapeHtml(combinedArtist)}</div>
 					</td>
 					<td class="track-duration">${durationFormatted}</td>
 					<td class="track-like"><button class="heart-btn ${likedClass}" data-track-id="${t.id}" title="В избранное">❤</button></td>
@@ -1239,11 +1246,12 @@ if (mainContent && navHome && navSearch && navLibrary) {
 				const d=document.createElement('div'); 
 				d.className='track-item-numbered'; 
 				const likedClass = window.__likedSet && window.__likedSet.has(t.id) ? 'liked' : '';
-				d.innerHTML=`
+                const combined = (t.feats && String(t.feats).trim()) ? `${t.artist}, ${t.feats}` : (t.artist||'');
+                d.innerHTML=`
 					<div class="track-number">${i+1}</div>
 					<div class="track-info">
 						<div class="track-title-primary">${t.explicit ? '<span class="exp-badge">E</span>' : ''}${escapeHtml(t.title||'')}</div>
-						<div class="track-artist-secondary">${escapeHtml(t.artist||'')}</div>
+						<div class="track-artist-secondary">${escapeHtml(combined)}</div>
 					</div>
 					<div class="track-duration">${Math.floor((t.duration||0)/60)}:${((t.duration||0)%60).toString().padStart(2,'0')}</div>
 					<div class="track-like"><button class="heart-btn ${likedClass}" data-track-id="${t.id}" title="В избранное">❤</button></div>
@@ -1693,7 +1701,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 				<img class="card-cover" src="/muzic2/${track.cover || 'tracks/covers/placeholder.jpg'}" alt="cover" onclick="${play}">
 				<div class="card-info" onclick="${play}">
 					<div class="card-title">${escapeHtml(track.title)}${track.explicit? ' <span class="exp-badge" title="Нецензурная лексика">E</span>':''}</div>
-					<div class="card-artist">${escapeHtml(track.artist)}</div>
+                    <div class="card-artist">${escapeHtml(track.feats && String(track.feats).trim() ? `${track.artist}, ${track.feats}` : track.artist)}</div>
 					<div class="card-type">${escapeHtml(track.album || '')}</div>
 				</div>
 				<button class="heart-btn ${likedClass}" data-track-id="${track.id}" title="В избранное">❤</button>

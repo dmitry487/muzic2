@@ -601,11 +601,14 @@
     trackQueue.forEach((t, idx) => {
       const li = document.createElement('li');
       li.className = 'queue-item' + (idx === queueIndex ? ' queue-current' : '');
+      const base = (t && typeof t.artist === 'string') ? t.artist.trim() : '';
+      const feats = (t && typeof t.feats === 'string') ? t.feats.trim() : '';
+      const combined = feats ? (base ? `${base}, ${feats}` : feats) : base;
       li.innerHTML = `
         <div class="queue-idx">${idx + 1}</div>
         <div>
           <div class="queue-title">${escapeHtml(t.title || '')}</div>
-          <div class="queue-artist">${escapeHtml(t.artist || '')}</div>
+          <div class="queue-artist">${escapeHtml(combined)}</div>
         </div>
         <div class="queue-meta">${t.duration ? formatTime(t.duration) : ''}</div>
       `;
@@ -621,7 +624,10 @@
     trackTitle.textContent = t.title || '';
     // Render E badge before artist name (consistent with cards)
     try {
-      trackArtist.innerHTML = (t.explicit ? '<span class="exp-badge" title="Нецензурная лексика">E</span>' : '') + escapeHtml(t.artist || '');
+      const base = (t && typeof t.artist === 'string') ? t.artist.trim() : '';
+      const feats = (t && typeof t.feats === 'string') ? t.feats.trim() : '';
+      const combinedArtist = feats ? (base ? `${base}, ${feats}` : feats) : base;
+      trackArtist.innerHTML = (t.explicit ? '<span class="exp-badge" title="Нецензурная лексика">E</span>' : '') + escapeHtml(combinedArtist);
     } catch(_) { trackArtist.textContent = t.artist || ''; }
     if (cover) cover.src = t.cover || (cover.src || '');
     currentTrackId = t.id || null;
@@ -1388,6 +1394,7 @@
         src: normalizeSrc(q.src || q.file_path || q.url || ''),
         title: q.title || '',
         artist: q.artist || '',
+        feats: q.feats || '',
         cover: normalizeCover(q.cover || coverUrl || ''),
         duration: q.duration || 0,
         id: q.id || q.track_id || undefined,
@@ -1402,7 +1409,7 @@
       console.log('No queue provided, creating single track queue');
       console.log('This will overwrite existing queue of', trackQueue.length, 'tracks');
       // Single track
-      trackQueue = [{ src: normalizeSrc(src), title, artist, cover: normalizeCover(coverUrl || ''), duration, id, video_url: normalizeVideo((arguments[0] && arguments[0].video_url) ? arguments[0].video_url : '') }];
+      trackQueue = [{ src: normalizeSrc(src), title, artist, feats: (arguments[0] && arguments[0].feats) ? arguments[0].feats : '', cover: normalizeCover(coverUrl || ''), duration, id, video_url: normalizeVideo((arguments[0] && arguments[0].video_url) ? arguments[0].video_url : '') }];
       originalQueue = trackQueue.slice();
       queueIndex = 0;
       saveQueue();

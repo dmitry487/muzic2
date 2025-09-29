@@ -50,17 +50,25 @@ if (!$artistInfo) {
     exit;
 }
 
-// Top tracks for this exact artist (may be empty)
+// Top tracks for this artist: include primary artist OR featured appearances
 $topTracks = [];
 try {
-    $topTracksQuery = 'SELECT id, title, artist, album, duration, file_path, cover, video_url, explicit FROM tracks WHERE LOWER(artist) = LOWER(?) ORDER BY id ASC LIMIT 10';
-    $topTracksStmt = $db->prepare($topTracksQuery);
-    $topTracksStmt->execute([$artist]);
-    foreach ($topTracksStmt as $track) {
+    // Ensure mapping table exists (defensive)
+    try { $db->exec("CREATE TABLE IF NOT EXISTS track_artists (id INT AUTO_INCREMENT PRIMARY KEY, track_id INT NOT NULL, artist VARCHAR(255) NOT NULL, role ENUM('primary','featured') NOT NULL DEFAULT 'featured', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uniq_track_artist_role (track_id, artist, role))"); } catch (Throwable $e2) {}
+    $sql = "SELECT DISTINCT t.id, t.title, t.artist, t.album, t.duration, t.file_path, t.cover, t.video_url, t.explicit,
+                   (SELECT GROUP_CONCAT(ta2.artist ORDER BY ta2.artist SEPARATOR ', ') FROM track_artists ta2 WHERE ta2.track_id=t.id AND ta2.role='featured') AS feats
+            FROM tracks t
+            LEFT JOIN track_artists ta ON ta.track_id = t.id AND ta.role='featured'
+            WHERE LOWER(t.artist)=LOWER(?) OR LOWER(ta.artist)=LOWER(?)
+            ORDER BY t.id DESC LIMIT 50";
+    $stmt = $db->prepare($sql);
+    $stmt->execute([$artist,$artist]);
+    foreach ($stmt as $track) {
         $topTracks[] = [
             'id' => $track['id'],
             'title' => $track['title'],
             'artist' => $track['artist'],
+            'feats' => $track['feats'] ?? null,
             'album' => $track['album'],
             'duration' => (int)$track['duration'],
             'file_path' => $track['file_path'],
@@ -71,12 +79,20 @@ try {
     }
 } catch (Throwable $e) {}
 
-// Albums for this exact artist (may be empty)
+// Albums for this artist: include albums where they are primary or featured (album-level or track-level)
 $albums = [];
 try {
-    $albumsQuery = 'SELECT album, album_type, COUNT(*) as track_count, MIN(cover) as cover, SUM(duration) as total_duration FROM tracks WHERE LOWER(artist) = LOWER(?) GROUP BY album, album_type ORDER BY album ASC';
-    $albumsStmt = $db->prepare($albumsQuery);
-    $albumsStmt->execute([$artist]);
+    // ensure album_artists exists (defensive)
+    try { $db->exec("CREATE TABLE IF NOT EXISTS album_artists (id INT AUTO_INCREMENT PRIMARY KEY, album VARCHAR(255) NOT NULL, artist VARCHAR(255) NOT NULL, role ENUM('primary','featured') NOT NULL DEFAULT 'featured', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uniq_album_artist_role (album, artist, role))"); } catch (Throwable $e2) {}
+    $sqlAlbums = "SELECT t.album, t.album_type, COUNT(*) as track_count, MIN(t.cover) as cover, SUM(t.duration) as total_duration
+                  FROM tracks t
+                  LEFT JOIN track_artists ta ON ta.track_id = t.id AND ta.role='featured'
+                  LEFT JOIN album_artists aa ON TRIM(LOWER(aa.album)) = TRIM(LOWER(t.album)) AND aa.role='featured'
+                  WHERE LOWER(t.artist)=LOWER(?) OR LOWER(ta.artist)=LOWER(?) OR LOWER(aa.artist)=LOWER(?)
+                  GROUP BY t.album, t.album_type
+                  ORDER BY t.album ASC";
+    $albumsStmt = $db->prepare($sqlAlbums);
+    $albumsStmt->execute([$artist, $artist, $artist]);
     foreach ($albumsStmt as $album) {
         $albums[] = [
             'title' => $album['album'],
@@ -85,6 +101,26 @@ try {
             'cover' => $album['cover'],
             'total_duration' => (int)$album['total_duration']
         ];
+    }
+} catch (Throwable $e) {}
+
+// If artist has no albums via tracks yet, include album-level associations even when album has 0 tracks (placeholder logic)
+try {
+    if (count($albums) === 0) {
+        $aa = $db->prepare('SELECT aa.album as album, MIN(t.album_type) as album_type, MIN(t.cover) as cover
+                             FROM album_artists aa LEFT JOIN tracks t ON TRIM(LOWER(t.album))=TRIM(LOWER(aa.album))
+                             WHERE LOWER(aa.artist)=LOWER(?) AND aa.role="featured"
+                             GROUP BY aa.album');
+        $aa->execute([$artist]);
+        foreach ($aa as $row) {
+            $albums[] = [
+                'title' => $row['album'],
+                'type' => $row['album_type'] ?: 'album',
+                'track_count' => 0,
+                'cover' => $row['cover'],
+                'total_duration' => 0
+            ];
+        }
     }
 } catch (Throwable $e) {}
 

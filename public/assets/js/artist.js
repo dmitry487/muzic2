@@ -414,7 +414,11 @@ async function artistPlayTrack(track) {
     const currentCover = document.getElementById('cover') || document.getElementById('current-cover');
     
     if (trackTitle) trackTitle.textContent = track.title || '';
-    if (trackArtist) trackArtist.textContent = track.artist || '';
+    if (trackArtist) {
+        const base = (track && typeof track.artist === 'string') ? track.artist.trim() : '';
+        const feats = (track && typeof track.feats === 'string') ? track.feats.trim() : '';
+        trackArtist.textContent = feats ? (base ? `${base}, ${feats}` : feats) : base;
+    }
     if (currentCover) {
         const rc = resolveCoverPath(track.cover);
         currentCover.src = rc.startsWith('data:') ? rc : encodeURI(rc);
@@ -510,7 +514,8 @@ async function artistPlayTrack(track) {
             const trackObj = {
                 src: trackSrc,
                 title: t.title || '',
-                artist: t.artist || '',
+                artist: (t.feats && String(t.feats).trim()) ? `${t.artist}, ${t.feats}` : (t.artist || ''),
+                feats: t.feats || '',
                 cover: resolveCoverPath(t.cover),
                 duration: t.duration || 0,
                 video_url: t.video_url || '',

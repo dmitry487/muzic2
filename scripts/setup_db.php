@@ -61,6 +61,28 @@ try {
     try { $db->exec("CREATE TABLE IF NOT EXISTS artists (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL UNIQUE, cover VARCHAR(255), bio TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"); } catch (Throwable $e) {}
     try { $db->exec("ALTER TABLE tracks ADD COLUMN video_url VARCHAR(500) NULL"); } catch (Throwable $e) {}
     try { $db->exec("ALTER TABLE tracks ADD COLUMN explicit TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+    // Featured artists mapping for tracks
+    try {
+        $db->exec("CREATE TABLE IF NOT EXISTS track_artists (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            track_id INT NOT NULL,
+            artist VARCHAR(255) NOT NULL,
+            role ENUM('primary','featured') NOT NULL DEFAULT 'featured',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_track_artist_role (track_id, artist, role)
+        )");
+    } catch (Throwable $e) {}
+    // Featured artists mapping for entire albums (to propagate to new tracks)
+    try {
+        $db->exec("CREATE TABLE IF NOT EXISTS album_artists (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            album VARCHAR(255) NOT NULL,
+            artist VARCHAR(255) NOT NULL,
+            role ENUM('primary','featured') NOT NULL DEFAULT 'featured',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_album_artist_role (album, artist, role)
+        )");
+    } catch (Throwable $e) {}
 
     // Seeds: optional, run only if tracks is empty
     $shouldSeed = false;

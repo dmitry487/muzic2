@@ -17,6 +17,17 @@ try {
     try { $db->exec("ALTER TABLE tracks ADD COLUMN video_url VARCHAR(500) NULL"); } catch (Throwable $e) { /* ignore if exists */ }
     // Ensure explicit flag exists
     try { $db->exec("ALTER TABLE tracks ADD COLUMN explicit TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) { /* ignore if exists */ }
+    // Ensure feats mapping table exists
+    try {
+        $db->exec("CREATE TABLE IF NOT EXISTS track_artists (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            track_id INT NOT NULL,
+            artist VARCHAR(255) NOT NULL,
+            role ENUM('primary','featured') NOT NULL DEFAULT 'featured',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_track_artist_role (track_id, artist, role)
+        )");
+    } catch (Throwable $e) {}
     $method = $_SERVER['REQUEST_METHOD'];
 
     if ($method === 'GET') {
@@ -29,6 +40,18 @@ try {
         } else {
             $rows=$db->query('SELECT * FROM tracks ORDER BY id DESC LIMIT 200')->fetchAll();
         }
+        // Attach feats
+        try {
+            if ($rows && count($rows)>0) {
+                $ids = array_map(function($r){ return (int)$r['id']; }, $rows);
+                $in = implode(',', array_fill(0, count($ids), '?'));
+                $qs = $db->prepare("SELECT track_id, GROUP_CONCAT(artist ORDER BY artist SEPARATOR ', ') AS feats FROM track_artists WHERE role='featured' AND track_id IN ($in) GROUP BY track_id");
+                $qs->execute($ids);
+                $m = [];
+                foreach ($qs as $rr) { $m[(int)$rr['track_id']] = (string)$rr['feats']; }
+                foreach ($rows as &$r) { $r['feats'] = $m[(int)$r['id']] ?? ''; }
+            }
+        } catch (Throwable $e) {}
         echo json_encode(['success'=>true, 'data'=>$rows], JSON_UNESCAPED_UNICODE);
         exit;
     }
@@ -53,7 +76,17 @@ try {
         if ($title==='' || $artist==='' || $album==='' || $file==='') throw new Exception('Заполните обязательные поля');
         $st = $db->prepare('INSERT INTO tracks (title, artist, album, album_type, duration, file_path, cover, video_url, explicit) VALUES (?,?,?,?,?,?,?,?,?)');
         $st->execute([$title,$artist,$album,$type,$dur,$file,$cover,$video_url,$explicit]);
-        echo json_encode(['success'=>true, 'id'=>$db->lastInsertId()]);
+        $newId = (int)$db->lastInsertId();
+        // Save feats if provided
+        $featsRaw = $body['feats'] ?? '';
+        $featsArr = [];
+        if (is_array($featsRaw)) { $featsArr = $featsRaw; }
+        else { $featsArr = array_filter(array_map('trim', explode(',', (string)$featsRaw)), function($x){ return $x!==''; }); }
+        if (!empty($featsArr)) {
+            $ins = $db->prepare('INSERT IGNORE INTO track_artists (track_id, artist, role) VALUES (?,?,"featured")');
+            foreach ($featsArr as $fa) { $ins->execute([$newId, $fa]); }
+        }
+        echo json_encode(['success'=>true, 'id'=>$newId]);
         exit;
     }
 
@@ -73,6 +106,18 @@ try {
         if (!$set) throw new Exception('Нечего сохранять');
         $st = $db->prepare('UPDATE tracks SET '.implode(',', $set).' WHERE id=:id');
         $st->execute($params);
+        // Update feats if provided
+        if (array_key_exists('feats', $body)) {
+            $db->prepare('DELETE FROM track_artists WHERE track_id=? AND role="featured"')->execute([$id]);
+            $featsRaw = $body['feats'];
+            $featsArr = [];
+            if (is_array($featsRaw)) { $featsArr = $featsRaw; }
+            else { $featsArr = array_filter(array_map('trim', explode(',', (string)$featsRaw)), function($x){ return $x!==''; }); }
+            if (!empty($featsArr)) {
+                $ins = $db->prepare('INSERT IGNORE INTO track_artists (track_id, artist, role) VALUES (?,?,"featured")');
+                foreach ($featsArr as $fa) { $ins->execute([$id, $fa]); }
+            }
+        }
         echo json_encode(['success'=>true]);
         exit;
     }
@@ -80,6 +125,7 @@ try {
     if ($action === 'delete') {
         $id = (int)($body['id'] ?? 0);
         if ($id <= 0) throw new Exception('Неверный ID');
+        try { $db->prepare('DELETE FROM track_artists WHERE track_id=?')->execute([$id]); } catch (Throwable $e) {}
         $st = $db->prepare('DELETE FROM tracks WHERE id=?');
         $st->execute([$id]);
         echo json_encode(['success'=>true]);

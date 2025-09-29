@@ -56,6 +56,8 @@ try {
         $artist = isset($body['artist']) ? trim((string)$body['artist']) : null;
         $cover = isset($body['cover']) ? trim((string)$body['cover']) : null;
         $type = isset($body['album_type']) && in_array($body['album_type'], ['album','ep','single']) ? $body['album_type'] : null;
+        $featsRaw = isset($body['feats']) ? (string)$body['feats'] : '';
+        $featsArr = array_filter(array_map('trim', explode(',', $featsRaw)), function($x){ return $x!==''; });
 
         $db->beginTransaction();
         // If album does not exist in tracks table yet, and only album_new provided, treat as create by inserting a placeholder track entry is not ideal; instead return a clearer error
@@ -69,6 +71,32 @@ try {
         if ($cover !== null)  { $st = $db->prepare('UPDATE tracks SET cover=? WHERE TRIM(LOWER(album))=TRIM(LOWER(?))');  $st->execute([$cover,  $album]); }
         if ($type  !== null)  { $st = $db->prepare('UPDATE tracks SET album_type=? WHERE TRIM(LOWER(album))=TRIM(LOWER(?))'); $st->execute([$type,   $album]); }
         if ($album_new !== ''){ $st = $db->prepare('UPDATE tracks SET album=? WHERE TRIM(LOWER(album))=TRIM(LOWER(?))');  $st->execute([$album_new, $album]); }
+        // Apply feats for all tracks in this album if provided
+        if (isset($body['feats'])) {
+            $albumMatch = $album_new !== '' ? $album_new : $album;
+            // ensure mapping table exists
+            try { $db->exec("CREATE TABLE IF NOT EXISTS track_artists (id INT AUTO_INCREMENT PRIMARY KEY, track_id INT NOT NULL, artist VARCHAR(255) NOT NULL, role ENUM('primary','featured') NOT NULL DEFAULT 'featured', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uniq_track_artist_role (track_id, artist, role))"); } catch (Throwable $e) {}
+            try { $db->exec("CREATE TABLE IF NOT EXISTS album_artists (id INT AUTO_INCREMENT PRIMARY KEY, album VARCHAR(255) NOT NULL, artist VARCHAR(255) NOT NULL, role ENUM('primary','featured') NOT NULL DEFAULT 'featured', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uniq_album_artist_role (album, artist, role))"); } catch (Throwable $e) {}
+            $idsStmt = $db->prepare('SELECT id FROM tracks WHERE TRIM(LOWER(album))=TRIM(LOWER(?))');
+            $idsStmt->execute([$albumMatch]);
+            $trackIds = array_map(function($r){ return (int)$r['id']; }, $idsStmt->fetchAll());
+            if (!empty($trackIds)) {
+                $in = implode(',', array_fill(0, count($trackIds), '?'));
+                $db->prepare("DELETE FROM track_artists WHERE role='featured' AND track_id IN ($in)")->execute($trackIds);
+                if (!empty($featsArr)) {
+                    $ins = $db->prepare('INSERT IGNORE INTO track_artists (track_id, artist, role) VALUES (?,?,"featured")');
+                    foreach ($trackIds as $tid) {
+                        foreach ($featsArr as $fa) { $ins->execute([$tid, $fa]); }
+                    }
+                }
+            }
+            // Persist album-level featured artists for discovery and new tracks propagation
+            $db->prepare('DELETE FROM album_artists WHERE album=? AND role="featured"')->execute([$albumMatch]);
+            if (!empty($featsArr)) {
+                $ain = $db->prepare('INSERT IGNORE INTO album_artists (album, artist, role) VALUES (?,?,"featured")');
+                foreach ($featsArr as $fa) { $ain->execute([$albumMatch, $fa]); }
+            }
+        }
         $db->commit();
         echo json_encode(['success'=>true]);
         exit;

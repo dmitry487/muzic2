@@ -18,6 +18,15 @@ if (isset($_GET['api'])) {
     bio TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )');
+  // Feats mapping table (idempotent)
+  $db->exec("CREATE TABLE IF NOT EXISTS track_artists (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    track_id INT NOT NULL,
+    artist VARCHAR(255) NOT NULL,
+    role ENUM('primary','featured') NOT NULL DEFAULT 'featured',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_track_artist_role (track_id, artist, role)
+  )");
   $entity = $_GET['entity'] ?? '';
   $method = $_SERVER['REQUEST_METHOD'];
   $body = null;
@@ -137,6 +146,18 @@ if (isset($_GET['api'])) {
         } else {
           $rows=$db->query('SELECT * FROM tracks ORDER BY id DESC LIMIT 200')->fetchAll();
         }
+        // Attach feats (featured artists) as comma-separated string in "feats"
+        try {
+          if ($rows && count($rows)>0) {
+            $ids = array_map(function($r){ return (int)$r['id']; }, $rows);
+            $in = implode(',', array_fill(0, count($ids), '?'));
+            $qs = $db->prepare("SELECT track_id, GROUP_CONCAT(artist ORDER BY artist SEPARATOR ', ') AS feats FROM track_artists WHERE role='featured' AND track_id IN ($in) GROUP BY track_id");
+            $qs->execute($ids);
+            $m = [];
+            foreach ($qs as $rr) { $m[(int)$rr['track_id']] = (string)$rr['feats']; }
+            foreach ($rows as &$r) { $r['feats'] = $m[(int)$r['id']] ?? ''; }
+          }
+        } catch (Throwable $e) {}
         echo json_encode(['success'=>true,'data'=>$rows], JSON_UNESCAPED_UNICODE); exit;
       }
       $action = $body['action'] ?? '';
@@ -145,17 +166,55 @@ if (isset($_GET['api'])) {
         $cover=trim((string)($body['cover']??'')); $type=in_array(($body['album_type']??'album'),['album','ep','single'])?$body['album_type']:'album'; $dur=intval($body['duration']??0); $video_url=trim((string)($body['video_url']??'')); $explicit=!empty($body['explicit'])?1:0;
         if ($title===''||$artist===''||$album===''||$file==='') throw new Exception('Заполните обязательные поля');
         $st=$db->prepare('INSERT INTO tracks (title,artist,album,album_type,duration,file_path,cover,video_url,explicit) VALUES (?,?,?,?,?,?,?,?,?)');
-        $st->execute([$title,$artist,$album,$type,$dur,$file,$cover,$video_url,$explicit]); echo json_encode(['success'=>true,'id'=>$db->lastInsertId()]); exit;
+        $st->execute([$title,$artist,$album,$type,$dur,$file,$cover,$video_url,$explicit]);
+        $newId = (int)$db->lastInsertId();
+        // Save featured artists if provided
+        $featsRaw = $body['feats'] ?? '';
+        $featsArr = [];
+        if (is_array($featsRaw)) { $featsArr = $featsRaw; }
+        else { $featsArr = array_filter(array_map('trim', explode(',', (string)$featsRaw)), function($x){ return $x!==''; }); }
+        if (!empty($featsArr)) {
+          $ins = $db->prepare('INSERT IGNORE INTO track_artists (track_id, artist, role) VALUES (?,?,"featured")');
+          foreach ($featsArr as $fa) { $ins->execute([$newId, $fa]); }
+        }
+        // Propagate album-level feats if not passed
+        if (empty($featsArr)) {
+          try {
+            $qs = $db->prepare('SELECT artist FROM album_artists WHERE TRIM(LOWER(album))=TRIM(LOWER(?)) AND role="featured"');
+            $qs->execute([$album]);
+            $als = $qs->fetchAll();
+            if ($als) {
+              $ins = $db->prepare('INSERT IGNORE INTO track_artists (track_id, artist, role) VALUES (?,?,"featured")');
+              foreach ($als as $row) { $ins->execute([$newId, (string)$row['artist']]); }
+            }
+          } catch (Throwable $e) {}
+        }
+        echo json_encode(['success'=>true,'id'=>$newId]); exit;
       }
       if ($action === 'update') {
         $id=intval($body['id']??0); if ($id<=0) throw new Exception('Неверный ID');
         $fields=['title','artist','album','album_type','duration','file_path','cover','video_url','explicit']; $set=[]; $params=[':id'=>$id];
         foreach($fields as $f){ if(array_key_exists($f,$body)){ $set[]="$f=:$f"; if($f==='duration'){ $params[":$f"]=intval($body[$f]); } elseif($f==='explicit'){ $params[":$f"]= !empty($body[$f])?1:0; } else { $params[":$f"]=trim((string)$body[$f]); } }}
         if (!$set) throw new Exception('Нечего сохранять');
-        $st=$db->prepare('UPDATE tracks SET '.implode(',',$set).' WHERE id=:id'); $st->execute($params); echo json_encode(['success'=>true]); exit;
+        $st=$db->prepare('UPDATE tracks SET '.implode(',',$set).' WHERE id=:id'); $st->execute($params);
+        // Update feats if provided (explicit presence controls update)
+        if (array_key_exists('feats', $body)) {
+          $db->prepare('DELETE FROM track_artists WHERE track_id=? AND role="featured"')->execute([$id]);
+          $featsRaw = $body['feats'];
+          $featsArr = [];
+          if (is_array($featsRaw)) { $featsArr = $featsRaw; }
+          else { $featsArr = array_filter(array_map('trim', explode(',', (string)$featsRaw)), function($x){ return $x!==''; }); }
+          if (!empty($featsArr)) {
+            $ins = $db->prepare('INSERT IGNORE INTO track_artists (track_id, artist, role) VALUES (?,?,"featured")');
+            foreach ($featsArr as $fa) { $ins->execute([$id, $fa]); }
+          }
+        }
+        echo json_encode(['success'=>true]); exit;
       }
       if ($action === 'delete') {
         $id=intval($body['id']??0); if ($id<=0) throw new Exception('Неверный ID');
+        // Cascade: remove feats mapping too
+        try { $db->prepare('DELETE FROM track_artists WHERE track_id=?')->execute([$id]); } catch (Throwable $e) {}
         $st=$db->prepare('DELETE FROM tracks WHERE id=?'); $st->execute([$id]); echo json_encode(['success'=>true]); exit;
       }
       throw new Exception('Неизвестное действие');
@@ -240,9 +299,9 @@ function img(src){ if(!src) return ''; const p=src.startsWith('/muzic2/')?src:('
 function normVideo(v){ return (v||'').trim(); }
 function openVideoPreview(raw){ const url=normVideo(raw); let overlay=document.getElementById('video-preview'); if(!overlay){ overlay=document.createElement('div'); overlay.id='video-preview'; overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100000'; const box=document.createElement('div'); box.style.cssText='background:#0f0f0f;border:1px solid #2a2a2a;border-radius:12px;max-width:800px;width:92%;padding:8px;position:relative'; const close=document.createElement('button'); close.textContent='×'; close.title='Закрыть'; close.style.cssText='position:absolute;top:6px;right:6px;width:28px;height:28px;border:none;border-radius:50%;background:#2a2a2a;color:#b3b3b3;cursor:pointer'; close.onclick=()=>{ try{v.pause();}catch(_){} document.body.removeChild(overlay); }; const v=document.createElement('video'); v.id='video-preview-player'; v.style.cssText='width:100%;height:auto;max-height:70vh;background:#000'; v.controls=true; box.appendChild(close); box.appendChild(v); overlay.appendChild(box); document.body.appendChild(overlay); } const vp=document.getElementById('video-preview-player'); if(vp){ try{ while(vp.firstChild) vp.removeChild(vp.firstChild);}catch(_){} const s=document.createElement('source'); s.src=url; s.type= (url.toLowerCase().endsWith('.webm')?'video/webm':'video/mp4'); vp.appendChild(s); vp.load(); setTimeout(()=>{ try{vp.play().catch(()=>{});}catch(_){} },0); } }
 async function load(){ try{ ok('Загрузка...'); const q=search.value.trim(); const r=await fetch(`${api}&entity=${tab}${q?`&q=${encodeURIComponent(q)}`:''}`); const j=await r.json(); if(!j.success) throw new Error(j.message||'Ошибка'); items=j.data||[]; render(); ok(items.length?`Найдено: ${items.length}`:'Ничего не найдено'); }catch(e){ err(e.message)} }
-function render(){ list.innerHTML=''; if(tab==='artists'){ items.forEach(a=>{ const c=document.createElement('div'); c.className='card'; const cover=a.artist_cover||a.track_cover||''; c.innerHTML=`${img(cover)}<h3>${esc(a.artist||'Без имени')}</h3><div class='small'>Треков: ${a.tracks||0}</div><div class='row'><button class='btn primary'>Изменить</button><button class='btn' style='background:#3a1416;color:#ffb4b4'>Удалить</button></div>`; c.querySelector('.btn.primary').onclick=()=>editArtist(a); c.querySelectorAll('.btn')[1].onclick=()=>delArtist(a); list.appendChild(c); }); }
+ function render(){ list.innerHTML=''; if(tab==='artists'){ items.forEach(a=>{ const c=document.createElement('div'); c.className='card'; const cover=a.artist_cover||a.track_cover||''; c.innerHTML=`${img(cover)}<h3>${esc(a.artist||'Без имени')}</h3><div class='small'>Треков: ${a.tracks||0}</div><div class='row'><button class='btn primary'>Изменить</button><button class='btn' style='background:#3a1416;color:#ffb4b4'>Удалить</button></div>`; c.querySelector('.btn.primary').onclick=()=>editArtist(a); c.querySelectorAll('.btn')[1].onclick=()=>delArtist(a); list.appendChild(c); }); }
  if(tab==='albums'){ items.forEach(al=>{ const c=document.createElement('div'); c.className='card'; c.innerHTML=`${img(al.cover)}<h3>${esc(al.album||'Без названия')}</h3><div class='small'>Артист: ${esc(al.artist||'')}</div><div class='small'>Тип: ${esc(al.album_type||'')}</div><div class='small'>Треков: ${al.track_count||0}</div><div class='row'><button class='btn primary'>Изменить</button></div>`; c.querySelector('.btn.primary').onclick=()=>editAlbum(al); list.appendChild(c); }); }
- if(tab==='tracks'){ items.forEach(t=>{ const c=document.createElement('div'); c.className='card'; const hasVideo = !!(t.video_url && String(t.video_url).trim()); const exp = !!(t.explicit); c.innerHTML=`${img(t.cover)}<h3>${esc(t.title||'Без названия')} ${exp?'<span title="Нецензурная лексика" style="display:inline-block;padding:0 6px;border-radius:4px;background:#3a3a3a;color:#fff;font-size:0.8rem;margin-left:6px">E</span>':''}</h3><div class='small'>Артист: ${esc(t.artist||'')}</div><div class='small'>Альбом: ${esc(t.album||'')}</div><div class='small'>Файл: ${esc(t.file_path||'')}</div><div class='small'>Видео: ${hasVideo?'<span style="color:#8aff8a">есть</span>':'нет'}</div><div class='row'><button class='btn primary'>Изменить</button>${hasVideo?"<button class='btn' data-preview='1'>Видео</button>":''}<button class='btn' style='background:#3a1416;color:#ffb4b4' >Удалить</button></div>`; c.querySelector('.btn.primary').onclick=()=>editTrack(t); const btns=c.querySelectorAll('.btn'); if(hasVideo && btns.length>=3){ const pv=c.querySelector('[data-preview]'); pv.onclick=()=>openVideoPreview(t.video_url); } (hasVideo?btns[2]:btns[1]).onclick=()=>delTrack(t); list.appendChild(c); }); }
+ if(tab==='tracks'){ items.forEach(t=>{ const c=document.createElement('div'); c.className='card'; const hasVideo = !!(t.video_url && String(t.video_url).trim()); const exp = !!(t.explicit); const featsStr = (t.feats && String(t.feats).trim())? String(t.feats).trim() : ''; const combinedArtists = esc(featsStr? `${t.artist}, ${featsStr}` : (t.artist||'')); c.innerHTML=`${img(t.cover)}<h3>${esc(t.title||'Без названия')} — ${combinedArtists} ${exp?'<span title="Нецензурная лексика" style="display:inline-block;padding:0 6px;border-radius:4px;background:#3a3a3a;color:#fff;font-size:0.8rem;margin-left:6px">E</span>':''}</h3><div class='small'>Альбом: ${esc(t.album||'')}</div><div class='small'>Файл: ${esc(t.file_path||'')}</div><div class='small'>Видео: ${hasVideo?'<span style="color:#8aff8a">есть</span>':'нет'}</div><div class='row'><button class='btn primary'>Изменить</button>${hasVideo?"<button class='btn' data-preview='1'>Видео</button>":''}<button class='btn' style='background:#3a1416;color:#ffb4b4' >Удалить</button></div>`; c.querySelector('.btn.primary').onclick=()=>editTrack(t); const btns=c.querySelectorAll('.btn'); if(hasVideo && btns.length>=3){ const pv=c.querySelector('[data-preview]'); pv.onclick=()=>openVideoPreview(t.video_url); } (hasVideo?btns[2]:btns[1]).onclick=()=>delTrack(t); list.appendChild(c); }); }
 }
 function openModal(title, html, it){ mtitle.textContent=title; mbody.innerHTML=html; mstatus.textContent=''; modal.style.display='flex'; current=it||null; }
 function closeModal(){ modal.style.display='none'; current=null; }
@@ -254,6 +313,7 @@ function editAlbum(al){ openModal(al.album ? 'Изменить альбом' : '
   <div class='field'><label>Артист</label><input id='f-artist' value='${esc(al.artist||'')}'></div>
   <div class='field'><label>Тип</label><select id='f-type'><option value='album' ${al.album_type==='album'?'selected':''}>Альбом</option><option value='ep' ${al.album_type==='ep'?'selected':''}>EP</option><option value='single' ${al.album_type==='single'?'selected':''}>Сингл</option></select></div>
   <div class='field'><label>Обложка (путь или загрузите)</label><div style='display:flex;gap:8px'><input id='f-cover' value='${esc(al.cover||'')}' style='flex:1'><input id='f-file' type='file' accept='image/*' style='flex:1'></div></div>
+  <div class='field'><label>Фиты для всех треков альбома (через запятую)</label><input id='f-feats' value='' placeholder='Kai Angel, 9mice'></div>
   <div class='row'>
     <button class='btn' id='btn-album-tracks'>Треки альбома</button>
     ${al.album?`<button class='btn' id='btn-album-delete' style='background:#3a1416;color:#ffb4b4'>Удалить альбом</button>`:''}
@@ -265,7 +325,7 @@ function editAlbum(al){ openModal(al.album ? 'Изменить альбом' : '
   </div>
 `, al);
   // Save create/update
-  saveBtn.onclick=async()=>{ try{ mok('Сохранение...'); let cover=document.getElementById('f-cover').value.trim(); const file=document.getElementById('f-file').files[0]; if(file){ cover=await upload(file); document.getElementById('f-cover').value=cover; } const newName = document.getElementById('f-album').value.trim(); const currentName = (al.album||'').trim(); const isCreate = !currentName; const payload = isCreate ? { action:'create', album:newName, artist: document.getElementById('f-artist').value.trim(), album_type: document.getElementById('f-type').value, cover } : { action:'update', album: currentName ? currentName : newName, album_new: currentName && newName && currentName!==newName ? newName : '', artist: document.getElementById('f-artist').value.trim(), album_type: document.getElementById('f-type').value, cover }; const r=await fetch(`${api}&entity=albums`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const j=await r.json(); if(!j.success) throw new Error(j.message||'Ошибка'); closeModal(); load(); }catch(e){ merr(e.message) } };
+  saveBtn.onclick=async()=>{ try{ mok('Сохранение...'); let cover=document.getElementById('f-cover').value.trim(); const file=document.getElementById('f-file').files[0]; if(file){ cover=await upload(file); document.getElementById('f-cover').value=cover; } const newName = document.getElementById('f-album').value.trim(); const currentName = (al.album||'').trim(); const isCreate = !currentName; const feats = document.getElementById('f-feats').value.trim(); const payload = isCreate ? { action:'create', album:newName, artist: document.getElementById('f-artist').value.trim(), album_type: document.getElementById('f-type').value, cover, feats } : { action:'update', album: currentName ? currentName : newName, album_new: currentName && newName && currentName!==newName ? newName : '', artist: document.getElementById('f-artist').value.trim(), album_type: document.getElementById('f-type').value, cover, feats }; const r=await fetch(`${api}&entity=albums`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const j=await r.json(); if(!j.success) throw new Error(j.message||'Ошибка'); closeModal(); load(); }catch(e){ merr(e.message) } };
   // Load/delete/manage tracks
   const tracksBtn=document.getElementById('btn-album-tracks'); const panel=document.getElementById('album-tracks-panel'); const listEl=document.getElementById('album-tracks-list');
   if (tracksBtn && al.album){
@@ -295,17 +355,17 @@ function editAlbum(al){ openModal(al.album ? 'Изменить альбом' : '
   const delBtn=document.getElementById('btn-album-delete');
   if (delBtn){ delBtn.onclick=async()=>{ if(!confirm('Удалить альбом и все его треки?')) return; try{ mok('Удаление...'); const r=await fetch(`${api}&entity=albums`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',album:al.album})}); const j=await r.json(); if(!j.success) throw new Error(j.message||'Ошибка'); closeModal(); load(); }catch(e){ merr(e.message) } } }
 }
-function editTrack(t){ openModal('Изменить трек', `<div class='field'><label>Название</label><input id='f-title' value='${esc(t.title||'')}'></div><div class='field'><label>Артист</label><input id='f-artist' value='${esc(t.artist||'')}'></div><div class='field'><label>Альбом</label><input id='f-album' value='${esc(t.album||'')}'></div><div class='field'><label>Тип</label><select id='f-type'><option value='album' ${t.album_type==='album'?'selected':''}>Альбом</option><option value='ep' ${t.album_type==='ep'?'selected':''}>EP</option><option value='single' ${t.album_type==='single'?'selected':''}>Сингл</option></select></div><div class='field'><label>Файл (tracks/music/...)</label><input id='f-file' value='${esc(t.file_path||'')}'></div><div class='field'><label>Обложка (путь или загрузите)</label><div style='display:flex;gap:8px'><input id='f-cover' value='${esc(t.cover||'')}' style='flex:1'><input id='f-file2' type='file' accept='image/*' style='flex:1'></div></div><div class='field'><label>Длительность (сек)</label><input id='f-dur' type='number' value='${t.duration||0}'></div><div class='field'><label>Нецензурная лексика</label><label style='display:inline-flex;align-items:center;gap:8px'><input id='f-exp' type='checkbox' ${t.explicit? 'checked':''}> Показать значок E</label></div><div class='field'><label>Видео (URL)</label><div style='display:flex;gap:8px'><input id='f-video' value='${esc(t.video_url||'')}' placeholder='tracks/video/file.mp4 или полный URL' style='flex:1'><button class='btn' id='preview-video-btn' type='button'>Проверить видео</button></div></div>`, t); const previewBtn=document.getElementById('preview-video-btn'); if(previewBtn){ previewBtn.onclick=()=>{ openVideoPreview((document.getElementById('f-video').value||'')); }; } saveBtn.onclick=async()=>{ try{ mok('Сохранение...'); let cover=document.getElementById('f-cover').value.trim(); const file=document.getElementById('f-file2').files[0]; if(file){ cover=await upload(file); document.getElementById('f-cover').value=cover; } const isCreate = !t.id || t.id===0; const base = { title:document.getElementById('f-title').value.trim(), artist:document.getElementById('f-artist').value.trim(), album:document.getElementById('f-album').value.trim(), album_type:document.getElementById('f-type').value, file_path:document.getElementById('f-file').value.trim(), cover, duration:parseInt(document.getElementById('f-dur').value||0,10), explicit: !!document.getElementById('f-exp').checked, video_url: normVideo(document.getElementById('f-video').value) }; const payload = isCreate ? ({action:'create', ...base}) : ({action:'update', id:t.id, ...base}); const r=await fetch(`${api}&entity=tracks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const j=await r.json(); if(!j.success) throw new Error(j.message||'Ошибка'); closeModal(); load(); }catch(e){ merr(e.message) } } }
+function editTrack(t){ openModal('Изменить трек', `<div class='field'><label>Название</label><input id='f-title' value='${esc(t.title||'')}'></div><div class='field'><label>Артист</label><input id='f-artist' value='${esc(t.artist||'')}'></div><div class='field'><label>Фиты (через запятую)</label><input id='f-feats' value='${esc(t.feats||'')}' placeholder='Kai Angel, 9mice'></div><div class='field'><label>Альбом</label><input id='f-album' value='${esc(t.album||'')}'></div><div class='field'><label>Тип</label><select id='f-type'><option value='album' ${t.album_type==='album'?'selected':''}>Альбом</option><option value='ep' ${t.album_type==='ep'?'selected':''}>EP</option><option value='single' ${t.album_type==='single'?'selected':''}>Сингл</option></select></div><div class='field'><label>Файл (tracks/music/...)</label><input id='f-file' value='${esc(t.file_path||'')}'></div><div class='field'><label>Обложка (путь или загрузите)</label><div style='display:flex;gap:8px'><input id='f-cover' value='${esc(t.cover||'')}' style='flex:1'><input id='f-file2' type='file' accept='image/*' style='flex:1'></div></div><div class='field'><label>Длительность (сек)</label><input id='f-dur' type='number' value='${t.duration||0}'></div><div class='field'><label>Нецензурная лексика</label><label style='display:inline-flex;align-items:center;gap:8px'><input id='f-exp' type='checkbox' ${t.explicit? 'checked':''}> Показать значок E</label></div><div class='field'><label>Видео (URL)</label><div style='display:flex;gap:8px'><input id='f-video' value='${esc(t.video_url||'')}' placeholder='tracks/video/file.mp4 или полный URL' style='flex:1'><button class='btn' id='preview-video-btn' type='button'>Проверить видео</button></div></div>`, t); const previewBtn=document.getElementById('preview-video-btn'); if(previewBtn){ previewBtn.onclick=()=>{ openVideoPreview((document.getElementById('f-video').value||'')); }; } saveBtn.onclick=async()=>{ try{ mok('Сохранение...'); let cover=document.getElementById('f-cover').value.trim(); const file=document.getElementById('f-file2').files[0]; if(file){ cover=await upload(file); document.getElementById('f-cover').value=cover; } const isCreate = !t.id || t.id===0; const base = { title:document.getElementById('f-title').value.trim(), artist:document.getElementById('f-artist').value.trim(), feats:document.getElementById('f-feats').value.trim(), album:document.getElementById('f-album').value.trim(), album_type:document.getElementById('f-type').value, file_path:document.getElementById('f-file').value.trim(), cover, duration:parseInt(document.getElementById('f-dur').value||0,10), explicit: !!document.getElementById('f-exp').checked, video_url: normVideo(document.getElementById('f-video').value) }; const payload = isCreate ? ({action:'create', ...base}) : ({action:'update', id:t.id, ...base}); const r=await fetch(`${api}&entity=tracks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const j=await r.json(); if(!j.success) throw new Error(j.message||'Ошибка'); closeModal(); load(); }catch(e){ merr(e.message) } } }
 async function delTrack(t){ if(!confirm(`Удалить трек "${t.title}"?`)) return; const r=await fetch(`${api}&entity=tracks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',id:t.id})}); const j=await r.json(); if(j.success){ ok('Трек удалён'); load(); } else { err(j.message||'Ошибка') } }
 async function delArtist(a){ if(!confirm(`Удалить артиста "${a.artist}"?`)) return; const r=await fetch(`${api}&entity=artists`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',name:a.artist})}); const j=await r.json(); if(j.success){ ok('Артист удалён'); load(); } else { err(j.message||'Ошибка') } }
  add.onclick=()=>{ if(tab==='artists'){ editArtist({artist:'',artist_cover:'',bio:''}); document.getElementById('f-name').value=''; saveBtn.onclick = async ()=>{ try{ mok('Сохранение...'); let cover=document.getElementById('f-cover').value.trim(); const file=document.getElementById('f-file').files[0]; if(file){ cover=await upload(file); document.getElementById('f-cover').value=cover; } const payload={action:'create', name:document.getElementById('f-name').value.trim(), cover, bio:document.getElementById('f-bio').value.trim()}; const r=await fetch(`${api}&entity=artists`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const j=await r.json(); if(!j.success) throw new Error(j.message||'Ошибка'); closeModal(); load(); }catch(e){ merr(e.message) } } }
  else if(tab==='albums'){ editAlbum({album:'',artist:'',album_type:'album',cover:''}); }
- else if(tab==='tracks'){ editTrack({id:0,title:'',artist:'',album:'',album_type:'album',file_path:'',cover:'',duration:0, explicit:0}); const originalHandler = saveBtn.onclick; saveBtn.onclick = async ()=>{ try{ // override to create when id is 0
+ else if(tab==='tracks'){ editTrack({id:0,title:'',artist:'',feats:'',album:'',album_type:'album',file_path:'',cover:'',duration:0, explicit:0}); const originalHandler = saveBtn.onclick; saveBtn.onclick = async ()=>{ try{ // override to create when id is 0
       mok('Сохранение...');
       let cover=document.getElementById('f-cover').value.trim();
       const file=document.getElementById('f-file2').files[0];
       if(file){ cover=await upload(file); document.getElementById('f-cover').value=cover; }
-      const payload={action:'create', title:document.getElementById('f-title').value.trim(), artist:document.getElementById('f-artist').value.trim(), album:document.getElementById('f-album').value.trim(), album_type:document.getElementById('f-type').value, file_path:document.getElementById('f-file').value.trim(), cover, duration:parseInt(document.getElementById('f-dur').value||0,10), explicit: !!document.getElementById('f-exp').checked, video_url: normVideo(document.getElementById('f-video').value)};
+      const payload={action:'create', title:document.getElementById('f-title').value.trim(), artist:document.getElementById('f-artist').value.trim(), feats:document.getElementById('f-feats').value.trim(), album:document.getElementById('f-album').value.trim(), album_type:document.getElementById('f-type').value, file_path:document.getElementById('f-file').value.trim(), cover, duration:parseInt(document.getElementById('f-dur').value||0,10), explicit: !!document.getElementById('f-exp').checked, video_url: normVideo(document.getElementById('f-video').value)};
       const r=await fetch(`${api}&entity=tracks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       const j=await r.json(); if(!j.success) throw new Error(j.message||'Ошибка'); closeModal(); load();
     }catch(e){ merr(e.message) } } }

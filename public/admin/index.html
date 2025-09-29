@@ -131,7 +131,8 @@ function render(){
   if (tab==='tracks'){
     items.forEach(t=>{
       const c=document.createElement('div'); c.className='card';
-      c.innerHTML = `${img(t.cover)}<h3>${esc(t.title||'Без названия')}</h3><div class='small'>Артист: ${esc(t.artist||'')}</div><div class='small'>Альбом: ${esc(t.album||'')}</div><div class='small'>Файл: ${esc(t.file_path||'')}</div><div class='row'><button class='btn primary'>Изменить</button><button class='btn' style='background:#3a1416;color:#ffb4b4'>Удалить</button></div>`;
+      const featsLine = t.feats && String(t.feats).trim() ? `<div class='small'>Фиты: ${esc(t.feats)}</div>` : '';
+      c.innerHTML = `${img(t.cover)}<h3>${esc(t.title||'Без названия')}</h3><div class='small'>Артист: ${esc(t.artist||'')}</div>${featsLine}<div class='small'>Альбом: ${esc(t.album||'')}</div><div class='small'>Файл: ${esc(t.file_path||'')}</div><div class='row'><button class='btn primary'>Изменить</button><button class='btn' style='background:#3a1416;color:#ffb4b4'>Удалить</button></div>`;
       c.querySelector('.btn.primary').onclick = ()=> editTrack(t);
       c.querySelectorAll('.btn')[1].onclick = ()=> delTrack(t);
       list.appendChild(c);
@@ -171,6 +172,7 @@ function editAlbum(al){
     <div class='field'><label>Артист</label><input id='f-artist' value='${esc(al.artist||'')}'></div>
     <div class='field'><label>Тип</label><select id='f-type'><option value='album' ${al.album_type==='album'?'selected':''}>Альбом</option><option value='ep' ${al.album_type==='ep'?'selected':''}>EP</option><option value='single' ${al.album_type==='single'?'selected':''}>Сингл</option></select></div>
     <div class='field'><label>Обложка (путь или загрузите)</label><div style='display:flex;gap:8px'><input id='f-cover' value='${esc(al.cover||'')}' style='flex:1'><input id='f-file' type='file' accept='image/*' style='flex:1'></div></div>
+    <div class='field'><label>Фиты для всех треков альбома (через запятую)</label><input id='f-feats' value='' placeholder='Kai Angel, 9mice'></div>
   `, al);
   saveBtn.onclick = async ()=>{
     try{
@@ -178,7 +180,7 @@ function editAlbum(al){
       let cover = document.getElementById('f-cover').value.trim();
       const file = document.getElementById('f-file').files[0];
       if (file){ cover = await upload(file); document.getElementById('f-cover').value = cover; }
-      const payload = { action:'update', album: al.album, album_new: document.getElementById('f-album').value.trim(), artist: document.getElementById('f-artist').value.trim(), album_type: document.getElementById('f-type').value, cover };
+      const payload = { action:'update', album: al.album, album_new: document.getElementById('f-album').value.trim(), artist: document.getElementById('f-artist').value.trim(), album_type: document.getElementById('f-type').value, cover, feats: document.getElementById('f-feats').value.trim() };
       const r = await fetch(API.albums, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
       const j = await r.json(); if(!j.success) throw new Error(j.message||'Ошибка');
       closeModal(); load();
@@ -190,6 +192,7 @@ function editTrack(t){
   openModal('Изменить трек', `
     <div class='field'><label>Название</label><input id='f-title' value='${esc(t.title||'')}'></div>
     <div class='field'><label>Артист</label><input id='f-artist' value='${esc(t.artist||'')}'></div>
+    <div class='field'><label>Фиты (через запятую)</label><input id='f-feats' value='${esc(t.feats||'')}' placeholder='Kai Angel, 9mice'></div>
     <div class='field'><label>Альбом</label><input id='f-album' value='${esc(t.album||'')}'></div>
     <div class='field'><label>Тип</label><select id='f-type'><option value='album' ${t.album_type==='album'?'selected':''}>Альбом</option><option value='ep' ${t.album_type==='ep'?'selected':''}>EP</option><option value='single' ${t.album_type==='single'?'selected':''}>Сингл</option></select></div>
     <div class='field'><label>Файл (tracks/music/...)</label><input id='f-file' value='${esc(t.file_path||'')}'></div>
@@ -203,9 +206,8 @@ function editTrack(t){
       const file = document.getElementById('f-file2').files[0];
       if (file){ cover = await upload(file); document.getElementById('f-cover').value = cover; }
       const isCreate = !t.id || t.id === 0;
-      const payload = isCreate
-        ? { action:'create', title: document.getElementById('f-title').value.trim(), artist: document.getElementById('f-artist').value.trim(), album: document.getElementById('f-album').value.trim(), album_type: document.getElementById('f-type').value, file_path: document.getElementById('f-file').value.trim(), cover, duration: parseInt(document.getElementById('f-dur').value||0,10) }
-        : { action:'update', id: t.id, title: document.getElementById('f-title').value.trim(), artist: document.getElementById('f-artist').value.trim(), album: document.getElementById('f-album').value.trim(), album_type: document.getElementById('f-type').value, file_path: document.getElementById('f-file').value.trim(), cover, duration: parseInt(document.getElementById('f-dur').value||0,10) };
+      const base = { title: document.getElementById('f-title').value.trim(), artist: document.getElementById('f-artist').value.trim(), feats: document.getElementById('f-feats').value.trim(), album: document.getElementById('f-album').value.trim(), album_type: document.getElementById('f-type').value, file_path: document.getElementById('f-file').value.trim(), cover, duration: parseInt(document.getElementById('f-dur').value||0,10) };
+      const payload = isCreate ? ({ action:'create', ...base }) : ({ action:'update', id: t.id, ...base });
       const r = await fetch(API.tracks, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
       const j = await r.json(); if(!j.success) throw new Error(j.message||'Ошибка');
       closeModal(); load();
@@ -255,7 +257,7 @@ add.onclick = ()=>{
     editAlbum({album:'',artist:'',album_type:'album',cover:''});
   }
   else if (tab==='tracks'){
-    editTrack({id:0,title:'',artist:'',album:'',album_type:'album',file_path:'',cover:'',duration:0});
+    editTrack({id:0,title:'',artist:'',feats:'',album:'',album_type:'album',file_path:'',cover:'',duration:0});
   }
 };
 

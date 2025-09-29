@@ -26,8 +26,10 @@ try {
         exit;
     }
     
-    // Треки альбома
-    $stmt = $pdo->prepare("SELECT id, title, artist, album, album_type, duration, file_path, cover, video_url, explicit FROM tracks WHERE album = ?");
+    // Треки альбома с фичерами
+    $stmt = $pdo->prepare("SELECT t.id, t.title, t.artist, t.album, t.album_type, t.duration, t.file_path, t.cover, t.video_url, t.explicit,
+        (SELECT GROUP_CONCAT(ta.artist ORDER BY ta.artist SEPARATOR ', ') FROM track_artists ta WHERE ta.track_id=t.id AND ta.role='featured') AS feats
+      FROM tracks t WHERE t.album = ?");
     $stmt->execute([$album]);
     $tracks = $stmt->fetchAll(PDO::FETCH_ASSOC);
     

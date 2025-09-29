@@ -21,7 +21,9 @@ if (!$albumRow) {
 $artist = $albumRow['artist'];
 $cover = $albumRow['cover'];
 
-$tracks = $db->prepare('SELECT id, title, artist, duration, file_path, cover, video_url, explicit FROM tracks WHERE TRIM(LOWER(album)) = TRIM(LOWER(?)) ORDER BY id ASC');
+$tracks = $db->prepare('SELECT t.id, t.title, t.artist, t.duration, t.file_path, t.cover, t.video_url, t.explicit,
+  (SELECT GROUP_CONCAT(ta.artist ORDER BY ta.artist SEPARATOR ", ") FROM track_artists ta WHERE ta.track_id=t.id AND ta.role="featured") AS feats
+  FROM tracks t WHERE TRIM(LOWER(t.album)) = TRIM(LOWER(?)) ORDER BY t.id ASC');
 $tracks->execute([$album]);
 $trackList = [];
 $totalDuration = 0;
@@ -30,6 +32,7 @@ foreach ($tracks as $t) {
         'id' => $t['id'],
         'title' => $t['title'],
         'artist' => $t['artist'],
+        'feats' => $t['feats'],
         'duration' => (int)$t['duration'],
         'src' => $t['file_path'],
         'cover' => $t['cover'],
