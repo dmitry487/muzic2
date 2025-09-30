@@ -1680,4 +1680,25 @@
   if (popupActive && popupWin) {
     postToPopup({ cmd: 'play' }, { retries: 3, delay: 150 });
   }
+
+  // Media keys support
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'MediaPlayPause') {
+      e.preventDefault();
+      if (isPlaying) {
+        audio.pause();
+      } else {
+        audio.play();
+      }
+    } else if (e.code === 'MediaTrackNext') {
+      e.preventDefault();
+      playNext(false);
+    } else if (e.code === 'MediaTrackPrevious') {
+      e.preventDefault();
+      playPrev();
+    } else if (e.code === 'MediaStop') {
+      e.preventDefault();
+      audio.pause();
+    }
+  });
 })();

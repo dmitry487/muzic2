@@ -210,6 +210,8 @@ if (mainContent && navHome && navSearch && navLibrary) {
 				renderCards('tracks-row', data.tracks, 'track');
 				renderCards('artists-row', data.artists, 'artist');
 				
+				addFilterButtonHandlers();
+				
 				// Показываем время загрузки для Windows
 				const loadTime = Date.now() - (window.startTime || Date.now());
 				console.log('Windows page load time:', loadTime + 'ms');
@@ -264,11 +266,149 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			renderCards('albums-row', data.albums, 'album');
 			renderCards('tracks-row', data.tracks, 'track');
 			renderCards('artists-row', data.artists, 'artist');
+			
+			addFilterButtonHandlers();
 		} catch (e) {
 			mainContent.innerHTML = '<div class="error">Ошибка загрузки главной страницы</div>';
 		}
 	}
+
+	async function addFilterButtonHandlers() {
+		const filterBtns = document.querySelectorAll('.filter-btn');
+		
+		filterBtns.forEach(btn => {
+			btn.addEventListener('click', async () => {
+				filterBtns.forEach(b => b.classList.remove('active'));
+				btn.classList.add('active');
+				
+				const filterType = btn.textContent.trim();
+				console.log('Filter clicked:', filterType);
+				
+				if (filterType === 'Все') {
+					document.querySelectorAll('.main-section').forEach(section => {
+						section.style.display = 'block';
+					});
+				} else if (filterType === 'Музыка') {
+					document.querySelectorAll('.main-section').forEach(section => {
+						section.style.display = 'none';
+					});
+
+					const tracksSection = document.getElementById('tracks-section');
+					const albumsSection = document.getElementById('albums-section');
+					
+					if (tracksSection) {
+						tracksSection.style.display = 'block';
+						tracksSection.querySelector('h3').textContent = 'Случайные треки';
+						await loadMusicContent('tracks', 15);
+					}
+					
+					if (albumsSection) {
+						albumsSection.style.display = 'block';
+						albumsSection.querySelector('h3').textContent = 'Случайные альбомы';
+						await loadMusicContent('albums', 12);
+					}
+				} else if (filterType === 'Артисты') {
+					document.querySelectorAll('.main-section').forEach(section => {
+						section.style.display = 'none';
+					});
+					
+					const artistsSection = document.getElementById('artists-section');
+					if (artistsSection) {
+						artistsSection.style.display = 'block';
+						artistsSection.querySelector('h3').textContent = 'Артисты';
+						await loadMusicContent('artists', 24);
+					}
+				}
+			});
+		});
+	}
 	
+	async function loadMusicContent(type, limit) {
+		try {
+			let url, containerId;
+			
+			if (type === 'tracks') {
+				url = `/muzic2/public/src/api/random_tracks.php?limit=${limit}`;
+				containerId = 'tracks-row';
+			} else if (type === 'albums') {
+				url = `/muzic2/public/src/api/home.php?limit_albums=${limit}`;
+				containerId = 'albums-row';
+			} else if (type === 'artists') {
+				url = `/muzic2/public/src/api/home.php?limit_artists=${limit}`;
+				containerId = 'artists-row';
+			}
+			
+			const response = await fetch(url, { credentials: 'include' });
+			const data = await response.json();
+			
+			if (type === 'tracks') {
+				renderCards(containerId, data.tracks || [], 'track');
+			} else if (type === 'albums') {
+				renderCardsInRows(containerId, data.albums || [], 'album', 6);
+			} else if (type === 'artists') {
+				renderCardsInRows(containerId, data.artists || [], 'artist', 8);
+			}
+		} catch (error) {
+			console.error('Error loading music content:', error);
+		}
+	}
+	
+	function renderCardsInRows(containerId, items, type, itemsPerRow) {
+		const container = document.getElementById(containerId);
+		if (!container) return;
+
+		container.innerHTML = '';
+
+		const wrapper = document.createElement('div');
+		wrapper.className = 'multi-row-container';
+
+		for (let i = 0; i < items.length; i += itemsPerRow) {
+			const rowItems = items.slice(i, i + itemsPerRow);
+			const row = document.createElement('div');
+			
+			if (type === 'album') {
+				row.className = 'tile-row';
+				row.innerHTML = rowItems.map((item, idx) => `
+					<div class="tile" data-album="${encodeURIComponent(item.album)}" data-idx="${i + idx}">
+						<img class="tile-cover" loading="lazy" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
+						<div class="tile-title">${escapeHtml(item.album)}</div>
+						<div class="tile-desc">${escapeHtml(item.artist || '')}</div>
+						<div class="tile-play">&#9654;</div>
+					</div>
+				`).join('');
+			} else if (type === 'artist') {
+				row.className = 'artist-row';
+				row.innerHTML = rowItems.map(item => `
+					<div class="artist-tile" data-artist="${encodeURIComponent(item.artist)}">
+						<img class="artist-avatar" loading="lazy" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="artist">
+						<div class="artist-name">${escapeHtml(item.artist)}</div>
+					</div>
+				`).join('');
+			}
+			
+			wrapper.appendChild(row);
+		}
+		
+		container.appendChild(wrapper);
+
+		if (type === 'album') {
+			container.onclick = function(e) {
+				let el = e.target;
+				while (el && !el.classList.contains('tile')) el = el.parentElement;
+				if (!el) return;
+				const album = el.dataset.album;
+				if (album) navigateTo('album', { album: decodeURIComponent(album) });
+			};
+		} else if (type === 'artist') {
+			container.onclick = function(e) {
+				let el = e.target;
+				while (el && !el.classList.contains('artist-tile')) el = el.parentElement;
+				if (!el) return;
+				const artist = el.dataset.artist;
+				if (artist) navigateTo('artist', { artist: decodeURIComponent(artist) });
+			};
+		}
+	}
 
 	// =====================
 	// Helper Functions
@@ -858,16 +998,23 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			`).join('');
         } else if (type === 'track') {
 			row.className = 'card-row';
-			html = items.map((item, idx) => `
+			html = items.map((item, idx) => {
+				// Правильно обрабатываем путь к обложке
+				let coverPath = item.cover || 'tracks/covers/placeholder.jpg';
+				if (coverPath && !coverPath.startsWith('/muzic2/') && !coverPath.startsWith('http')) {
+					coverPath = '/muzic2/' + coverPath;
+				}
+				return `
 				<div class="card" data-idx="${idx}">
-					<img class="card-cover" loading="lazy" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
+					<img class="card-cover" loading="lazy" src="${coverPath}" alt="cover">
 					<div class="card-info">
                 <div class="card-title">${escapeHtml(item.title)}</div>
                 <div class="card-artist">${item.explicit? '<span class=\"exp-badge\" title=\"Нецензурная лексика\">E</span>':''}${escapeHtml(item.feats && String(item.feats).trim() ? `${item.artist}, ${item.feats}` : item.artist)}</div>
 						<div class="card-type">${item.album_type || ''}</div>
 					</div>
 				</div>
-			`).join('');
+			`;
+			}).join('');
 		}
 		row.innerHTML = html;
 
