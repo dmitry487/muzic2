@@ -185,6 +185,17 @@
   const fullscreenClose = playerRoot.querySelector('#fullscreen-close');
   const fullscreenBack = playerRoot.querySelector('#fullscreen-back');
 
+  // Ensure page content is not covered by the fixed player: add bottom padding dynamically
+  function adjustContentPadding() {
+    try {
+      const h = playerContainer ? playerContainer.getBoundingClientRect().height : 0;
+      const extra = 28; // small breathing room above player
+      document.body.style.paddingBottom = (h + extra) + 'px';
+    } catch (_) {}
+  }
+  adjustContentPadding();
+  window.addEventListener('resize', adjustContentPadding);
+
   // Persistent popup player integration
   let popupWin = null;
   let popupActive = false;
