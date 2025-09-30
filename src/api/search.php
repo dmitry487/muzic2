@@ -10,7 +10,7 @@ try {
     $db = get_db_connection();
     
     $query = $_GET['q'] ?? '';
-    $type = $_GET['type'] ?? 'all'; 
+    $type = $_GET['type'] ?? 'all'; // all, tracks, artists, albums
     
     if (empty($query)) {
         echo json_encode(['error' => 'Query parameter is required']);
@@ -22,7 +22,8 @@ try {
         'artists' => [],
         'albums' => []
     ];
-
+    
+    // Search tracks
     if ($type === 'all' || $type === 'tracks') {
         $stmt = $db->prepare("
             SELECT 
@@ -61,7 +62,8 @@ try {
         
         $results['tracks'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-
+    
+    // Search artists (deduplicated by normalized name)
     if ($type === 'all' || $type === 'artists') {
         $stmt = $db->prepare("
             SELECT
@@ -85,10 +87,11 @@ try {
         $stmt->execute([$searchTerm, $exactMatch]);
         
         $results['artists'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
+        // Drop helper column
         foreach ($results['artists'] as &$a) { unset($a['norm_name']); }
     }
-
+    
+    // Search albums (deduplicated by normalized title)
     if ($type === 'all' || $type === 'albums') {
         $stmt = $db->prepare("
             SELECT

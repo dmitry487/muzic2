@@ -10,6 +10,7 @@ if (!$artist) {
     exit;
 }
 
+// Prefer explicit artists table first, so artists without tracks still resolve
 $explicitCover = null; $bio = null; $explicitName = null;
 try {
     $row = $db->prepare('SELECT name, cover, bio FROM artists WHERE LOWER(name)=LOWER(?) LIMIT 1');
@@ -18,6 +19,7 @@ try {
     if ($ar) { $explicitName = $ar['name']; $explicitCover = $ar['cover']; $bio = $ar['bio']; }
 } catch (Throwable $e) {}
 
+// Try to find exact-match (case-insensitive) artist rows in tracks (for stats)
 $artistQuery = 'SELECT 
     artist,
     COUNT(*) as total_tracks,
@@ -32,6 +34,7 @@ $artistStmt = $db->prepare($artistQuery);
 $artistStmt->execute([$artist]);
 $artistInfo = $artistStmt->fetch();
 
+// If no tracks entry but explicit artist exists, synthesize minimal info
 if (!$artistInfo && $explicitName) {
     $artistInfo = [
         'artist' => $explicitName,
@@ -47,9 +50,10 @@ if (!$artistInfo) {
     exit;
 }
 
+// Top tracks for this artist: include primary artist OR featured appearances
 $topTracks = [];
 try {
-    
+    // Ensure mapping table exists (defensive)
     try { $db->exec("CREATE TABLE IF NOT EXISTS track_artists (id INT AUTO_INCREMENT PRIMARY KEY, track_id INT NOT NULL, artist VARCHAR(255) NOT NULL, role ENUM('primary','featured') NOT NULL DEFAULT 'featured', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uniq_track_artist_role (track_id, artist, role))"); } catch (Throwable $e2) {}
     $sql = "SELECT DISTINCT t.id, t.title, t.artist, t.album, t.duration, t.file_path, t.cover, t.video_url, t.explicit,
                    (SELECT GROUP_CONCAT(ta2.artist ORDER BY ta2.artist SEPARATOR ', ') FROM track_artists ta2 WHERE ta2.track_id=t.id AND ta2.role='featured') AS feats
@@ -75,9 +79,10 @@ try {
     }
 } catch (Throwable $e) {}
 
+// Albums for this artist: include albums where they are primary or featured (album-level or track-level)
 $albums = [];
 try {
-    
+    // ensure album_artists exists (defensive)
     try { $db->exec("CREATE TABLE IF NOT EXISTS album_artists (id INT AUTO_INCREMENT PRIMARY KEY, album VARCHAR(255) NOT NULL, artist VARCHAR(255) NOT NULL, role ENUM('primary','featured') NOT NULL DEFAULT 'featured', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uniq_album_artist_role (album, artist, role))"); } catch (Throwable $e2) {}
     $sqlAlbums = "SELECT t.album, t.album_type, COUNT(*) as track_count, MIN(t.cover) as cover, SUM(t.duration) as total_duration
                   FROM tracks t
@@ -99,6 +104,7 @@ try {
     }
 } catch (Throwable $e) {}
 
+// If artist has no albums via tracks yet, include album-level associations even when album has 0 tracks (placeholder logic)
 try {
     if (count($albums) === 0) {
         $aa = $db->prepare('SELECT aa.album as album, MIN(t.album_type) as album_type, MIN(t.cover) as cover

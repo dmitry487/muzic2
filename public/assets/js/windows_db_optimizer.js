@@ -1,10 +1,11 @@
-
+// Windows Database Optimizer - JavaScript версия для фронтенда
 class WindowsDBOptimizer {
     constructor() {
         this.cache = new Map();
-        this.cacheTimeout = 30000; 
+        this.cacheTimeout = 30000; // 30 секунд
     }
-
+    
+    // Получить все данные одним запросом
     async getAllData() {
         const cacheKey = 'all_data';
         const cached = this.cache.get(cacheKey);
@@ -33,7 +34,8 @@ class WindowsDBOptimizer {
             const loadTime = Math.round(performance.now() - start);
             
             console.log(`✅ Данные загружены за ${loadTime}ms (сервер: ${data.load_time_ms}ms)`);
-
+            
+            // Кэшируем данные
             this.cache.set(cacheKey, {
                 data: data,
                 timestamp: Date.now()
@@ -46,22 +48,26 @@ class WindowsDBOptimizer {
             throw error;
         }
     }
-
+    
+    // Получить только треки
     async getTracks() {
         const data = await this.getAllData();
         return data.tracks || [];
     }
-
+    
+    // Получить только альбомы
     async getAlbums() {
         const data = await this.getAllData();
         return data.albums || [];
     }
-
+    
+    // Получить только артистов
     async getArtists() {
         const data = await this.getAllData();
         return data.artists || [];
     }
-
+    
+    // Получить информацию о пользователе
     async getUser() {
         const data = await this.getAllData();
         return {
@@ -69,7 +75,8 @@ class WindowsDBOptimizer {
             authenticated: data.authenticated
         };
     }
-
+    
+    // Получить лайки
     async getLikes() {
         const data = await this.getAllData();
         return {
@@ -77,22 +84,26 @@ class WindowsDBOptimizer {
             albums: data.liked_albums || []
         };
     }
-
+    
+    // Получить плейлисты
     async getPlaylists() {
         const data = await this.getAllData();
         return data.playlists || [];
     }
-
+    
+    // Получить статистику
     async getStats() {
         const data = await this.getAllData();
         return data.stats || {};
     }
-
+    
+    // Очистить кэш
     clearCache() {
         this.cache.clear();
         console.log('🗑️ Кэш очищен');
     }
-
+    
+    // Проверить производительность
     async benchmark() {
         console.log('🏁 Запуск бенчмарка...');
         
@@ -125,8 +136,10 @@ class WindowsDBOptimizer {
     }
 }
 
+// Создаем глобальный экземпляр
 window.windowsDBOptimizer = new WindowsDBOptimizer();
 
+// Экспортируем для использования в модулях
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = WindowsDBOptimizer;
 }

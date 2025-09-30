@@ -1,0 +1,37 @@
+{
+    "missing_audio": [
+        {
+            "id": 21,
+            "title": "john galliano",
+            "artist": "Kai Angel",
+            "file_path": "tracks\/music\/Kai Angel-AMC2.mp3"
+        },
+        {
+            "id": 22,
+            "title": "millions",
+            "artist": "Kai Angel",
+            "file_path": "tracks\/music\/Kai Angel-AMC2.mp3"
+        },
+        {
+            "id": 23,
+            "title": "i hate fashion shows",
+            "artist": "Kai Angel",
+            "file_path": "tracks\/music\/Kai Angel-AMC2.mp3"
+        },
+        {
+            "id": 24,
+            "title": "metallica",
+            "artist": "Kai Angel",
+            "file_path": "tracks\/music\/Kai Angel-AMC2.mp3"
+        },
+        {
+            "id": 25,
+            "title": "laperouse",
+            "artist": "Kai Angel",
+            "file_path": "tracks\/music\/Kai Angel-AMC2.mp3"
+        }
+    ],
+    "missing_cover": [],
+    "duplicates": [],
+    "total_tracks": 25
+}

@@ -2,7 +2,7 @@
 session_start();
 require_once __DIR__ . '/../config/db.php';
 
-$data = json_decode(file_get_contents('php:
+$data = json_decode(file_get_contents('php://input'), true);
 $login = trim($data['login'] ?? '');
 $password = $data['password'] ?? '';
 

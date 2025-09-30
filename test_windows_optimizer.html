@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Windows DB Optimizer Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        .loading { background: #fff3cd; border-color: #ffeaa7; }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stat-label {
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .data-preview {
+            max-height: 200px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖥️ Windows DB Optimizer Test</h1>
+        
+        <div class="test-section">
+            <h2>🚀 Быстрые тесты</h2>
+            <button onclick="testAllData()">Загрузить все данные</button>
+            <button onclick="testIndividual()">Тест отдельных запросов</button>
+            <button onclick="runBenchmark()">Бенчмарк</button>
+            <button onclick="clearCache()">Очистить кэш</button>
+        </div>
+        
+        <div id="results"></div>
+        
+        <div class="stats" id="stats" style="display: none;">
+            <div class="stat-card">
+                <div class="stat-number" id="total-tracks">-</div>
+                <div class="stat-label">Треков</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="total-albums">-</div>
+                <div class="stat-label">Альбомов</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="total-artists">-</div>
+                <div class="stat-label">Артистов</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="load-time">-</div>
+                <div class="stat-label">Время загрузки (мс)</div>
+            </div>
+        </div>
+        
+        <div id="data-preview" style="display: none;">
+            <h3>📊 Предварительный просмотр данных</h3>
+            <div class="data-preview" id="preview-content"></div>
+        </div>
+    </div>
+
+    <script src="/muzic2/public/assets/js/windows_db_optimizer.js"></script>
+    <script>
+        const resultsDiv = document.getElementById('results');
+        const statsDiv = document.getElementById('stats');
+        const previewDiv = document.getElementById('data-preview');
+        const previewContent = document.getElementById('preview-content');
+        
+        function addResult(title, status, message, data = null) {
+            const div = document.createElement('div');
+            div.className = `test-section ${status}`;
+            div.innerHTML = `<h3>${title}</h3><p>${message}</p>`;
+            
+            if (data) {
+                const pre = document.createElement('pre');
+                pre.className = 'data-preview';
+                pre.textContent = JSON.stringify(data, null, 2);
+                div.appendChild(pre);
+            }
+            
+            resultsDiv.appendChild(div);
+        }
+        
+        async function testAllData() {
+            addResult('🔄 Загрузка всех данных', 'loading', 'Загружаем все данные одним запросом...');
+            
+            try {
+                const start = performance.now();
+                const data = await window.windowsDBOptimizer.getAllData();
+                const time = Math.round(performance.now() - start);
+                
+                addResult('✅ Все данные загружены', 'success', 
+                    `Загружено за ${time}ms (сервер: ${data.load_time_ms}ms). ` +
+                    `Треков: ${data.tracks.length}, Альбомов: ${data.albums.length}, Артистов: ${data.artists.length}`,
+                    data
+                );
+                
+                // Показать статистику
+                document.getElementById('total-tracks').textContent = data.stats.total_tracks;
+                document.getElementById('total-albums').textContent = data.stats.total_albums;
+                document.getElementById('total-artists').textContent = data.stats.total_artists;
+                document.getElementById('load-time').textContent = data.load_time_ms;
+                statsDiv.style.display = 'grid';
+                
+                // Показать предварительный просмотр
+                previewContent.textContent = JSON.stringify(data, null, 2);
+                previewDiv.style.display = 'block';
+                
+            } catch (error) {
+                addResult('❌ Ошибка загрузки', 'error', error.message);
+            }
+        }
+        
+        async function testIndividual() {
+            addResult('🔄 Тест отдельных запросов', 'loading', 'Тестируем отдельные запросы...');
+            
+            const tests = [
+                { name: 'Треки', fn: () => window.windowsDBOptimizer.getTracks() },
+                { name: 'Альбомы', fn: () => window.windowsDBOptimizer.getAlbums() },
+                { name: 'Артисты', fn: () => window.windowsDBOptimizer.getArtists() },
+                { name: 'Пользователь', fn: () => window.windowsDBOptimizer.getUser() },
+                { name: 'Лайки', fn: () => window.windowsDBOptimizer.getLikes() },
+                { name: 'Плейлисты', fn: () => window.windowsDBOptimizer.getPlaylists() }
+            ];
+            
+            for (const test of tests) {
+                try {
+                    const start = performance.now();
+                    const data = await test.fn();
+                    const time = Math.round(performance.now() - start);
+                    
+                    addResult(`✅ ${test.name}`, 'success', 
+                        `Загружено за ${time}ms. Записей: ${Array.isArray(data) ? data.length : 'N/A'}`);
+                        
+                } catch (error) {
+                    addResult(`❌ ${test.name}`, 'error', error.message);
+                }
+            }
+        }
+        
+        async function runBenchmark() {
+            addResult('🏁 Бенчмарк', 'loading', 'Запускаем бенчмарк...');
+            
+            try {
+                const results = await window.windowsDBOptimizer.benchmark();
+                
+                let message = 'Результаты бенчмарка:\n';
+                results.forEach(result => {
+                    if (result.status === 'success') {
+                        message += `✅ ${result.name}: ${result.time}ms\n`;
+                    } else {
+                        message += `❌ ${result.name}: ${result.error}\n`;
+                    }
+                });
+                
+                addResult('📊 Бенчмарк завершен', 'success', message);
+                
+            } catch (error) {
+                addResult('❌ Ошибка бенчмарка', 'error', error.message);
+            }
+        }
+        
+        function clearCache() {
+            window.windowsDBOptimizer.clearCache();
+            addResult('🗑️ Кэш очищен', 'success', 'Кэш данных очищен');
+        }
+        
+        // Автоматически запустить тест при загрузке
+        window.addEventListener('load', () => {
+            setTimeout(testAllData, 1000);
+        });
+    </script>
+</body>
+</html>

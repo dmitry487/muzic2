@@ -13,6 +13,7 @@ if (!$artist) {
     exit;
 }
 
+// Получаем информацию об артисте и его треках
 $artistQuery = 'SELECT 
     artist,
     COUNT(*) as total_tracks,
@@ -32,6 +33,7 @@ if (!$artistInfo) {
     exit;
 }
 
+// Получаем топ-треки артиста (наиболее популярные)
 $topTracksQuery = 'SELECT 
     id, title, artist, album, duration, file_path, cover
 FROM tracks 
@@ -55,6 +57,7 @@ foreach ($topTracksStmt as $track) {
     ];
 }
 
+// Получаем альбомы артиста
 $albumsQuery = 'SELECT 
     album,
     album_type,
@@ -80,8 +83,10 @@ foreach ($albumsStmt as $album) {
     ];
 }
 
-$monthlyListeners = rand(100000, 10000000); 
+// Получаем все треки для подсчета прослушиваний (пока заглушка)
+$monthlyListeners = rand(100000, 10000000); // Временная заглушка
 
+// Исправляем пути к обложкам
 $cover = $artistInfo['cover'] ? '/muzic2/' . $artistInfo['cover'] : null;
 error_log("Original cover: " . $artistInfo['cover']);
 error_log("Fixed cover: " . $cover);
@@ -100,7 +105,7 @@ foreach ($albums as &$album) {
 
 $response = [
     'name' => $artistInfo['artist'],
-    'verified' => true, 
+    'verified' => true, // Пока всех делаем верифицированными
     'monthly_listeners' => $monthlyListeners,
     'cover' => $cover,
     'total_tracks' => (int)$artistInfo['total_tracks'],
@@ -112,4 +117,5 @@ $response = [
 
 echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 ?>
+
 

@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../config/db.php';
 
-$data = json_decode(file_get_contents('php:
+$data = json_decode(file_get_contents('php://input'), true);
 $email = trim($data['email'] ?? '');
 $username = trim($data['username'] ?? '');
 $password = $data['password'] ?? '';
@@ -34,17 +34,18 @@ if ($stmt->fetch()) {
 
 $hash = password_hash($password, PASSWORD_DEFAULT);
 
+// In schema, column is named `password`. Store hash into that column.
 $stmt = $db->prepare('INSERT INTO users (email, username, password) VALUES (?, ?, ?)');
 try {
     $stmt->execute([$email, $username, $hash]);
-    
+    // Create default empty playlist "Любимые треки" for the new user
     $newUserId = $db->lastInsertId();
     if ($newUserId) {
         try {
             $pl = $db->prepare('INSERT INTO playlists (user_id, name, is_public) VALUES (?, ?, 0)');
             $pl->execute([$newUserId, 'Любимые треки']);
         } catch (PDOException $e2) {
-            
+            // ignore creation failure silently
         }
     }
     echo json_encode(['success' => true]);

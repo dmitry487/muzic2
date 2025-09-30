@@ -75,6 +75,7 @@ body {
     box-sizing: border-box;
 }
 
+/* Mobile-first responsive header */
 @media (max-width: 768px) {
     #main-header {
         padding: 0.5rem 0.75rem;
@@ -239,6 +240,7 @@ body {
         min-width: 0;
     }
 }
+
 
 #player {
     display: flex;
@@ -583,6 +585,7 @@ body {
     font-weight: 700;
 }
 
+/* Responsive filters */
 @media (max-width: 768px) {
     .main-filters {
         margin: 1.5rem 0 1rem 0;
@@ -611,6 +614,7 @@ body {
     padding-bottom: 1vw;
 }
 
+/* Responsive main content */
 @media (max-width: 768px) {
     #main-content {
         padding: 1.5rem 1rem 1rem 1rem;
@@ -721,6 +725,7 @@ body {
     margin-bottom: 0.2vw;
 }
 
+/* Заголовки секций */
 .main-section h3 {
     font-size: 2rem;
     font-weight: 800;
@@ -730,6 +735,7 @@ body {
     margin-top: 2vw;
 }
 
+/* Responsive section headers */
 @media (max-width: 768px) {
     .main-section h3 {
         font-size: 1.5rem;
@@ -746,6 +752,7 @@ body {
     }
 }
 
+/* Placeholder для обложки */
 .card-cover[src=""], .card-cover:not([src]) {
     background: linear-gradient(135deg, #1db954 0%, #232323 100%);
     display: flex;
@@ -757,7 +764,7 @@ body {
 }
 
 @media (max-width: 900px) {
-    
+    /* Миксы и треки - 2 в ряд */
     #mixes-row.card-row,
     #tracks-row.card-row {
         display: grid;
@@ -798,7 +805,7 @@ body {
     }
 }
 @media (max-width: 600px) {
-    
+    /* Миксы и треки - 2 в ряд */
     #mixes-row.card-row,
     #tracks-row.card-row {
         display: grid;
@@ -840,7 +847,7 @@ body {
 }
 
 @media (max-width: 480px) {
-    
+    /* Миксы и треки - 2 в ряд */
     #mixes-row.card-row,
     #tracks-row.card-row {
         display: grid;
@@ -870,6 +877,7 @@ body {
     }
 }
 
+/* Квадратные плитки (альбомы, подборки, новинки) */
 .tile-row {
     display: flex;
     flex-direction: row;
@@ -950,7 +958,7 @@ body {
     overflow: visible;
     text-overflow: unset;
 }
-
+/* Кнопка play поверх плитки */
 .tile-play {
     position: absolute;
     right: 1.2vw;
@@ -974,6 +982,7 @@ body {
     transform: scale(1.08);
 }
 
+/* Артисты — круглый аватар + имя */
 .artist-row {
     display: flex;
     flex-direction: row;
@@ -1029,7 +1038,7 @@ body {
     text-overflow: ellipsis;
 }
 @media (max-width: 900px) {
-    
+    /* Миксы и треки - 2 в ряд */
     #mixes-row.tile-row,
     #tracks-row.tile-row {
         display: grid;
@@ -1038,7 +1047,8 @@ body {
         overflow-x: visible;
         padding-bottom: 0;
     }
-
+    
+    /* Альбомы - 3 в ряд */
     #albums-row.tile-row {
         display: grid;
         grid-template-columns: 1fr 1fr 1fr;
@@ -1084,7 +1094,7 @@ body {
     }
 }
 @media (max-width: 600px) {
-    
+    /* Миксы и треки - 2 в ряд */
     #mixes-row.tile-row,
     #tracks-row.tile-row {
         display: grid;
@@ -1093,7 +1103,8 @@ body {
         overflow-x: visible;
         padding-bottom: 0;
     }
-
+    
+    /* Альбомы - 3 в ряд */
     #albums-row.tile-row {
         display: grid;
         grid-template-columns: 1fr 1fr 1fr;
@@ -1140,7 +1151,7 @@ body {
 }
 
 @media (max-width: 480px) {
-    
+    /* Миксы и треки - 2 в ряд */
     #mixes-row.tile-row,
     #tracks-row.tile-row {
         display: grid;
@@ -1149,7 +1160,8 @@ body {
         overflow-x: visible;
         padding-bottom: 0;
     }
-
+    
+    /* Альбомы - 3 в ряд */
     #albums-row.tile-row {
         display: grid;
         grid-template-columns: 1fr 1fr 1fr;
@@ -1179,33 +1191,5 @@ body {
         bottom: 1vw;
         font-size: 0.8rem;
     }
-}
-
-.multi-row-container {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-}
-
-.multi-row-container .tile-row {
-    display: flex;
-    flex-direction: row;
-    gap: 2vw;
-    width: 100%;
-    overflow-x: auto;
-    padding-bottom: 0.5vw;
-    scrollbar-width: thin;
-    scrollbar-color: #232323 #181818;
-}
-
-.multi-row-container .artist-row {
-    display: flex;
-    flex-direction: row;
-    gap: 2vw;
-    width: 100%;
-    overflow-x: auto;
-    padding-bottom: 0.5vw;
-    scrollbar-width: thin;
-    scrollbar-color: #232323 #181818;
 }
 

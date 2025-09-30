@@ -1,4 +1,7 @@
 <?php
+// Minimal, idempotent DB setup helper for MAMP/CLI.
+// Usage (CLI): php scripts/setup_db.php
+// Usage (HTTP): /muzic2/scripts/setup_db.php (outputs JSON)
 
 declare(strict_types=1);
 
@@ -24,6 +27,7 @@ function file_contents_or_null(string $path): ?string {
 try {
     $db = get_db_connection();
 
+    // Detect if main tables exist (tracks is core for the app)
     $hasTracks = false;
     try {
         $db->query("SELECT 1 FROM tracks LIMIT 1");
@@ -32,6 +36,7 @@ try {
 
     $executed = [];
 
+    // Run schema if tracks table missing
     if (!$hasTracks) {
         $schemaCandidates = [
             __DIR__ . '/../db/schema.sql',
@@ -39,7 +44,7 @@ try {
         foreach ($schemaCandidates as $schemaPath) {
             $sql = file_contents_or_null($schemaPath);
             if ($sql) {
-                
+                // Split by ; at line end to avoid common pitfalls
                 $stmts = preg_split('/;\s*(\r?\n)+/u', $sql);
                 foreach ($stmts as $stmt) {
                     $stmt = trim($stmt);
@@ -47,15 +52,16 @@ try {
                     $db->exec($stmt);
                 }
                 $executed[] = basename($schemaPath);
-                break; 
+                break; // first found schema is enough
             }
         }
     }
 
+    // Ensure optional tables that code relies on (defensive)
     try { $db->exec("CREATE TABLE IF NOT EXISTS artists (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL UNIQUE, cover VARCHAR(255), bio TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"); } catch (Throwable $e) {}
     try { $db->exec("ALTER TABLE tracks ADD COLUMN video_url VARCHAR(500) NULL"); } catch (Throwable $e) {}
     try { $db->exec("ALTER TABLE tracks ADD COLUMN explicit TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
-    
+    // Featured artists mapping for tracks
     try {
         $db->exec("CREATE TABLE IF NOT EXISTS track_artists (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -66,7 +72,7 @@ try {
             UNIQUE KEY uniq_track_artist_role (track_id, artist, role)
         )");
     } catch (Throwable $e) {}
-    
+    // Featured artists mapping for entire albums (to propagate to new tracks)
     try {
         $db->exec("CREATE TABLE IF NOT EXISTS album_artists (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -78,6 +84,7 @@ try {
         )");
     } catch (Throwable $e) {}
 
+    // Seeds: optional, run only if tracks is empty
     $shouldSeed = false;
     try { $cnt = (int)$db->query("SELECT COUNT(*) FROM tracks")->fetchColumn(); $shouldSeed = ($cnt === 0); } catch (Throwable $e) {}
     if ($shouldSeed) {
@@ -95,11 +102,12 @@ try {
                     $db->exec($stmt);
                 }
                 $executed[] = basename($seedPath);
-                
+                // do not break: allow multiple seed files if both present
             }
         }
     }
 
+    // Final health check
     $health = [
         'tracks' => false,
         'artists' => false,
@@ -114,4 +122,5 @@ try {
 } catch (Throwable $e) {
     respond(false, ['error' => $e->getMessage()]);
 }
+
 

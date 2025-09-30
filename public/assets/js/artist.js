@@ -1,9 +1,10 @@
-
+// Artist page functionality with robust image path handling and fallbacks
 let currentArtist = null;
 let artistTracks = [];
 
+// Simple SVG placeholder for images (avoids missing asset files)
 const PLACEHOLDER_COVER = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
-<svg xmlns="http:
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300">
   <defs>
     <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
       <stop offset="0%" stop-color="#667eea"/>
@@ -17,15 +18,16 @@ const PLACEHOLDER_COVER = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
   </g>
 </svg>`);
 
+// Normalize/resolve cover path for usage from /public/* pages
 function resolveCoverPath(p) {
     if (!p || typeof p !== 'string' || p.trim() === '') return PLACEHOLDER_COVER;
     const s = p.trim();
-    if (s.startsWith('http:
-    
+    if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:')) return s;
+    // Absolute paths handling
     if (s.startsWith('/muzic2/')) return s;
     if (s.startsWith('/tracks/')) return '/muzic2' + s;
     if (s.startsWith('/')) return s;
-    
+    // Relative to project
     const idx = s.indexOf('tracks/');
     if (idx !== -1) return '/muzic2/' + s.slice(idx);
     if (s.startsWith('assets/')) return s;
@@ -39,12 +41,13 @@ function attachImgFallback(imgEl) {
     }, { once: true });
 }
 
+// Initialize artist page
 document.addEventListener('DOMContentLoaded', async function() {
     const urlParams = new URLSearchParams(window.location.search);
     const artistName = urlParams.get('artist');
     
     if (artistName) {
-        
+        // Update header auth state (hide login/register if authenticated)
         try {
             const res = await fetch('/muzic2/src/api/user.php', { credentials: 'include' });
             const data = await res.json();
@@ -57,13 +60,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }
             }
         } catch (e) {
-            
+            // ignore header update errors
         }
-        
+        // Preload images if it's Kai Angel
         if (artistName.toLowerCase().includes('kai angel')) {
             preloadKaiAngelImages();
         }
-        
+        // Load liked tracks set for current user
         try {
             const resp = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
             const json = await resp.json();
@@ -72,11 +75,12 @@ document.addEventListener('DOMContentLoaded', async function() {
 
         loadArtistData(artistName);
     } else {
-        
+        // Redirect to home if no artist specified
         window.location.href = 'index.php';
     }
 });
 
+// Load artist data from API
 async function loadArtistData(artistName) {
     try {
         const response = await fetch(`src/api/artist.php?artist=${encodeURIComponent(artistName)}`);
@@ -103,25 +107,27 @@ async function loadArtistData(artistName) {
     }
 }
 
+// Render artist page
 function renderArtistPage(artist) {
-    
+    // Set artist avatar with better image handling
     const avatar = document.getElementById('artist-avatar');
     if (avatar) {
         const rc = resolveCoverPath(artist.cover);
         avatar.src = rc.startsWith('data:') ? rc : encodeURI(rc);
         avatar.alt = artist.name || 'Artist';
         attachImgFallback(avatar);
-
+        
+        // Add loading animation
         avatar.style.opacity = '0';
         avatar.onload = () => {
             avatar.style.transition = 'opacity 0.3s ease';
             avatar.style.opacity = '1';
         };
     }
-    
+    // Set hero background to artist cover (full-width block behind name)
     const hero = document.querySelector('.artist-hero');
     if (hero) {
-        
+        // Build absolute URL under /muzic2 to be CSS-safe
         const raw = artist.cover || '';
         let abs = '';
         if (raw.startsWith('http') || raw.startsWith('data:')) {
@@ -138,33 +144,40 @@ function renderArtistPage(artist) {
         }
         hero.style.setProperty('--artist-bg', `url('${encodeURI(abs)}')`);
     }
-
+    
+    // Set artist name with better text handling
     const nameElement = document.getElementById('artist-name');
     if (nameElement) {
         nameElement.textContent = artist.name || '';
-        
+        // Add class for specific styling
         if (artist.name && artist.name.toLowerCase().includes('kai angel')) {
             nameElement.parentElement.parentElement.classList.add('kai-angel');
         }
     }
-
+    
+    // Set monthly listeners
     const listenersElement = document.getElementById('artist-listeners');
     if (listenersElement) {
-        
+        // Hide monthly listeners per requirements
         listenersElement.textContent = '';
         listenersElement.style.display = 'none';
     }
-
+    
+    // Render popular tracks
     console.log('Rendering popular tracks:', artist.top_tracks);
     renderPopularTracks(artist.top_tracks || []);
-
+    
+    // Render albums
     renderAlbums(artist.albums || []);
 
+    // Render videos
     renderVideos(artist.name || '');
-
+    
+    // Set up event listeners
     setupEventListeners();
 }
 
+// Render popular tracks
 function renderPopularTracks(tracks) {
     const container = document.getElementById('popular-tracks');
     if (!container) return;
@@ -177,6 +190,7 @@ function renderPopularTracks(tracks) {
     });
 }
 
+// Create track element
 function createTrackElement(track, number) {
     console.log('createTrackElement called with track:', track);
     console.log('Track file_path:', track.file_path);
@@ -185,12 +199,15 @@ function createTrackElement(track, number) {
     const trackDiv = document.createElement('div');
     trackDiv.className = 'track-item-numbered';
     trackDiv.dataset.trackId = track.id;
-
+    
+    // Format duration
     const duration = formatDuration(track.duration);
-
+    
+    // Generate realistic play count based on track position
     const basePlays = 1000000 - (number * 100000);
     const playCount = formatNumber(Math.max(basePlays, 100000));
-
+    
+    // Use better cover images for Kai Angel tracks
     const resolvedCover = resolveCoverPath(track.cover);
     const finalCover = resolvedCover.startsWith('data:') ? resolvedCover : encodeURI(resolvedCover);
     
@@ -212,16 +229,19 @@ function createTrackElement(track, number) {
             <i class="fas fa-ellipsis-h"></i>
         </button>
     `;
-
+    
+    // Fallback for image
     const img = trackDiv.querySelector('img.track-cover-small');
     attachImgFallback(img);
-
+    
+    // Add click event to play track
     trackDiv.addEventListener('click', async (e) => {
         if (!e.target.closest('.track-like-btn') && !e.target.closest('.track-more-btn')) {
         await artistPlayTrack(track);
         }
     });
-
+    
+    // Init like button state and functionality
     const likeBtn = trackDiv.querySelector('.track-like-btn');
     const icon = likeBtn.querySelector('i');
     const isLiked = window.__likedSet && window.__likedSet.has(track.id);
@@ -245,6 +265,7 @@ function createTrackElement(track, number) {
     return trackDiv;
 }
 
+// Render albums
 function renderAlbums(albums) {
     const container = document.getElementById('albums-list');
     if (!container) return;
@@ -257,16 +278,18 @@ function renderAlbums(albums) {
     });
 }
 
+// Create album element
 function createAlbumElement(album) {
     const albumDiv = document.createElement('div');
     albumDiv.className = 'album-card';
     albumDiv.dataset.albumTitle = album.title;
-
+    
+    // Format album type
     const albumType = album.type === 'album' ? 'Альбом' : 
                      album.type === 'ep' ? 'EP' : 'Сингл';
 
     (function(){
-        
+        // ensure album cover is encoded
     })();
     const _rcAlbum = resolveCoverPath(album.cover);
     const finalCover = _rcAlbum.startsWith('data:') ? _rcAlbum : encodeURI(_rcAlbum);
@@ -282,13 +305,15 @@ function createAlbumElement(album) {
 
     const img = albumDiv.querySelector('img.album-cover');
     attachImgFallback(img);
-
+    
+    // Add click event to open album
     albumDiv.addEventListener('click', (e) => {
         if (!e.target.closest('.album-play-btn')) {
             openAlbum(album.title);
         }
     });
-
+    
+    // Add play button functionality
     const playBtn = albumDiv.querySelector('.album-play-btn');
     playBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -298,6 +323,7 @@ function createAlbumElement(album) {
     return albumDiv;
 }
 
+// Render videos
 async function renderVideos(artistName) {
     const container = document.getElementById('videos-list');
     if (!container) return;
@@ -342,8 +368,9 @@ async function renderVideos(artistName) {
     }
 }
 
+// Setup event listeners
 function setupEventListeners() {
-    
+    // Play all button
     const playAllBtn = document.getElementById('play-all-btn');
     if (playAllBtn) {
         playAllBtn.addEventListener('click', async () => {
@@ -352,7 +379,8 @@ function setupEventListeners() {
             }
         });
     }
-
+    
+    // Shuffle button
     const shuffleBtn = document.getElementById('shuffle-btn');
     if (shuffleBtn) {
         shuffleBtn.addEventListener('click', async () => {
@@ -362,21 +390,25 @@ function setupEventListeners() {
             }
         });
     }
-
+    
+    // Follow button
     const followBtn = document.getElementById('follow-btn');
     if (followBtn) {
         followBtn.addEventListener('click', toggleFollow);
     }
-
+    
+    // Show more tracks button
     const showMoreBtn = document.getElementById('show-more-tracks');
     if (showMoreBtn) {
         showMoreBtn.addEventListener('click', showMoreTracks);
     }
 }
 
+// Play track function
 async function artistPlayTrack(track) {
     if (!track) return;
-
+    
+    // Update player with track info
     const trackTitle = document.getElementById('track-title');
     const trackArtist = document.getElementById('track-artist');
     const currentCover = document.getElementById('cover') || document.getElementById('current-cover');
@@ -392,13 +424,16 @@ async function artistPlayTrack(track) {
         currentCover.src = rc.startsWith('data:') ? rc : encodeURI(rc);
         attachImgFallback(currentCover);
     }
-
+    
+    // Build absolute src for audio
     console.log('artistPlayTrack called with track:', track);
     console.log('track.src:', track.src);
     console.log('track.file_path:', track.file_path);
-
+    
+    // КАРДИНАЛЬНО НОВЫЙ ПОДХОД: НЕ используем track вообще, создаем src с нуля
     let src = '';
-
+    
+    // Создаем src на основе file_path
     if (track.file_path) {
         if (track.file_path.startsWith('/muzic2/')) {
             src = track.file_path;
@@ -411,7 +446,8 @@ async function artistPlayTrack(track) {
     }
     
     console.log('Created src from scratch:', src);
-
+    
+    // КРИТИЧЕСКАЯ ПРОВЕРКА: если src все еще содержит URL страницы, используем только file_path
     if (src && src.includes('artist.html')) {
         console.log('CRITICAL: src still contains URL page, using only file_path');
         src = track.file_path || '';
@@ -420,7 +456,7 @@ async function artistPlayTrack(track) {
     if (src) {
         if (!/^https?:|^data:/i.test(src)) {
             if (src.startsWith('/muzic2/')) {
-                
+                // keep as is
             } else if (src.startsWith('/tracks/')) {
                 src = '/muzic2' + src;
             } else {
@@ -430,11 +466,12 @@ async function artistPlayTrack(track) {
         }
         if (!/^data:/i.test(src)) src = encodeURI(src);
     }
-    
+    // Use global player
     if (window.playTrack) {
         console.log('Setting up artist queue with', artistTracks.length, 'tracks');
         console.log('artistTracks:', artistTracks);
-
+        
+        // Если треки артиста не загружены, загружаем их
         if (artistTracks.length === 0) {
             console.log('No artist tracks loaded, loading artist data...');
             const urlParams = new URLSearchParams(window.location.search);
@@ -446,14 +483,16 @@ async function artistPlayTrack(track) {
                 return;
             }
         }
-
+        
+        // Проверяем что треки загрузились
         if (artistTracks.length === 0) {
             console.error('Still no tracks after loading artist data');
             return;
         }
         
         console.log('Creating queue with', artistTracks.length, 'tracks');
-
+        
+        // Создаем очередь из всех треков артиста
         const artistQueue = artistTracks.map(t => {
             let trackSrc = t.file_path || '';
             console.log('Original track file_path:', t.file_path);
@@ -461,7 +500,7 @@ async function artistPlayTrack(track) {
             
             if (trackSrc && !trackSrc.startsWith('http') && !trackSrc.startsWith('data:')) {
                 if (trackSrc.startsWith('/muzic2/')) {
-                    
+                    // keep as is
                 } else if (trackSrc.startsWith('/tracks/')) {
                     trackSrc = '/muzic2' + trackSrc;
                 } else {
@@ -485,30 +524,34 @@ async function artistPlayTrack(track) {
             console.log('Created track object:', trackObj);
             return trackObj;
         });
-
+        
+        // Находим индекс текущего трека в очереди
         const currentIndex = artistQueue.findIndex(t => t.title === track.title);
         console.log('Current track index in queue:', currentIndex);
-
+        
+        // Устанавливаем очередь
         if (window.setQueue && typeof window.setQueue === 'function') {
             window.setQueue(artistQueue, currentIndex >= 0 ? currentIndex : 0);
         } else {
             console.log('setQueue function not available');
         }
-
+        
+        // Воспроизводим текущий трек
+        // Устанавливаем очередь и воспроизводим трек напрямую
         if (window.setQueue && typeof window.setQueue === 'function') {
             window.setQueue(artistQueue, currentIndex >= 0 ? currentIndex : 0);
-            
+            // Воспроизводим трек напрямую через playFromQueue, не через playTrack
             if (window.playFromQueue && typeof window.playFromQueue === 'function') {
                 window.playFromQueue(currentIndex >= 0 ? currentIndex : 0);
             } else {
-                
+                // Fallback: используем playTrack с параметром queue
                 window.playTrack({
                     queue: artistQueue,
                     queueStartIndex: currentIndex >= 0 ? currentIndex : 0
                 });
             }
         } else {
-            
+            // Fallback: используем обычный playTrack
             window.playTrack({
                 src,
                 title: track.title || '',
@@ -525,14 +568,17 @@ async function artistPlayTrack(track) {
     console.log('Playing track:', track.title);
 }
 
+// Play album function
 function playAlbum(albumTitle) {
     window.location.href = `album.html?album=${encodeURIComponent(albumTitle)}`;
 }
 
+// Open album function
 function openAlbum(albumTitle) {
     window.location.href = `album.html?album=${encodeURIComponent(albumTitle)}`;
 }
 
+// Toggle like function
 function toggleLike(likeBtn) {
     const icon = likeBtn.querySelector('i');
     if (icon.classList.contains('far')) {
@@ -546,6 +592,7 @@ function toggleLike(likeBtn) {
     }
 }
 
+// Toggle follow function
 function toggleFollow() {
     const followBtn = document.getElementById('follow-btn');
     if (followBtn.textContent.trim() === 'Уже подписаны') {
@@ -559,11 +606,13 @@ function toggleFollow() {
     }
 }
 
+// Show more tracks function
 function showMoreTracks() {
-    
+    // In a real app, this would load more tracks from the API
     alert('Функция "Показать больше треков" будет реализована в будущих версиях');
 }
 
+// Utility functions
 function formatDuration(seconds) {
     if (!seconds) return '0:00';
     const minutes = Math.floor(seconds / 60);
@@ -571,6 +620,7 @@ function formatDuration(seconds) {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 }
 
+// Image loading optimization
 function preloadImage(src) {
     return new Promise((resolve, reject) => {
         const img = new Image();
@@ -580,6 +630,7 @@ function preloadImage(src) {
     });
 }
 
+// Preload Kai Angel images for better performance
 async function preloadKaiAngelImages() {
     const images = [
         'tracks/covers/Снимок экрана 2025-07-19 в 11.56.58.png',
