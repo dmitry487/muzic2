@@ -116,10 +116,23 @@ if (mainContent && navHome && navSearch && navLibrary) {
 		
 		if (currentUser) {
 			panel.innerHTML = `
-				<div class="user-info">
-					<span class="username">${escapeHtml(currentUser.username || '')}</span>
+				<div class="user-menu">
+					<button id="user-menu-btn" class="btn">${escapeHtml(currentUser.username || '')}</button>
+					<div id="user-menu-popover" class="popover" style="display:none; position:absolute; right:12px; top:52px; background:#1a1a1a; border:1px solid #333; border-radius:12px; padding:12px; min-width:240px; z-index:1000; box-shadow:0 8px 24px rgba(0,0,0,.4)">
+						<div style="padding:8px 4px; color:#b3b3b3">${escapeHtml(currentUser.username || '')}</div>
+						<hr style="border:0;border-top:1px solid #2a2a2a; margin:8px 0">
+						<button id="logout-btn" class="btn" style="width:100%; background:#2a2f34; color:#fff; border:0; padding:.6rem 1rem; border-radius:8px; cursor:pointer;">Выйти</button>
+					</div>
 				</div>
 			`;
+			const btn = document.getElementById('user-menu-btn');
+			const pop = document.getElementById('user-menu-popover');
+			if (btn && pop) {
+				btn.onclick = (e) => { e.stopPropagation(); pop.style.display = pop.style.display==='none'?'block':'none'; };
+				document.addEventListener('click', (e)=>{ if(pop.style.display==='block' && !e.target.closest('#user-menu-popover') && e.target!==btn){ pop.style.display='none'; } });
+				const logoutBtn = document.getElementById('logout-btn');
+				if (logoutBtn){ logoutBtn.onclick = async ()=>{ try{ await fetch('/muzic2/src/api/logout.php',{ method:'POST', credentials:'include' }); location.reload(); }catch(_){ location.reload(); } } }
+			}
 		} else {
 			panel.innerHTML = `
 				<div class="auth-buttons">
@@ -127,17 +140,26 @@ if (mainContent && navHome && navSearch && navLibrary) {
 					<button id="header-register" class="btn">Регистрация</button>
 				</div>
 			`;
+			// Robust modal opening for header buttons
 			attachAuthModalTriggers();
 			const headerLogin = document.getElementById('header-login');
 			const headerRegister = document.getElementById('header-register');
-			if (headerLogin) headerLogin.onclick = () => {
-				const open = id => { document.querySelector('#auth-modals .modal-overlay').style.display='block'; document.getElementById(id).style.display='block'; };
-				open('login-modal');
+			const openModal = (id) => {
+				try {
+					ensureAuthModals();
+					const o = document.querySelector('#auth-modals .modal-overlay');
+					const c = document.querySelector('#auth-modals .modal-center');
+					if (!o || !c) return;
+					o.style.display='block';
+					c.style.display='flex';
+					document.querySelectorAll('#auth-modals .modal').forEach(m=>m.style.display='none');
+					const box = document.getElementById(id);
+					if (box) box.style.display='block';
+					setTimeout(()=>{ const first = document.querySelector(`#${id} input`); if(first) first.focus(); }, 0);
+				} catch(e) {}
 			};
-			if (headerRegister) headerRegister.onclick = () => {
-				const open = id => { document.querySelector('#auth-modals .modal-overlay').style.display='block'; document.getElementById(id).style.display='block'; };
-				open('register-modal');
-			};
+			if (headerLogin) headerLogin.onclick = () => openModal('login-modal');
+			if (headerRegister) headerRegister.onclick = () => openModal('register-modal');
 		}
 	}
 
@@ -220,10 +242,6 @@ if (mainContent && navHome && navSearch && navLibrary) {
 					<button class="filter-btn">Музыка</button>
 					<button class="filter-btn">Артисты</button>
 				</section>
-				<section class="main-section" id="favorites-section">
-					<h3>Любимые треки</h3>
-					<div class="card-row" id="favorites-row"></div>
-				</section>
 				<section class="main-section" id="mixes-section">
 					<h3>Миксы дня</h3>
 					<div class="card-row" id="mixes-row"></div>
@@ -241,7 +259,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 					<div class="card-row" id="artists-row"></div>
 				</section>
 			`;
-			renderCards('favorites-row', data.favorites, 'track');
+			// Favorites удалены с главной: открываем их в разделе "Моя музыка"
 			renderCards('mixes-row', data.mixes, 'track');
 			renderCards('albums-row', data.albums, 'album');
 			renderCards('tracks-row', data.tracks, 'track');
@@ -437,19 +455,17 @@ if (mainContent && navHome && navSearch && navLibrary) {
 
 			document.getElementById('create-playlist').onclick = () => openCreatePlaylistDialog();
 
-			// Use event delegation for playlist clicks
-			document.addEventListener('click', (e) => {
-				if (e.target.closest('.playlist-tile')) {
-					const tile = e.target.closest('.playlist-tile');
+			// Robust click binding for playlist tiles (no reliance on global delegation)
+			const tiles = document.querySelectorAll('#playlists-row .playlist-tile');
+			tiles.forEach(tile => {
+				tile.onclick = (e)=>{
+					e.preventDefault(); e.stopPropagation();
 					const playlistId = tile.dataset.playlistId;
 					const playlistName = tile.dataset.playlistName;
-					if (playlistId && playlistName) {
-						e.preventDefault();
-						e.stopPropagation();
-						openPlaylist(playlistId, playlistName);
-					}
-				}
+					if (playlistId && playlistName) { openPlaylist(playlistId, playlistName); }
+				};
 			});
+			// Do not auto-open any playlist; open only on explicit user click
 		} catch (e) {
 			mainContent.innerHTML = '<div class="error">Ошибка загрузки</div>';
 		}
@@ -518,55 +534,95 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	function playlistTile(pl) {
 		// Use special cover for "Любимые треки" playlist, otherwise use placeholder
 		const cover = pl.cover ? `/muzic2/${pl.cover}` : '/muzic2/public/assets/img/playlist-placeholder.png';
+		const safeName = escapeHtml(pl.name);
 		return `
-			<div class="tile playlist-tile" id="pl-${pl.id}" data-playlist-id="${pl.id}" data-playlist-name="${escapeHtml(pl.name)}" style="cursor: pointer;">
+			<div class="tile playlist-tile" id="pl-${pl.id}" data-playlist-id="${pl.id}" data-playlist-name="${safeName}" data-cover="${cover}" style="cursor: pointer;" onclick="window.openPlaylistProxy && window.openPlaylistProxy('${pl.id}','${safeName.replace(/'/g,"\'")}','${cover}')">
 				<img class="tile-cover" src="${cover}" alt="cover">
-				<div class="tile-title">${escapeHtml(pl.name)}</div>
+				<div class="tile-title">${safeName}</div>
 				<div class="tile-desc">Плейлист</div>
 				<div class="tile-play">&#9654;</div>
 			</div>
 		`;
 	}
 
-	async function openPlaylist(playlistId, playlistName) {
-		const view = document.getElementById('playlist-view');
-		if (!view) return;
-		
-		view.innerHTML = '<div class="loading">Загрузка плейлиста...</div>';
-		try {
-			const res = await fetch(`/muzic2/src/api/playlists.php?playlist_id=${playlistId}`, { credentials: 'include' });
-			const data = await res.json();
-			const tracks = data.tracks || [];
-			view.innerHTML = `
-				<section class="playlist-section">
-					<div class="playlist-header">
-						<h3>${escapeHtml(playlistName)}</h3>
-						<div class="playlist-actions">
-							<button class="btn" id="rename-pl">Переименовать</button>
-							<button class="btn danger" id="delete-pl">Удалить</button>
-						</div>
-					</div>
-					<div class="card-row">
-						${tracks.map(t => createTrackCard(t)).join('') || '<div class="empty">Нет треков</div>'}
-					</div>
-				</section>
-			`;
+    async function openPlaylist(playlistId, playlistName, coverOverride) {
+        // Render playlist as album-like page (full-page), even if empty
+        try {
+            const res = await fetch(`/muzic2/src/api/playlists.php?playlist_id=${playlistId}`, { credentials: 'include' });
+            const data = await res.json();
+            const tracks = Array.isArray(data.tracks) ? data.tracks : [];
+            // Determine cover: prefer cover passed from tile, else special for favorites or first track
+            let cover = coverOverride || '';
+            if (!cover) {
+                const isFavorites = (String(playlistName||'').trim().toLowerCase() === 'любимые треки');
+                cover = isFavorites ? '/muzic2/public/assets/img/playlist-placeholder.png' : ('/muzic2/' + ((tracks[0] && tracks[0].cover) || 'tracks/covers/placeholder.jpg'));
+            }
+            const finalCover = encodeURI(cover);
+            const totalDuration = tracks.reduce((s,t)=> s + (parseInt(t.duration)||0), 0);
+            const minutes = Math.floor(totalDuration/60); const seconds = totalDuration%60;
+            // Build page
+            const albumStyles = `
+            <style>
+            .album-header{display:flex;align-items:flex-end;gap:2.5rem;margin-top:2.5rem;margin-bottom:2.5rem}
+            .album-cover{width:220px;height:220px;border-radius:18px;object-fit:cover;box-shadow:0 8px 32px rgba(30,185,84,0.18);background:#181818}
+            .album-meta{display:flex;flex-direction:column;gap:1.2rem}
+            .album-title{font-size:3.2rem;font-weight:900;color:#fff;margin-bottom:0.5rem}
+            .album-artist{font-size:1.3rem;color:#b3b3b3;font-weight:600}
+            .tracks-table{width:100%;border-collapse:collapse;margin-bottom:2rem}
+            .tracks-table th,.tracks-table td{padding:0.7rem 1rem;text-align:left;color:#fff;font-size:1.08rem}
+            .tracks-table th{color:#b3b3b3;font-weight:600;font-size:1.02rem;border-bottom:1px solid #232323}
+            .tracks-table tr{transition:background 0.15s;cursor:pointer;position:relative}
+            .tracks-table tr:hover{background:#232323}
+            .track-num{color:#b3b3b3;width:2.5rem;font-size:1.02rem}
+            .track-title .track-artist{color:#b3b3b3;font-size:1.01rem;font-weight:400;margin-top:0.2rem}
+            .track-duration{color:#b3b3b3;font-size:1.01rem;text-align:center;width:4.5rem;vertical-align:middle}
+            .exp-badge{display:inline-block;width:16px;height:16px;line-height:16px;text-align:center;margin:0 6px 0 0;border:0;border-radius:3px;font-size:10px;font-weight:800;color:#2b2b2b;background:#cfcfcf;vertical-align:middle}
+            </style>`;
+            mainContent.innerHTML = albumStyles + `
+                <div class="album-header">
+                    <img class="album-cover" loading="lazy" src="${finalCover}" alt="cover" onerror="this.onerror=null;this.src='/muzic2/tracks/covers/m1000x1000.jpeg';">
+                    <div class="album-meta">
+                        <div class="album-title">${escapeHtml(playlistName)}</div>
+                        <div class="album-artist">Плейлист • ${tracks.length} треков • ${minutes}:${String(seconds).padStart(2,'0')}</div>
+                    </div>
+                </div>
+                <table class="tracks-table">
+                    <thead><tr><th>#</th><th>Название</th><th>⏱</th></tr></thead>
+                    <tbody id="tracks-tbody"></tbody>
+                </table>
+            `;
+            const tbody = document.getElementById('tracks-tbody');
+            if (!tracks.length) {
+                const tr=document.createElement('tr'); tr.innerHTML = `<td class="track-num">—</td><td class="track-title"><div class="track-artist">Пока нет треков. Лайкайте треки сердечком — они появятся здесь.</div></td><td class="track-duration">0:00</td>`; tbody.appendChild(tr);
+            } else {
+                tracks.forEach((t,i)=>{
+                    const tr=document.createElement('tr');
+                    const d = parseInt(t.duration)||0; const mm=Math.floor(d/60); const ss=d%60;
+                    tr.innerHTML = `
+                        <td class="track-num">${i+1}</td>
+                        <td class="track-title">${t.explicit?'<span class="exp-badge">E</span>':''}${escapeHtml(t.title||'')}<div class="track-artist">${escapeHtml((t.feats && String(t.feats).trim()) ? `${t.artist||''}, ${t.feats}` : (t.artist||''))}</div></td>
+                        <td class="track-duration">${mm}:${String(ss).padStart(2,'0')}</td>`;
+                    tr.onclick = ()=>{
+                        const q = tracks.map(tt=>({
+                            src: (/^https?:/i.test(tt.src||'')) ? tt.src : ('/muzic2/' + ((tt.src||'').indexOf('tracks/')!==-1 ? (tt.src||'').slice((tt.src||'').indexOf('tracks/')) : (tt.src||'').replace(/^\/+/, ''))),
+                            title: tt.title,
+                            artist: (tt.feats && String(tt.feats).trim()) ? `${tt.artist||''}, ${tt.feats}` : (tt.artist||''),
+                            feats: tt.feats||'',
+                            cover: '/muzic2/' + (tt.cover || 'tracks/covers/placeholder.jpg'),
+                            video_url: tt.video_url || ''
+                        }));
+                        window.playTrack && window.playTrack({ queue:q, queueStartIndex:i });
+                    };
+                    tbody.appendChild(tr);
+                });
+            }
+        } catch (e) {
+            mainContent.innerHTML = '<div class="error">Ошибка загрузки плейлиста</div>';
+        }
+    }
 
-			document.getElementById('rename-pl').onclick = async () => {
-				const name = prompt('Новое название', playlistName);
-				if (!name) return;
-				await fetch('/muzic2/src/api/playlists.php/rename', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ playlist_id: playlistId, name }) });
-				renderMyMusic();
-			};
-			document.getElementById('delete-pl').onclick = async () => {
-				if (!confirm('Удалить плейлист?')) return;
-				await fetch('/muzic2/src/api/playlists.php/delete', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ playlist_id: playlistId }) });
-				renderMyMusic();
-			};
-		} catch (e) {
-			view.innerHTML = '<div class="error">Ошибка загрузки плейлиста</div>';
-		}
-	}
+	// Expose safe proxy for inline onclick
+	window.openPlaylistProxy = function(pid, pname, cover){ try{ openPlaylist(pid, pname, cover); }catch(_){} };
 
 	async function openCreatePlaylistDialog() {
 		const name = prompt('Название плейлиста');

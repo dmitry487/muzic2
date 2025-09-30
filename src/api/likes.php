@@ -17,8 +17,8 @@ if (!$user_id) {
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
-    // list liked tracks with track info
-    $stmt = $db->prepare('SELECT t.* FROM likes l JOIN tracks t ON l.track_id = t.id WHERE l.user_id = ? ORDER BY l.created_at DESC');
+    // list liked tracks with track info + feats
+    $stmt = $db->prepare('SELECT t.*, (SELECT GROUP_CONCAT(ta.artist ORDER BY ta.artist SEPARATOR ", ") FROM track_artists ta WHERE ta.track_id=t.id AND ta.role="featured") AS feats FROM likes l JOIN tracks t ON l.track_id = t.id WHERE l.user_id = ? ORDER BY l.created_at DESC');
     $stmt->execute([$user_id]);
     $tracks = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
