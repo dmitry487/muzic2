@@ -156,6 +156,7 @@
   const pauseIcon = playerContainer.querySelector('#pause-icon');
   const prevBtn = playerContainer.querySelector('#prev-btn');
   const nextBtn = playerContainer.querySelector('#next-btn');
+  
   const shuffleBtn = playerContainer.querySelector('#shuffle-btn');
   const repeatBtn = playerContainer.querySelector('#repeat-btn');
   const seekBar = playerContainer.querySelector('#seek-bar');
@@ -889,6 +890,52 @@
     }
   }
 
+  // Navigation functions
+  async function playNext(auto = false) {
+    if (!trackQueue.length) return;
+    if (repeatMode === 'one' && auto) {
+      playFromQueue(queueIndex);
+      return;
+    }
+    
+    if (queueIndex + 1 < trackQueue.length) {
+      playFromQueue(queueIndex + 1);
+    } else if (repeatMode === 'all') {
+      playFromQueue(0);
+    } else {
+      if (autoplayEnabled) {
+        try {
+          const randomTracks = await loadRandomTracks(20);
+          if (randomTracks.length > 0) {
+            trackQueue = randomTracks;
+            originalQueue = randomTracks.slice();
+            queueIndex = 0;
+            saveQueue();
+            playFromQueue(0);
+          }
+        } catch (error) {
+          console.error('Failed to load random tracks:', error);
+        }
+      }
+    }
+  }
+
+  function playPrev() {
+    if (!trackQueue.length) return;
+    if (audio.currentTime > 3) {
+      audio.currentTime = 0;
+      return;
+    }
+    
+    if (queueIndex > 0) {
+      playFromQueue(queueIndex - 1);
+    } else if (repeatMode === 'all') {
+      playFromQueue(trackQueue.length - 1);
+    } else {
+      audio.currentTime = 0;
+    }
+  }
+
   // Events
   playBtn.onclick = () => {
     // If popup is active or can be opened via this gesture, control it
@@ -1140,10 +1187,8 @@
     updateRepeatUI();
     savePlayerState();
   };
-  nextBtn.onclick = () => {
-    console.log('Next button clicked manually');
-    playNext(false);
-  };
+  nextBtn.onclick = () => playNext(false);
+  
   prevBtn.onclick = () => playPrev();
 
   queueBtn.onclick = () => toggleQueuePanel();
@@ -1680,6 +1725,112 @@
   if (popupActive && popupWin) {
     postToPopup({ cmd: 'play' }, { retries: 3, delay: 150 });
   }
+
+  // F7 and F9 keys handler for Mac
+  document.addEventListener('keydown', (e) => {
+    // Try multiple approaches for Mac F-keys
+    const isF7 = e.keyCode === 118 || e.code === 'F7' || e.key === 'F7';
+    const isF9 = e.keyCode === 120 || e.code === 'F9' || e.key === 'F9';
+    
+    if (isF7 || isF9) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      
+      if (isF7) {
+        console.log('F7 pressed - Previous track');
+        playPrev();
+      } else if (isF9) {
+        console.log('F9 pressed - Next track');
+        playNext(false);
+      }
+      return false;
+    }
+  }, true); // Use capture phase
+  
+  // Alternative: Try with modifier keys (Mac specific)
+  document.addEventListener('keydown', (e) => {
+    // On Mac, F-keys might need modifier keys
+    if ((e.keyCode === 118 || e.keyCode === 120) && (e.altKey || e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      
+      if (e.keyCode === 118) { // Modifier+F7
+        console.log('Modifier+F7 pressed - Previous track');
+        playPrev();
+      } else if (e.keyCode === 120) { // Modifier+F9
+        console.log('Modifier+F9 pressed - Next track');
+        playNext(false);
+      }
+      return false;
+    }
+  }, true);
+  
+  // Debug: Log all key events to see what's happening
+  document.addEventListener('keydown', (e) => {
+    if (e.keyCode >= 112 && e.keyCode <= 123) { // F1-F12 range
+      console.log('F-key detected:', {
+        keyCode: e.keyCode,
+        key: e.key,
+        code: e.code,
+        altKey: e.altKey,
+        metaKey: e.metaKey,
+        ctrlKey: e.ctrlKey,
+        shiftKey: e.shiftKey
+      });
+    }
+  });
+  
+  // Show instructions for Mac users
+  console.log('🎵 Для работы F7/F9 на Mac:');
+  console.log('1. System Preferences → Keyboard → Shortcuts');
+  console.log('2. Отключите системные сочетания для F7/F9');
+  console.log('3. Или включите "Use F1, F2, etc. keys as standard function keys"');
+  console.log('4. Или используйте Fn+F7/F9');
+  
+  // Try to detect if F-keys work without Fn
+  let fnRequired = false;
+  let testAttempts = 0;
+  
+  const testFKeys = () => {
+    testAttempts++;
+    if (testAttempts > 3) {
+      if (fnRequired) {
+        console.log('⚠️ F7/F9 требуют нажатия Fn. Настройте Mac для работы без Fn:');
+        console.log('System Preferences → Keyboard → "Use F1, F2, etc. keys as standard function keys"');
+      }
+      return;
+    }
+    
+    // Show test message
+    console.log(`🧪 Тест ${testAttempts}: Нажмите F7 или F9 (без Fn) для проверки...`);
+    
+    const testHandler = (e) => {
+      if (e.keyCode === 118 || e.keyCode === 120) {
+        if (!e.altKey && !e.metaKey && !e.ctrlKey) {
+          console.log('✅ F-клавиши работают без Fn!');
+          fnRequired = false;
+        } else {
+          console.log('⚠️ F-клавиши требуют модификаторы');
+          fnRequired = true;
+        }
+        document.removeEventListener('keydown', testHandler);
+        setTimeout(testFKeys, 2000);
+      }
+    };
+    
+    document.addEventListener('keydown', testHandler);
+    setTimeout(() => {
+      document.removeEventListener('keydown', testHandler);
+      if (testAttempts <= 3) {
+        setTimeout(testFKeys, 2000);
+      }
+    }, 3000);
+  };
+  
+  // Start test after 2 seconds
+  setTimeout(testFKeys, 2000);
 
   // Media keys support
   document.addEventListener('keydown', (e) => {

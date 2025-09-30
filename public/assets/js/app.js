@@ -344,71 +344,15 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			if (type === 'tracks') {
 				renderCards(containerId, data.tracks || [], 'track');
 			} else if (type === 'albums') {
-				renderCardsInRows(containerId, data.albums || [], 'album', 6);
+				renderCards(containerId, data.albums || [], 'album');
 			} else if (type === 'artists') {
-				renderCardsInRows(containerId, data.artists || [], 'artist', 8);
+				renderCards(containerId, data.artists || [], 'artist');
 			}
 		} catch (error) {
 			console.error('Error loading music content:', error);
 		}
 	}
 	
-	function renderCardsInRows(containerId, items, type, itemsPerRow) {
-		const container = document.getElementById(containerId);
-		if (!container) return;
-
-		container.innerHTML = '';
-
-		const wrapper = document.createElement('div');
-		wrapper.className = 'multi-row-container';
-
-		for (let i = 0; i < items.length; i += itemsPerRow) {
-			const rowItems = items.slice(i, i + itemsPerRow);
-			const row = document.createElement('div');
-			
-			if (type === 'album') {
-				row.className = 'tile-row';
-				row.innerHTML = rowItems.map((item, idx) => `
-					<div class="tile" data-album="${encodeURIComponent(item.album)}" data-idx="${i + idx}">
-						<img class="tile-cover" loading="lazy" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
-						<div class="tile-title">${escapeHtml(item.album)}</div>
-						<div class="tile-desc">${escapeHtml(item.artist || '')}</div>
-						<div class="tile-play">&#9654;</div>
-					</div>
-				`).join('');
-			} else if (type === 'artist') {
-				row.className = 'artist-row';
-				row.innerHTML = rowItems.map(item => `
-					<div class="artist-tile" data-artist="${encodeURIComponent(item.artist)}">
-						<img class="artist-avatar" loading="lazy" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="artist">
-						<div class="artist-name">${escapeHtml(item.artist)}</div>
-					</div>
-				`).join('');
-			}
-			
-			wrapper.appendChild(row);
-		}
-		
-		container.appendChild(wrapper);
-
-		if (type === 'album') {
-			container.onclick = function(e) {
-				let el = e.target;
-				while (el && !el.classList.contains('tile')) el = el.parentElement;
-				if (!el) return;
-				const album = el.dataset.album;
-				if (album) navigateTo('album', { album: decodeURIComponent(album) });
-			};
-		} else if (type === 'artist') {
-			container.onclick = function(e) {
-				let el = e.target;
-				while (el && !el.classList.contains('artist-tile')) el = el.parentElement;
-				if (!el) return;
-				const artist = el.dataset.artist;
-				if (artist) navigateTo('artist', { artist: decodeURIComponent(artist) });
-			};
-		}
-	}
 
 	// =====================
 	// Helper Functions
