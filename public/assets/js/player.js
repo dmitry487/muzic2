@@ -1,4 +1,4 @@
-// Redesigned player: start-from-beginning on play, persistent state, full controls, queue panel
+
 (function () {
   const playerRoot = document.getElementById('player-root');
   if (!playerRoot) return;
@@ -23,7 +23,7 @@
       #like-btn.btn-active { color: #1ed760; }
       .volume-bar { width: 120px; }
       .btn-active { color: #1ed760; }
-      /* Queue panel */
+      
       #queue-panel { position: fixed; right: 12px; bottom: 76px; width: 360px; max-height: 55vh; overflow: auto; background: #0f0f0f; color: #fff; border: 1px solid #242424; border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,.5); display: none; }
       #queue-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #1f1f1f; position: sticky; top: 0; background: #0f0f0f; z-index: 1; }
       #queue-title { font-weight: 600; }
@@ -37,7 +37,6 @@
       .queue-meta { color: #666; font-size: 0.8rem; }
       .queue-current { background: #1a1f1a; }
 
-      /* Fullscreen mode */
       #fullscreen-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 9999; display: none; }
       #fullscreen-content { position: absolute; top: 0; left: 0; width: 100%; height: calc(100vh - 100px); display: flex; flex-direction: column; align-items: center; justify-content: center; }
       #fullscreen-cover { max-width: 50vh; max-height: 50vh; width: auto; height: auto; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.8); }
@@ -49,7 +48,6 @@
       #fullscreen-close { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.5); border: none; color: #fff; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
       #fullscreen-back { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.5); border: none; color: #fff; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
 
-      /* Responsive player layout */
       @media (max-width: 900px) {
         #player { grid-template-columns: 1fr; row-gap: 8px; padding: 8px; }
         .player-left { justify-content: center; }
@@ -65,7 +63,7 @@
     </style>
     <div id="player">
       <div class="player-left">
-        <img id="cover" src="https://via.placeholder.com/56x56?text=%E2%99%AA" alt="cover" class="cover">
+        <img id="cover" src="https:
         <div class="track-info">
           <div id="track-title">Название трека</div>
           <div id="track-artist">Артист</div>
@@ -145,10 +143,7 @@
         </div>
       </div>
   `;
-  
-  // Global back button removed per design (caused overlap). Use SPA navigation instead.
-  
-  // Elements (scoped to player container to avoid ID conflicts on page)
+
   const playerContainer = playerRoot.querySelector('#player');
   const audio = playerRoot.querySelector('#audio');
   const playBtn = playerContainer.querySelector('#play-btn');
@@ -185,43 +180,41 @@
   const fullscreenClose = playerRoot.querySelector('#fullscreen-close');
   const fullscreenBack = playerRoot.querySelector('#fullscreen-back');
 
-  // Ensure page content is not covered by the fixed player: add bottom padding dynamically
   function adjustContentPadding() {
     try {
       const h = playerContainer ? playerContainer.getBoundingClientRect().height : 0;
-      const extra = 28; // small breathing room above player
+      const extra = 28; 
       document.body.style.paddingBottom = (h + extra) + 'px';
     } catch (_) {}
   }
   adjustContentPadding();
   window.addEventListener('resize', adjustContentPadding);
 
-  // Persistent popup player integration
   let popupWin = null;
   let popupActive = false;
   let popupState = { currentTime: 0, duration: 0, isPlaying: false, src: '', volume: 1, title: '', artist: '', cover: '' };
   function reconnectPopup() {
-    // Do not call window.open here to avoid creating about:blank popups on load
+    
     popupWin = null;
     popupActive = false;
     return false;
   }
   function ensurePopup(allowOpen) {
-    // Disable popup usage; always use inline <audio>
+    
     return false;
   }
   window.addEventListener('message', (e) => {
     if (!e.data || typeof e.data !== 'object') return;
     if (e.data.cmd === 'popupReady') {
       popupActive = true;
-      // Request current state asap
+      
       try { popupWin && popupWin.postMessage({ cmd: 'requestState' }, '*'); } catch (err) {}
       return;
     }
     if (e.data.cmd === 'playerState') {
       popupActive = true;
       popupState = e.data;
-      // Update UI from popup state
+      
       seekBar.value = popupState.duration ? (popupState.currentTime / popupState.duration) * 100 : 0;
       currentTimeEl.textContent = formatTime(popupState.currentTime || 0);
       durationEl.textContent = formatTime(popupState.duration || 0);
@@ -237,9 +230,8 @@
   });
   reconnectPopup();
 
-  // Safe posting to popup with readiness checks and retries
   function postToPopup(message, opts = {}) {
-    // Popup disabled
+    
     return false;
     function trySend() {
       if (!popupWin || popupWin.closed) return false;
@@ -270,13 +262,12 @@
     return trySend();
   }
 
-  // State
   const PLAYER_STATE_KEY = 'muzic2_player_state';
   const QUEUE_KEY = 'muzic2_player_queue';
   const QUEUE_INDEX_KEY = 'muzic2_player_queue_index';
   const ORIGINAL_QUEUE_KEY = 'muzic2_player_original_queue';
   const SHUFFLE_KEY = 'muzic2_player_shuffle';
-  const REPEAT_KEY = 'muzic2_player_repeat'; // none | one | all
+  const REPEAT_KEY = 'muzic2_player_repeat'; 
   const REPLAY_ENABLED_KEY = 'muzic2_player_replay_once_enabled';
   const REPLAY_TOKEN_KEY = 'muzic2_player_replay_token';
   const VIDEO_STATE_KEY = 'muzic2_player_video_state';
@@ -286,7 +277,7 @@
   let queueIndex = 0;
   let shuffleEnabled = false;
   let repeatMode = 'none';
-  // One-time replay toggle state
+  
   let replayOnceEnabled = false;
   let replayToken = null;
   let isMuted = false;
@@ -295,15 +286,13 @@
   let originalQueue = [];
   let currentTrackId = null;
   let likedSet = new Set();
-  let autoplayEnabled = true; // Always enabled by default
+  let autoplayEnabled = true; 
 
-  // Helpers
   function formatTime(sec) {
     sec = Math.floor(sec || 0);
     return `${Math.floor(sec / 60)}:${('0' + (sec % 60)).slice(-2)}`;
   }
-  
-  // Load random tracks for autoplay
+
   async function loadRandomTracks(count = 20) {
     try {
       console.log('Loading random tracks for autoplay, count:', count);
@@ -325,7 +314,7 @@
     }
   }
   function updatePlayPauseUI() {
-    // Prefer inline video state if video panel is open
+    
     let playing;
     if (videoPanel && videoPanel.style.display === 'block' && inlineVideo) {
       try { playing = !inlineVideo.paused && !inlineVideo.ended; } catch(_) { playing = !audio.paused; }
@@ -344,20 +333,18 @@
     const isOn = !!shuffleEnabled;
     shuffleBtn.classList.toggle('btn-active', isOn);
     shuffleBtn.setAttribute('aria-pressed', String(isOn));
-    // Force visual state to persist regardless of external styles
+    
     shuffleBtn.style.color = isOn ? '#1ed760' : '';
   }
   function updateRepeatUI() {
-    // Repurposed: show one-time replay visual state
+    
     const isOn = !!replayOnceEnabled;
     repeatBtn.title = isOn ? 'Повторить текущий трек один раз (вкл)' : 'Повторить текущий трек один раз (выкл)';
     repeatBtn.classList.toggle('btn-active', isOn);
     repeatBtn.setAttribute('aria-pressed', String(isOn));
     repeatBtn.style.color = isOn ? '#1ed760' : '';
   }
-  
 
-  // Likes helpers
   async function loadLikes() {
     try {
       const r = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
@@ -412,14 +399,14 @@
       volumeBtn.classList.add('btn-active');
       volumeBtn.setAttribute('aria-pressed', 'true');
       volumeBtn.style.color = '#1ed760';
-      // Change icon to muted speaker
+      
       volumeBtn.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
     } else {
       volumeBtn.title = 'Отключить звук';
       volumeBtn.classList.remove('btn-active');
       volumeBtn.setAttribute('aria-pressed', 'false');
       volumeBtn.style.color = '';
-      // Change icon to normal speaker
+      
       volumeBtn.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
     }
   }
@@ -431,14 +418,14 @@
       fullscreenBtn.classList.add('btn-active');
       fullscreenBtn.setAttribute('aria-pressed', 'true');
       fullscreenBtn.style.color = '#1ed760';
-      // Change icon to exit fullscreen
+      
       fullscreenBtn.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>';
     } else {
       fullscreenBtn.title = 'Полноэкранный режим';
       fullscreenBtn.classList.remove('btn-active');
       fullscreenBtn.setAttribute('aria-pressed', 'false');
       fullscreenBtn.style.color = '';
-      // Change icon to enter fullscreen
+      
       fullscreenBtn.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
     }
   }
@@ -448,26 +435,22 @@
     
     const currentTrack = trackQueue[queueIndex];
     isFullscreen = true;
-    
-    // Update fullscreen content
+
     fullscreenTitle.textContent = currentTrack.title || '';
     fullscreenArtist.textContent = currentTrack.artist || '';
-    
-    // Check if there's a video source (you can extend this logic)
-    const hasVideo = currentTrack.video || false; // Add video property to tracks if needed
+
+    const hasVideo = currentTrack.video || false; 
     
     if (hasVideo && currentTrack.video) {
       fullscreenVideo.src = currentTrack.video;
       fullscreenVideo.style.display = 'block';
       fullscreenCover.style.display = 'none';
       fullscreenVideo.play().catch(() => {});
-      
-      // Remove existing ended listener to avoid duplicates
+
       try {
         fullscreenVideo.removeEventListener('ended', handleFullscreenVideoEnded);
       } catch(_) {}
-      
-      // Add ended event listener for fullscreen video
+
       const handleFullscreenVideoEnded = () => {
         console.log('Fullscreen video ended, playing next track');
         playNext(true);
@@ -479,8 +462,7 @@
       fullscreenVideo.style.display = 'none';
       fullscreenVideo.src = '';
     }
-    
-    // Move player to fullscreen overlay
+
     if (playerContainer && fullscreenOverlay) {
       fullscreenOverlay.appendChild(playerContainer);
       playerContainer.style.position = 'absolute';
@@ -492,11 +474,9 @@
     
     fullscreenOverlay.style.display = 'flex';
     updateFullscreenUI();
-    
-    // Prevent body scroll
+
     document.body.style.overflow = 'hidden';
   }
-
 
   function exitFullscreen() {
     if (!fullscreenOverlay) return;
@@ -505,8 +485,7 @@
     fullscreenOverlay.style.display = 'none';
     fullscreenVideo.pause();
     fullscreenVideo.src = '';
-    
-    // Move player back to original position
+
     if (playerContainer && playerRoot) {
       playerRoot.appendChild(playerContainer);
       playerContainer.style.position = '';
@@ -517,12 +496,10 @@
     }
     
     updateFullscreenUI();
-    
-    // Restore body scroll
+
     document.body.style.overflow = '';
   }
 
-  // Throttle helper to limit frequent storage writes
   function throttle(fn, ms) {
     let last = 0;
     return function (...args) {
@@ -534,7 +511,6 @@
     };
   }
 
-  // Persistence
   function savePlayerState() {
     const usingPopup = popupActive;
     const state = {
@@ -552,7 +528,7 @@
       replayToken,
     };
     localStorage.setItem(PLAYER_STATE_KEY, JSON.stringify(state));
-    // Persist replay toggle separately for robustness
+    
     localStorage.setItem(REPLAY_ENABLED_KEY, replayOnceEnabled ? '1' : '0');
     if (replayToken) localStorage.setItem(REPLAY_TOKEN_KEY, replayToken); else localStorage.removeItem(REPLAY_TOKEN_KEY);
   }
@@ -594,11 +570,10 @@
   function saveQueue() {
     localStorage.setItem(QUEUE_KEY, JSON.stringify(trackQueue));
     localStorage.setItem(QUEUE_INDEX_KEY, String(queueIndex));
-    // Persist original order to allow restoring after shuffle off
+    
     localStorage.setItem(ORIGINAL_QUEUE_KEY, JSON.stringify(originalQueue && originalQueue.length ? originalQueue : trackQueue));
   }
 
-  // Video state persistence
   function saveVideoState(state) {
     try {
       const toSave = {
@@ -627,7 +602,6 @@
     }
   }
 
-  // Queue UI
   function toggleQueuePanel(show) {
     const isVisible = queuePanel.style.display === 'block';
     const willShow = show !== undefined ? show : !isVisible;
@@ -644,7 +618,7 @@
       queueList.appendChild(li);
       return;
     }
-    // Show tracks in normal order with current track highlighted
+    
     trackQueue.forEach((t, idx) => {
       const li = document.createElement('li');
       li.className = 'queue-item' + (idx === queueIndex ? ' queue-current' : '');
@@ -666,10 +640,9 @@
     });
   }
 
-  // Core playback
   function setNowPlaying(t) {
     trackTitle.textContent = t.title || '';
-    // Render E badge before artist name (consistent with cards)
+    
     try {
       const base = (t && typeof t.artist === 'string') ? t.artist.trim() : '';
       const feats = (t && typeof t.feats === 'string') ? t.feats.trim() : '';
@@ -678,11 +651,11 @@
     } catch(_) { trackArtist.textContent = t.artist || ''; }
     if (cover) cover.src = t.cover || (cover.src || '');
     currentTrackId = t.id || null;
-    // Attach video URL (if any) to current track
+    
     playerContainer.dataset.videoUrl = t.video_url || '';
     try { console.debug('[player] setNowPlaying video_url =', t.video_url||''); } catch(_){ }
     updatePlayerLikeUI();
-    // If video panel opened, refresh its media to reflect the new track
+    
     try {
       if (videoPanel && videoPanel.style.display === 'block') {
         openInlineMedia(playerContainer.dataset.videoUrl || '', cover.src || '');
@@ -704,22 +677,20 @@
     console.log('Track src:', t.src);
     console.log('Track cover:', t.cover);
     console.log('Track object:', t);
-    
-    // Check if current track has video, if not and video panel is open, close it
+
     if (!t.video_url && videoPanel && videoPanel.style.display === 'block') {
       console.log('Current track has no video, closing video panel');
-      // Close video panel and resume audio playback
+      
       try { inlineVideo.pause(); } catch(_) {}
       inlineVideo.removeAttribute('src'); 
       inlineVideo.load();
       if (inlineCover) inlineCover.style.display = 'none';
       videoPanel.style.display = 'none';
-      // Resume audio playback
+      
       try { audio.play().catch(()=>{}); } catch(_) {}
       updatePlayPauseUI();
     }
-    
-    // ПРОВЕРЯЕМ: если src содержит URL страницы, заменяем на file_path
+
     if (t.src && t.src.includes('artist.html')) {
       console.log('WARNING: Track src contains URL page, replacing with file_path');
       t.src = t.file_path || '';
@@ -730,7 +701,7 @@
     if (popupActive || ensurePopup(true)) {
       const ok = postToPopup({ cmd: 'playTrack', src: t.src, title: t.title, artist: t.artist, cover: t.cover, currentTime: 0, volume: volumeBar.value/100, autoplay: true });
       if (!ok) {
-        // fallback to inline audio if cannot control popup
+        
         audio.src = t.src;
         audio.currentTime = 0;
         audio.play().catch(() => {});
@@ -743,7 +714,7 @@
     } else {
       console.log('Setting audio.src to:', t.src);
       audio.src = t.src;
-      // start from beginning always when starting playback via control
+      
       audio.currentTime = 0;
       console.log('Attempting to play audio...');
       audio.play().catch((error) => {
@@ -755,9 +726,9 @@
     saveQueue();
     savePlayerState();
     renderQueueUI();
-    // keep shuffle button visual in-sync after any track change
+    
     updateShuffleUI();
-    // If the just-started track is the one-time replay duplicate, turn the toggle off
+    
     try {
       const t = trackQueue[queueIndex];
       if (t && replayOnceEnabled && replayToken && t._replayToken === replayToken) {
@@ -775,27 +746,26 @@
       return;
     }
     if (repeatMode === 'one' && auto) {
-      // replay same
+      
       console.log('Replaying same track due to repeat mode');
       playFromQueue(queueIndex);
       return;
     }
-    // Always follow current queue order; shuffle affects queue order, not next-pick randomness
+    
     if (queueIndex + 1 < trackQueue.length) {
       console.log('Playing next track at index:', queueIndex + 1);
       console.log('Next track:', trackQueue[queueIndex + 1] ? trackQueue[queueIndex + 1].title : 'none');
-      
-      // Check if next track has video, if not and video panel is open, close it
+
       const nextTrack = trackQueue[queueIndex + 1];
       if (nextTrack && !nextTrack.video_url && videoPanel && videoPanel.style.display === 'block') {
         console.log('Next track has no video, closing video panel');
-        // Close video panel and resume audio playback
+        
         try { inlineVideo.pause(); } catch(_) {}
         inlineVideo.removeAttribute('src'); 
         inlineVideo.load();
         if (inlineCover) inlineCover.style.display = 'none';
         videoPanel.style.display = 'none';
-        // Resume audio playback
+        
         try { audio.play().catch(()=>{}); } catch(_) {}
         updatePlayPauseUI();
       }
@@ -803,18 +773,17 @@
       playFromQueue(queueIndex + 1);
     } else if (repeatMode === 'all') {
       console.log('Repeating from beginning');
-      
-      // Check if first track has video, if not and video panel is open, close it
+
       const firstTrack = trackQueue[0];
       if (firstTrack && !firstTrack.video_url && videoPanel && videoPanel.style.display === 'block') {
         console.log('First track has no video, closing video panel');
-        // Close video panel and resume audio playback
+        
         try { inlineVideo.pause(); } catch(_) {}
         inlineVideo.removeAttribute('src'); 
         inlineVideo.load();
         if (inlineCover) inlineCover.style.display = 'none';
         videoPanel.style.display = 'none';
-        // Resume audio playback
+        
         try { audio.play().catch(()=>{}); } catch(_) {}
         updatePlayPauseUI();
       }
@@ -822,14 +791,14 @@
       playFromQueue(0);
     } else {
       console.log('No more tracks in queue');
-      // If autoplay is enabled, load random tracks
+      
       if (autoplayEnabled) {
         console.log('Autoplay enabled, loading random tracks...');
         try {
           const randomTracks = await loadRandomTracks(20);
           if (randomTracks.length > 0) {
             console.log('Loaded random tracks for autoplay:', randomTracks.length);
-            // Replace current queue with random tracks
+            
             trackQueue = randomTracks;
             originalQueue = randomTracks.slice();
             queueIndex = 0;
@@ -847,39 +816,39 @@
   function playPrev() {
     if (!trackQueue.length) return;
     if (audio.currentTime > 3) {
-      // restart current if played > 3s
+      
       audio.currentTime = 0;
       return;
     }
-    // Always follow current queue order; shuffle affects queue order, not prev-pick randomness
+    
     if (queueIndex > 0) {
       const prevTrack = trackQueue[queueIndex - 1];
-      // Check if previous track has video, if not and video panel is open, close it
+      
       if (prevTrack && !prevTrack.video_url && videoPanel && videoPanel.style.display === 'block') {
         console.log('Previous track has no video, closing video panel');
-        // Close video panel and resume audio playback
+        
         try { inlineVideo.pause(); } catch(_) {}
         inlineVideo.removeAttribute('src'); 
         inlineVideo.load();
         if (inlineCover) inlineCover.style.display = 'none';
         videoPanel.style.display = 'none';
-        // Resume audio playback
+        
         try { audio.play().catch(()=>{}); } catch(_) {}
         updatePlayPauseUI();
       }
       playFromQueue(queueIndex - 1);
     } else if (repeatMode === 'all') {
       const lastTrack = trackQueue[trackQueue.length - 1];
-      // Check if last track has video, if not and video panel is open, close it
+      
       if (lastTrack && !lastTrack.video_url && videoPanel && videoPanel.style.display === 'block') {
         console.log('Last track has no video, closing video panel');
-        // Close video panel and resume audio playback
+        
         try { inlineVideo.pause(); } catch(_) {}
         inlineVideo.removeAttribute('src'); 
         inlineVideo.load();
         if (inlineCover) inlineCover.style.display = 'none';
         videoPanel.style.display = 'none';
-        // Resume audio playback
+        
         try { audio.play().catch(()=>{}); } catch(_) {}
         updatePlayPauseUI();
       }
@@ -889,21 +858,20 @@
     }
   }
 
-  // Events
   playBtn.onclick = () => {
-    // If popup is active or can be opened via this gesture, control it
+    
     if (popupActive || ensurePopup(true)) {
       if (!popupState.src && trackQueue[queueIndex]) {
         const t = trackQueue[queueIndex];
         const ok = postToPopup({ cmd: 'playTrack', src: t.src, title: t.title, artist: t.artist, cover: t.cover, currentTime: 0, volume: volumeBar.value/100, autoplay: true });
-        if (ok) return; // handled by popup
+        if (ok) return; 
       } else {
         const ok = postToPopup({ cmd: popupState.isPlaying ? 'pause' : 'play' });
-        if (ok) return; // handled by popup
+        if (ok) return; 
       }
-      // if posting failed, fall through to local audio
+      
     }
-    // If inline video is visible, control video instead of audio
+    
     if (videoPanel && videoPanel.style.display === 'block' && inlineVideo) {
       const paused = inlineVideo.paused || inlineVideo.ended;
       if (paused) {
@@ -924,7 +892,7 @@
         playFromQueue(0);
         return;
       }
-      // last resort: restore from saved state
+      
       try {
         const state = JSON.parse(localStorage.getItem('muzic2_player_state') || 'null');
         if (state && state.src) {
@@ -950,7 +918,7 @@
     updatePlayPauseUI();
     document.getElementById('track-status').textContent = '';
     savePlayerState();
-    // If video panel is open, let video take over sound and sync time
+    
     if (videoPanel && videoPanel.style.display === 'block' && inlineVideo) {
       try { inlineVideo.currentTime = isNaN(audio.currentTime) ? (inlineVideo.currentTime||0) : (audio.currentTime||0); } catch(_) {}
       try { inlineVideo.play().catch(()=>{}); } catch(_) {}
@@ -966,7 +934,7 @@
   });
   audio.addEventListener('timeupdate', () => {
     if (popupActive) return;
-    // If video is playing, don't update progress bar - let video handle it
+    
     if (videoPanel && videoPanel.style.display === 'block' && inlineVideo && !inlineVideo.ended) {
       return;
     }
@@ -976,7 +944,7 @@
   });
   audio.addEventListener('loadedmetadata', () => {
     if (popupActive) return;
-    // If video is playing, don't update duration - let video handle it
+    
     if (videoPanel && videoPanel.style.display === 'block' && inlineVideo && !inlineVideo.ended) {
       return;
     }
@@ -988,7 +956,7 @@
       console.log('Popup is active, skipping playNext');
       return;
     }
-    // If video is playing, don't trigger playNext - let video handle it
+    
     if (videoPanel && videoPanel.style.display === 'block' && inlineVideo && !inlineVideo.ended) {
       console.log('Video is still playing, not calling playNext yet');
       return;
@@ -1003,7 +971,7 @@
         const t = (seekBar.value / 100) * popupState.duration;
         const ok = postToPopup({ cmd: 'seek', currentTime: t }, { retries: 3, delay: 100 });
         if (!ok) {
-          // fallback to local if needed
+          
           if (audio.duration) audio.currentTime = (seekBar.value / 100) * audio.duration;
         }
       }
@@ -1012,7 +980,7 @@
     if (audio.duration) {
       audio.currentTime = (seekBar.value / 100) * audio.duration;
     }
-    // Sync inline video position when visible
+    
     if (videoPanel && videoPanel.style.display === 'block' && inlineVideo && inlineVideo.duration) {
       try { inlineVideo.currentTime = (seekBar.value / 100) * inlineVideo.duration; } catch(_) {}
     }
@@ -1022,13 +990,13 @@
     if (popupActive) {
       const ok = postToPopup({ cmd: 'setVolume', volume: newVolume }, { retries: 3, delay: 100 });
       if (!ok) {
-        // fallback to local update
+        
         audio.volume = newVolume;
       }
     } else {
       audio.volume = newVolume;
     }
-    // If user manually changes volume, unmute
+    
     if (isMuted && newVolume > 0) {
       isMuted = false;
       updateMuteUI();
@@ -1038,7 +1006,7 @@
   shuffleBtn.onclick = () => {
     shuffleEnabled = !shuffleEnabled;
     if (shuffleEnabled) {
-      // Shuffle current queue but keep the current track first
+      
       const current = trackQueue[queueIndex];
       if (!originalQueue || !originalQueue.length) originalQueue = trackQueue.slice();
       const rest = trackQueue.filter((_, idx) => idx !== queueIndex);
@@ -1051,7 +1019,7 @@
       saveQueue();
       renderQueueUI();
     } else {
-      // Restore original album/order and keep current track position
+      
       if (originalQueue && originalQueue.length) {
         const current = trackQueue[queueIndex];
         trackQueue = originalQueue.slice();
@@ -1062,8 +1030,7 @@
       }
     }
     updateShuffleUI();
-    
-    // Update fullscreen content if in fullscreen mode
+
     if (isFullscreen && fullscreenOverlay) {
       const currentTrack = trackQueue[queueIndex];
       if (currentTrack) {
@@ -1088,20 +1055,20 @@
     savePlayerState();
   };
   repeatBtn.onclick = () => {
-    // Toggle one-time replay of the current track
+    
     if (!trackQueue.length) return;
     if (!replayOnceEnabled) {
-      // Enable: insert a duplicate of current track right after it
+      
       const current = trackQueue[queueIndex];
       if (!current) return;
-      // Remove existing pending duplicate if any
+      
       if (replayToken) {
         const idx = trackQueue.findIndex(x => x && x._replayToken === replayToken);
         if (idx >= 0 && idx !== queueIndex) trackQueue.splice(idx, 1);
       }
       const next = trackQueue[queueIndex + 1];
       if (next && next.src === current.src) {
-        // Reuse next as the duplicate and tag it instead of adding a new one
+        
         replayToken = 'replay_' + Date.now() + '_' + Math.random().toString(36).slice(2);
         trackQueue[queueIndex + 1] = { ...next, _replayToken: replayToken };
       } else {
@@ -1113,18 +1080,18 @@
       saveQueue();
       renderQueueUI();
     } else {
-      // Disable: remove the pending duplicate from the queue
+      
       if (replayToken) {
         const idx = trackQueue.findIndex(x => x && x._replayToken === replayToken);
         if (idx >= 0) {
-          // Adjust queueIndex if needed
+          
           if (idx < queueIndex) queueIndex = Math.max(0, queueIndex - 1);
           trackQueue.splice(idx, 1);
           saveQueue();
           renderQueueUI();
         }
       }
-      // Also handle immediate-next duplicate without token
+      
       if (!replayToken) {
         const cur = trackQueue[queueIndex];
         const next = trackQueue[queueIndex + 1];
@@ -1149,28 +1116,25 @@
   queueBtn.onclick = () => toggleQueuePanel();
   queueClose.onclick = () => toggleQueuePanel(false);
 
-  // Helper: open inline media panel with robust fallback from video to cover
   function openInlineMedia(url, coverSrc) {
     if (!videoPanel) return;
     videoPanel.style.display = 'block';
-    // Reset states
+    
     try { inlineVideo.pause(); } catch(_) {}
-    // Reset sources
+    
     try { while (inlineVideo.firstChild) inlineVideo.removeChild(inlineVideo.firstChild); } catch(_){ }
     inlineVideo.removeAttribute('src');
     inlineVideo.load();
     inlineVideo.style.display = 'none';
     if (inlineCover) { inlineCover.style.display = 'none'; }
 
-    // If no URL – show cover but DO NOT restart or seek audio
     if (!url) {
       if (inlineCover) { inlineCover.src = coverSrc || ''; inlineCover.style.display = 'block'; }
-      // Keep video panel open as visualizer; ensure UI reflects current play state
+      
       updatePlayPauseUI();
       return;
     }
 
-    // Setup event handlers for fallback
     const onError = () => {
       inlineVideo.style.display = 'none';
       if (inlineCover) { inlineCover.src = coverSrc || ''; inlineCover.style.display = 'block'; }
@@ -1182,7 +1146,7 @@
     const onLoaded = () => {
       if (inlineCover) inlineCover.style.display = 'none';
       inlineVideo.style.display = 'block';
-      // Align to captured resume time (dataset) or current audio time with retries to avoid starting from 0
+      
       let resumeTime = 0; try { resumeTime = parseFloat(playerContainer.dataset.resumeTime || '0') || 0; } catch(_) {}
       if (!resumeTime) { try { resumeTime = audio.currentTime || 0; } catch(_) {} }
       const trySetTime = () => { try { inlineVideo.currentTime = resumeTime; } catch(_) {} };
@@ -1208,23 +1172,22 @@
     inlineVideo.addEventListener('error', onError);
     inlineVideo.addEventListener('loadeddata', onLoaded);
     inlineVideo.addEventListener('canplay', onLoaded);
-    // Показать видео сразу, а не ждать событий (если что — сработает onError)
+    
     inlineVideo.style.display = 'block';
     if (inlineCover) inlineCover.style.display = 'none';
     inlineVideo.poster = coverSrc || '';
-    // Safety fallback: если через 4s нет readyState>=2, оставляем видео, не скрываем его
-    const fallbackTimer = setTimeout(() => { /* noop, держим видео видимым */ }, 4000);
-    // Build <source> with explicit type to avoid MIME sniffing issues
+    
+    const fallbackTimer = setTimeout(() => {  }, 4000);
+    
     const lower = (url||'').toLowerCase();
     const type = lower.endsWith('.webm') ? 'video/webm' : 'video/mp4';
     const source = document.createElement('source');
-    // Do not double-encode. Assume url already properly encoded.
+    
     source.src = url;
     source.type = type;
     inlineVideo.appendChild(source);
     inlineVideo.load();
 
-    // Remove existing event listeners to avoid duplicates
     try {
       inlineVideo.removeEventListener('timeupdate', handleVideoTimeUpdate);
       inlineVideo.removeEventListener('loadedmetadata', handleVideoLoadedMetadata);
@@ -1234,7 +1197,6 @@
       inlineVideo.removeEventListener('pause', handleVideoPause);
     } catch(_) {}
 
-    // Define event handlers
     const handleVideoTimeUpdate = () => {
       if (videoPanel && videoPanel.style.display === 'block') {
         try {
@@ -1276,7 +1238,6 @@
       saveVideoState({ open: true, url, currentTime: inlineVideo.currentTime||0, playing: false }); 
     };
 
-    // Keep UI and audio time in sync with video when panel visible
     try {
       inlineVideo.addEventListener('timeupdate', handleVideoTimeUpdate);
       inlineVideo.addEventListener('loadedmetadata', handleVideoLoadedMetadata);
@@ -1287,11 +1248,10 @@
     } catch(_) {}
   }
 
-  // Video button: toggle inline panel; play video if доступно, иначе обложку
   if (videoBtn) videoBtn.onclick = () => {
     const ds = (playerContainer.dataset && typeof playerContainer.dataset.videoUrl !== 'undefined') ? playerContainer.dataset.videoUrl : '';
     let url = ds && ds.trim() !== '' ? ds : ((trackQueue[queueIndex] && trackQueue[queueIndex].video_url) ? trackQueue[queueIndex].video_url : '');
-    // If looks like raw tracks/... path, route via proxy for proper Content-Type
+    
     if (url && !/^https?:/i.test(url) && url.indexOf('/public/src/api/video.php?f=') === -1) {
       const i = url.indexOf('tracks/');
       const rel = i !== -1 ? url.slice(i) : url.replace(/^\/+/, '');
@@ -1301,7 +1261,7 @@
     if (!videoPanel) return;
     const visible = videoPanel.style.display === 'block';
     if (visible) {
-      // Capture position and playing state BEFORE clearing the source
+      
       let t = 0; let wasPlaying = false; let hadMedia = false;
       try { hadMedia = !!(inlineVideo.currentSrc || inlineVideo.readyState >= 1); } catch(_) { hadMedia=false; }
       try { t = inlineVideo.currentTime || 0; wasPlaying = !inlineVideo.paused && !inlineVideo.ended; } catch(_) {}
@@ -1309,9 +1269,9 @@
       inlineVideo.removeAttribute('src'); inlineVideo.load();
       if (inlineCover) inlineCover.style.display = 'none';
       videoPanel.style.display = 'none';
-      // Restore audio to captured position and resume if video was playing
+      
       const resumeAudio = () => {
-        // Only seek if video actually had media; otherwise don't jump to 0
+        
         if (hadMedia) { try { audio.currentTime = t; } catch(_) {} }
         if (wasPlaying) { try { audio.play().catch(()=>{}); } catch(_) {} }
       };
@@ -1324,7 +1284,7 @@
       updatePlayPauseUI();
       return;
     }
-    // Capture current audio time and play-state for precise resume inside openInlineMedia
+    
     try { playerContainer.dataset.resumeTime = String(audio.currentTime || 0); playerContainer.dataset.wasPlayingVideoSwitch = (!audio.paused) ? '1' : '0'; } catch(_) {}
     openInlineMedia(url, (cover && cover.src) ? cover.src : '');
   };
@@ -1351,7 +1311,7 @@
   };
   if (likeBtn) likeBtn.onclick = async () => {
     if (!currentTrackId) return;
-    // Ensure we have current liked set
+    
     if (!likedSet || typeof likedSet.has !== 'function') likedSet = new Set();
     if (likedSet.has(currentTrackId)) {
       await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: currentTrackId })});
@@ -1361,13 +1321,12 @@
       likedSet.add(currentTrackId);
     }
     updatePlayerLikeUI();
-    // Broadcast change so hearts update elsewhere
+    
     try { document.dispatchEvent(new CustomEvent('likes:updated', { detail: { trackId: currentTrackId, liked: likedSet.has(currentTrackId) } })); } catch (_) {}
   };
 
-  // Like button
   likeBtn && (likeBtn.onclick = async () => {
-    // ensure likes loaded
+    
     if (!likedSet || !likedSet.size) await loadLikes();
     if (!currentTrackId) return;
     if (likedSet.has(currentTrackId)) {
@@ -1383,7 +1342,6 @@
   fullscreenClose.onclick = () => exitFullscreen();
   fullscreenBack.onclick = () => exitFullscreen();
 
-  // Handle Escape key to exit fullscreen
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && isFullscreen) {
       exitFullscreen();
@@ -1392,7 +1350,7 @@
 
   volumeBtn.onclick = () => {
     if (isMuted) {
-      // Unmute: restore previous volume
+      
       isMuted = false;
       audio.volume = previousVolume;
       volumeBar.value = Math.round(previousVolume * 100);
@@ -1400,7 +1358,7 @@
         postToPopup({ cmd: 'setVolume', volume: previousVolume });
       }
     } else {
-      // Mute: save current volume and set to 0
+      
       previousVolume = audio.volume;
       isMuted = true;
       audio.volume = 0;
@@ -1413,21 +1371,20 @@
     savePlayerState();
   };
 
-  // Persistence wiring
   ;['play', 'pause', 'seeked', 'volumechange', 'ended'].forEach(event => {
     audio.addEventListener(event, savePlayerState);
   });
-  // Save on tab hide and before page unload to not lose position
+  
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
-      // Save current state on hide
+      
       savePlayerState();
-      // If video is playing, note it so we can resume on return
+      
       try {
         const wasVideoOpen = (videoPanel && videoPanel.style.display==='block');
         const wasVideoPlaying = wasVideoOpen && inlineVideo && !inlineVideo.paused;
         playerContainer.dataset.wasPlayingOnHide = (wasVideoPlaying || (!wasVideoOpen && !audio.paused)) ? '1' : '0';
-        // Persist video panel state
+        
         if (wasVideoOpen) {
           saveVideoState({ open: true, url: (playerContainer.dataset && playerContainer.dataset.videoUrl) || '', currentTime: inlineVideo && !isNaN(inlineVideo.currentTime)? inlineVideo.currentTime : (audio.currentTime||0), playing: !!wasVideoPlaying });
         } else {
@@ -1435,10 +1392,10 @@
         }
       } catch(_) {}
     } else if (document.visibilityState === 'visible') {
-      // On return, if video panel open, resume video playback at synced time
+      
       const vstate = loadVideoState();
       if (vstate && vstate.open) {
-        // Re-open video panel if it was open before navigation/tab switch
+        
         try {
           const url = vstate.url || (playerContainer.dataset && playerContainer.dataset.videoUrl) || '';
           openInlineMedia(url, (cover && cover.src) ? cover.src : '');
@@ -1453,10 +1410,10 @@
           if (inlineVideo && inlineVideo.readyState >= 1) apply(); else setTimeout(apply, 120);
         } catch(_) {}
       } else {
-        // If only audio was playing before hide, resume audio
+        
         const shouldResume = playerContainer.dataset.wasPlayingOnHide === '1';
         if (shouldResume && audio.paused) {
-          // Make sure we don't jump to start if metadata not ready
+          
           const resume = () => { try { audio.play().catch(()=>{}); } catch(_) {} };
           if (isNaN(audio.duration) || !isFinite(audio.duration) || audio.readyState < 1) {
             const once = function(){ audio.removeEventListener('loadedmetadata', once); resume(); };
@@ -1464,19 +1421,19 @@
           } else { resume(); }
         }
       }
-      // Clear flag
+      
       delete playerContainer.dataset.wasPlayingOnHide;
       updatePlayPauseUI();
     }
   });
   window.addEventListener('beforeunload', savePlayerState);
-  // Ensure state persists on back/forward with bfcache
+  
   window.addEventListener('pagehide', savePlayerState);
   window.addEventListener('pageshow', () => {
-    // Re-apply state if needed
+    
     const s = getSavedState();
     if (!s || !s.src) return;
-    // Restore queue and settings to avoid losing album order after back/forward
+    
     try {
       loadQueue();
       if (typeof s.queueIndex === 'number') {
@@ -1486,7 +1443,7 @@
         shuffleEnabled = !!s.shuffle;
         updateShuffleUI();
       }
-      // Restore one-time replay state and reconcile duplicate
+      
       replayOnceEnabled = !!(s.replayOnceEnabled || (localStorage.getItem(REPLAY_ENABLED_KEY) === '1'));
       replayToken = s.replayToken || localStorage.getItem(REPLAY_TOKEN_KEY) || null;
       if (replayOnceEnabled) {
@@ -1500,7 +1457,7 @@
             trackQueue[queueIndex + 1] = { ...next, _replayToken: replayToken };
             saveQueue();
           } else {
-            // no duplicate present anymore; keep toggle off to avoid re-adding
+            
             replayOnceEnabled = false;
             replayToken = null;
           }
@@ -1509,7 +1466,7 @@
       updateRepeatUI();
       renderQueueUI();
     } catch (e) {}
-    // If current audio source differs from saved one, switch to the saved, most recent track
+    
     const currentSrc = audio.currentSrc || audio.src || '';
     if (!currentSrc || currentSrc !== s.src) {
       audio.src = s.src;
@@ -1520,7 +1477,7 @@
     }
     if (s.currentTime != null) {
       const t = Number(s.currentTime) || 0;
-      // Wait for metadata to apply time accurately
+      
       const restore = () => { audio.currentTime = t; updatePlayPauseUI(); };
       if (isNaN(audio.duration) || !isFinite(audio.duration)) {
         audio.addEventListener('loadedmetadata', function once(){ audio.removeEventListener('loadedmetadata', once); restore(); });
@@ -1531,12 +1488,10 @@
     }
   });
 
-  // Public API for other pages
   window.playTrack = function (arg) {
     console.log('playTrack called with:', arg);
     console.log('Current trackQueue length before playTrack:', trackQueue.length);
-    
-    // Support legacy positional signature: playTrack(src, title, artist, cover)
+
     let src, title, artist, coverUrl, queue = null, queueStartIndex = 0, duration = 0, id = undefined;
     if (typeof arg === 'object' && arg !== null) {
       ({ src, title, artist, cover: coverUrl, queue = null, queueStartIndex = 0, duration = 0, id } = arg);
@@ -1548,7 +1503,7 @@
     console.log('playTrack queueStartIndex:', queueStartIndex);
     function normalizeSrc(u){
       if (!u) return '';
-      if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('data:')) return u;
+      if (u.startsWith('http:
       if (u.startsWith('/')) return u;
       const i = u.indexOf('tracks/');
       if (i !== -1) return '/muzic2/' + u.slice(i);
@@ -1563,7 +1518,7 @@
     }
     function normalizeVideo(u){
       if (!u) return '';
-      if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('data:')) return u;
+      if (u.startsWith('http:
       if (u.startsWith('/')) return u;
       const i = u.indexOf('tracks/');
       if (i !== -1) return '/muzic2/' + u.slice(i);
@@ -1571,7 +1526,7 @@
     }
     if (queue && Array.isArray(queue) && queue.length > 0) {
       console.log('Using provided queue with', queue.length, 'tracks');
-      // Ensure ordered playback when album queue starts
+      
       shuffleEnabled = false;
       updateShuffleUI();
       trackQueue = queue.map(q => ({
@@ -1592,7 +1547,7 @@
     } else {
       console.log('No queue provided, creating single track queue');
       console.log('This will overwrite existing queue of', trackQueue.length, 'tracks');
-      // Single track
+      
       trackQueue = [{ src: normalizeSrc(src), title, artist, feats: (arguments[0] && arguments[0].feats) ? arguments[0].feats : '', cover: normalizeCover(coverUrl || ''), duration, id, video_url: normalizeVideo((arguments[0] && arguments[0].video_url) ? arguments[0].video_url : '') }];
       originalQueue = trackQueue.slice();
       queueIndex = 0;
@@ -1601,11 +1556,10 @@
     }
   };
 
-  // Backward compatibility for artist.js which may call loadTrack(track)
   window.loadTrack = function (track) {
     function normalizeSrc(u){
       if (!u) return '';
-      if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('data:')) return u;
+      if (u.startsWith('http:
       if (u.startsWith('/')) return u;
       const i = u.indexOf('tracks/');
       if (i !== -1) return '/muzic2/' + u.slice(i);
@@ -1628,14 +1582,12 @@
     window.playTrack({ ...t });
   };
 
-  // Utility
   function escapeHtml(str) {
     return String(str || '').replace(/[&<>"]/g, function (m) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m];
     });
   }
 
-  // Set queue function for external use
   window.setQueue = function(queue, startIndex = 0) {
     console.log('setQueue called with queue length:', queue ? queue.length : 'null', 'startIndex:', startIndex);
     console.log('Current trackQueue length before setQueue:', trackQueue.length);
@@ -1647,16 +1599,13 @@
     
     console.log('Setting queue with', queue.length, 'tracks, starting from index', startIndex);
     console.log('First few tracks:', queue.slice(0, 3).map(t => ({ title: t.title, artist: t.artist, src: t.src })));
-    
-    // Update internal queue variables
+
     trackQueue = queue;
     queueIndex = startIndex;
-    
-    // Save queue to localStorage
+
     localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
     localStorage.setItem(QUEUE_INDEX_KEY, String(queueIndex));
-    
-    // Update queue UI
+
     renderQueueUI();
     
     console.log('Queue set successfully, trackQueue length:', trackQueue.length, 'queueIndex:', queueIndex);
@@ -1664,19 +1613,18 @@
     console.log('Current track src:', trackQueue[queueIndex] ? trackQueue[queueIndex].src : 'none');
   };
 
-  // Initialize from storage
   loadQueue();
   loadPlayerState();
   updateShuffleUI();
   updateRepeatUI();
   updateMuteUI();
   updateFullscreenUI();
-  // Load likes after render
+  
   loadLikes().then(updatePlayerLikeUI).catch(()=>{});
   renderQueueUI();
-  // Ensure UI reflects current state after initial render
+  
   setTimeout(updateShuffleUI, 0);
-  // Sync UI with popup if already open
+  
   if (popupActive && popupWin) {
     postToPopup({ cmd: 'play' }, { retries: 3, delay: 150 });
   }

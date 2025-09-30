@@ -9,7 +9,7 @@ header('Access-Control-Allow-Headers: Content-Type');
 $db = get_db_connection();
 $user_id = $_SESSION['user_id'] ?? null;
 if (!$user_id) { 
-    // Return empty likes for non-authenticated users
+    
     echo json_encode(['tracks' => [], 'albums' => []]); 
     exit; 
 }
@@ -17,12 +17,11 @@ if (!$user_id) {
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
-    // list liked tracks with track info + feats
+    
     $stmt = $db->prepare('SELECT t.*, (SELECT GROUP_CONCAT(ta.artist ORDER BY ta.artist SEPARATOR ", ") FROM track_artists ta WHERE ta.track_id=t.id AND ta.role="featured") AS feats FROM likes l JOIN tracks t ON l.track_id = t.id WHERE l.user_id = ? ORDER BY l.created_at DESC');
     $stmt->execute([$user_id]);
     $tracks = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // list liked albums (create table if not exists)
+
     $createTable = "CREATE TABLE IF NOT EXISTS album_likes (
         user_id INT,
         album_title VARCHAR(255),
@@ -40,16 +39,16 @@ if ($method === 'GET') {
     exit;
 }
 
-$data = json_decode(file_get_contents('php://input'), true);
+$data = json_decode(file_get_contents('php:
 if ($method === 'POST') {
     $track_id = $data['track_id'] ?? null;
     $album_title = $data['album_title'] ?? null;
     
     if ($track_id) {
-        // Handle track like
+        
         $stmt = $db->prepare('INSERT IGNORE INTO likes (user_id, track_id) VALUES (?, ?)');
         $stmt->execute([$user_id, $track_id]);
-        // Also ensure the track is in the user's default "Любимые треки" playlist
+        
         $pl = $db->prepare('SELECT id FROM playlists WHERE user_id = ? AND name = ? LIMIT 1');
         $pl->execute([$user_id, 'Любимые треки']);
         $playlistId = ($row = $pl->fetch()) ? $row['id'] : null;
@@ -66,7 +65,7 @@ if ($method === 'POST') {
             $insPt->execute([$playlistId, $track_id, $next]);
         }
     } elseif ($album_title) {
-        // Handle album like - create table if not exists
+        
         $createTable = "CREATE TABLE IF NOT EXISTS album_likes (
             user_id INT,
             album_title VARCHAR(255),
@@ -93,10 +92,10 @@ if ($method === 'DELETE') {
     $album_title = $data['album_title'] ?? null;
     
     if ($track_id) {
-        // Handle track unlike
+        
         $stmt = $db->prepare('DELETE FROM likes WHERE user_id = ? AND track_id = ?');
         $stmt->execute([$user_id, $track_id]);
-        // Remove from default favorites playlist as well
+        
         $pl = $db->prepare('SELECT id FROM playlists WHERE user_id = ? AND name = ? LIMIT 1');
         $pl->execute([$user_id, 'Любимые треки']);
         if ($row = $pl->fetch()) {
@@ -104,7 +103,7 @@ if ($method === 'DELETE') {
             $delPt->execute([$row['id'], $track_id]);
         }
     } elseif ($album_title) {
-        // Handle album unlike
+        
         $stmt = $db->prepare('DELETE FROM album_likes WHERE user_id = ? AND album_title = ?');
         $stmt->execute([$user_id, $album_title]);
     } else {

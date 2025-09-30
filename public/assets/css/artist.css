@@ -1,4 +1,4 @@
-/* Artist Page Styles */
+
 .artist-page {
     padding: 0;
     margin: 0;
@@ -6,7 +6,6 @@
     min-height: 100vh;
 }
 
-/* Artist Hero Section */
 .artist-hero {
     display: flex;
     align-items: flex-end;
@@ -30,8 +29,6 @@
     z-index: 0;
 }
 
-
-/* Enhanced background with better overlay */
 .artist-hero::after {
     content: '';
     position: absolute;
@@ -69,7 +66,6 @@
     border-color: rgba(30, 215, 96, 0.3);
 }
 
-/* Special styling for Kai Angel portrait */
 .artist-avatar-large[src*="Снимок экрана 2025-07-19"] {
     object-position: center 30%;
     border-color: rgba(30, 215, 96, 0.2);
@@ -121,7 +117,6 @@
     margin: 0;
 }
 
-/* Artist Controls */
 .artist-controls {
     display: flex;
     align-items: center;
@@ -218,7 +213,6 @@
     color: #fff;
 }
 
-/* Popular Tracks Section */
 .popular-tracks-section {
     padding: 2rem 2rem 1rem 2rem;
     animation: fadeInUp 0.6s ease-out;
@@ -433,7 +427,6 @@
     color: #fff;
 }
 
-/* Albums Section */
 .albums-section {
     padding: 1rem 2rem 2rem 2rem;
 }
@@ -542,7 +535,6 @@
     transform: translateY(-4px) scale(1.04);
 }
 
-/* Responsive Design */
 @media (max-width: 1024px) {
     .artist-hero {
         padding: 1.5rem 1.5rem;

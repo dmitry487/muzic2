@@ -11,14 +11,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 try {
-    // Подключение к базе данных
+    
     $pdo = get_db_connection();
-    
-    // Получаем количество треков для автоплея (по умолчанию 20)
+
     $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 20;
-    $limit = max(1, min($limit, 100)); // Ограничиваем от 1 до 100
-    
-    // Получаем случайные треки с фитами
+    $limit = max(1, min($limit, 100)); 
+
     $query = "
         SELECT 
             t.id,
@@ -45,7 +43,7 @@ try {
     
     $tracks = [];
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        // Нормализуем пути
+        
         $filePath = $row['file_path'];
         if (!empty($filePath) && !str_starts_with($filePath, '/')) {
             $filePath = '/muzic2/' . ltrim($filePath, '/');
