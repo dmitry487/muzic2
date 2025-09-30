@@ -295,11 +295,34 @@
   let originalQueue = [];
   let currentTrackId = null;
   let likedSet = new Set();
+  let autoplayEnabled = true; // Always enabled by default
 
   // Helpers
   function formatTime(sec) {
     sec = Math.floor(sec || 0);
     return `${Math.floor(sec / 60)}:${('0' + (sec % 60)).slice(-2)}`;
+  }
+  
+  // Load random tracks for autoplay
+  async function loadRandomTracks(count = 20) {
+    try {
+      console.log('Loading random tracks for autoplay, count:', count);
+      const response = await fetch(`/muzic2/public/src/api/random_tracks.php?limit=${count}`, {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      
+      if (data.success && data.tracks) {
+        console.log('Loaded random tracks:', data.tracks.length);
+        return data.tracks;
+      } else {
+        console.error('Failed to load random tracks:', data.error);
+        return [];
+      }
+    } catch (error) {
+      console.error('Error loading random tracks:', error);
+      return [];
+    }
   }
   function updatePlayPauseUI() {
     // Prefer inline video state if video panel is open
@@ -332,6 +355,7 @@
     repeatBtn.setAttribute('aria-pressed', String(isOn));
     repeatBtn.style.color = isOn ? '#1ed760' : '';
   }
+  
 
   // Likes helpers
   async function loadLikes() {
@@ -437,6 +461,18 @@
       fullscreenVideo.style.display = 'block';
       fullscreenCover.style.display = 'none';
       fullscreenVideo.play().catch(() => {});
+      
+      // Remove existing ended listener to avoid duplicates
+      try {
+        fullscreenVideo.removeEventListener('ended', handleFullscreenVideoEnded);
+      } catch(_) {}
+      
+      // Add ended event listener for fullscreen video
+      const handleFullscreenVideoEnded = () => {
+        console.log('Fullscreen video ended, playing next track');
+        playNext(true);
+      };
+      fullscreenVideo.addEventListener('ended', handleFullscreenVideoEnded);
     } else {
       fullscreenCover.src = currentTrack.cover || '';
       fullscreenCover.style.display = 'block';
@@ -513,7 +549,7 @@
       repeat: repeatMode,
       queueIndex,
       replayOnceEnabled,
-      replayToken
+      replayToken,
     };
     localStorage.setItem(PLAYER_STATE_KEY, JSON.stringify(state));
     // Persist replay toggle separately for robustness
@@ -669,6 +705,20 @@
     console.log('Track cover:', t.cover);
     console.log('Track object:', t);
     
+    // Check if current track has video, if not and video panel is open, close it
+    if (!t.video_url && videoPanel && videoPanel.style.display === 'block') {
+      console.log('Current track has no video, closing video panel');
+      // Close video panel and resume audio playback
+      try { inlineVideo.pause(); } catch(_) {}
+      inlineVideo.removeAttribute('src'); 
+      inlineVideo.load();
+      if (inlineCover) inlineCover.style.display = 'none';
+      videoPanel.style.display = 'none';
+      // Resume audio playback
+      try { audio.play().catch(()=>{}); } catch(_) {}
+      updatePlayPauseUI();
+    }
+    
     // ПРОВЕРЯЕМ: если src содержит URL страницы, заменяем на file_path
     if (t.src && t.src.includes('artist.html')) {
       console.log('WARNING: Track src contains URL page, replacing with file_path');
@@ -717,7 +767,7 @@
       }
     } catch (e) {}
   }
-  function playNext(auto = false) {
+  async function playNext(auto = false) {
     console.log('playNext called, auto:', auto, 'trackQueue length:', trackQueue.length, 'queueIndex:', queueIndex);
     console.log('repeatMode:', repeatMode);
     if (!trackQueue.length) {
@@ -734,12 +784,64 @@
     if (queueIndex + 1 < trackQueue.length) {
       console.log('Playing next track at index:', queueIndex + 1);
       console.log('Next track:', trackQueue[queueIndex + 1] ? trackQueue[queueIndex + 1].title : 'none');
+      
+      // Check if next track has video, if not and video panel is open, close it
+      const nextTrack = trackQueue[queueIndex + 1];
+      if (nextTrack && !nextTrack.video_url && videoPanel && videoPanel.style.display === 'block') {
+        console.log('Next track has no video, closing video panel');
+        // Close video panel and resume audio playback
+        try { inlineVideo.pause(); } catch(_) {}
+        inlineVideo.removeAttribute('src'); 
+        inlineVideo.load();
+        if (inlineCover) inlineCover.style.display = 'none';
+        videoPanel.style.display = 'none';
+        // Resume audio playback
+        try { audio.play().catch(()=>{}); } catch(_) {}
+        updatePlayPauseUI();
+      }
+      
       playFromQueue(queueIndex + 1);
     } else if (repeatMode === 'all') {
       console.log('Repeating from beginning');
+      
+      // Check if first track has video, if not and video panel is open, close it
+      const firstTrack = trackQueue[0];
+      if (firstTrack && !firstTrack.video_url && videoPanel && videoPanel.style.display === 'block') {
+        console.log('First track has no video, closing video panel');
+        // Close video panel and resume audio playback
+        try { inlineVideo.pause(); } catch(_) {}
+        inlineVideo.removeAttribute('src'); 
+        inlineVideo.load();
+        if (inlineCover) inlineCover.style.display = 'none';
+        videoPanel.style.display = 'none';
+        // Resume audio playback
+        try { audio.play().catch(()=>{}); } catch(_) {}
+        updatePlayPauseUI();
+      }
+      
       playFromQueue(0);
     } else {
       console.log('No more tracks in queue');
+      // If autoplay is enabled, load random tracks
+      if (autoplayEnabled) {
+        console.log('Autoplay enabled, loading random tracks...');
+        try {
+          const randomTracks = await loadRandomTracks(20);
+          if (randomTracks.length > 0) {
+            console.log('Loaded random tracks for autoplay:', randomTracks.length);
+            // Replace current queue with random tracks
+            trackQueue = randomTracks;
+            originalQueue = randomTracks.slice();
+            queueIndex = 0;
+            saveQueue();
+            renderQueueUI();
+            playFromQueue(0);
+            return;
+          }
+        } catch (error) {
+          console.error('Failed to load random tracks for autoplay:', error);
+        }
+      }
     }
   }
   function playPrev() {
@@ -751,8 +853,36 @@
     }
     // Always follow current queue order; shuffle affects queue order, not prev-pick randomness
     if (queueIndex > 0) {
+      const prevTrack = trackQueue[queueIndex - 1];
+      // Check if previous track has video, if not and video panel is open, close it
+      if (prevTrack && !prevTrack.video_url && videoPanel && videoPanel.style.display === 'block') {
+        console.log('Previous track has no video, closing video panel');
+        // Close video panel and resume audio playback
+        try { inlineVideo.pause(); } catch(_) {}
+        inlineVideo.removeAttribute('src'); 
+        inlineVideo.load();
+        if (inlineCover) inlineCover.style.display = 'none';
+        videoPanel.style.display = 'none';
+        // Resume audio playback
+        try { audio.play().catch(()=>{}); } catch(_) {}
+        updatePlayPauseUI();
+      }
       playFromQueue(queueIndex - 1);
     } else if (repeatMode === 'all') {
+      const lastTrack = trackQueue[trackQueue.length - 1];
+      // Check if last track has video, if not and video panel is open, close it
+      if (lastTrack && !lastTrack.video_url && videoPanel && videoPanel.style.display === 'block') {
+        console.log('Last track has no video, closing video panel');
+        // Close video panel and resume audio playback
+        try { inlineVideo.pause(); } catch(_) {}
+        inlineVideo.removeAttribute('src'); 
+        inlineVideo.load();
+        if (inlineCover) inlineCover.style.display = 'none';
+        videoPanel.style.display = 'none';
+        // Resume audio playback
+        try { audio.play().catch(()=>{}); } catch(_) {}
+        updatePlayPauseUI();
+      }
       playFromQueue(trackQueue.length - 1);
     } else {
       audio.currentTime = 0;
@@ -836,18 +966,31 @@
   });
   audio.addEventListener('timeupdate', () => {
     if (popupActive) return;
+    // If video is playing, don't update progress bar - let video handle it
+    if (videoPanel && videoPanel.style.display === 'block' && inlineVideo && !inlineVideo.ended) {
+      return;
+    }
     seekBar.value = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
     currentTimeEl.textContent = formatTime(audio.currentTime);
     savePlayerStateThrottled();
   });
   audio.addEventListener('loadedmetadata', () => {
     if (popupActive) return;
+    // If video is playing, don't update duration - let video handle it
+    if (videoPanel && videoPanel.style.display === 'block' && inlineVideo && !inlineVideo.ended) {
+      return;
+    }
     durationEl.textContent = formatTime(audio.duration);
   });
   audio.addEventListener('ended', () => {
     console.log('Audio ended event triggered');
     if (popupActive) {
       console.log('Popup is active, skipping playNext');
+      return;
+    }
+    // If video is playing, don't trigger playNext - let video handle it
+    if (videoPanel && videoPanel.style.display === 'block' && inlineVideo && !inlineVideo.ended) {
+      console.log('Video is still playing, not calling playNext yet');
       return;
     }
     console.log('Calling playNext(true)');
@@ -1081,36 +1224,66 @@
     inlineVideo.appendChild(source);
     inlineVideo.load();
 
+    // Remove existing event listeners to avoid duplicates
+    try {
+      inlineVideo.removeEventListener('timeupdate', handleVideoTimeUpdate);
+      inlineVideo.removeEventListener('loadedmetadata', handleVideoLoadedMetadata);
+      inlineVideo.removeEventListener('seeked', handleVideoSeeked);
+      inlineVideo.removeEventListener('ended', handleVideoEnded);
+      inlineVideo.removeEventListener('play', handleVideoPlay);
+      inlineVideo.removeEventListener('pause', handleVideoPause);
+    } catch(_) {}
+
+    // Define event handlers
+    const handleVideoTimeUpdate = () => {
+      if (videoPanel && videoPanel.style.display === 'block') {
+        try {
+          seekBar.value = inlineVideo.duration ? (inlineVideo.currentTime / inlineVideo.duration) * 100 : 0;
+          currentTimeEl.textContent = formatTime(inlineVideo.currentTime || 0);
+          if (!isNaN(inlineVideo.currentTime)) audio.currentTime = inlineVideo.currentTime;
+          savePlayerStateThrottled();
+        } catch(_) {}
+      }
+    };
+    
+    const handleVideoLoadedMetadata = () => {
+      if (videoPanel && videoPanel.style.display === 'block') {
+        try { durationEl.textContent = formatTime(inlineVideo.duration || 0); } catch(_) {}
+      }
+    };
+    
+    const handleVideoSeeked = () => {
+      if (videoPanel && videoPanel.style.display === 'block') {
+        try { audio.currentTime = inlineVideo.currentTime || 0; } catch(_) {}
+      }
+    };
+    
+    const handleVideoEnded = () => {
+      console.log('Inline video ended, playing next track');
+      if (videoPanel && videoPanel.style.display === 'block') {
+        playNext(true);
+      }
+    };
+    
+    const handleVideoPlay = () => { 
+      try { audio.pause(); } catch(_) {} 
+      updatePlayPauseUI(); 
+      saveVideoState({ open: true, url, currentTime: inlineVideo.currentTime||0, playing: true }); 
+    };
+    
+    const handleVideoPause = () => { 
+      updatePlayPauseUI(); 
+      saveVideoState({ open: true, url, currentTime: inlineVideo.currentTime||0, playing: false }); 
+    };
+
     // Keep UI and audio time in sync with video when panel visible
     try {
-      inlineVideo.addEventListener('timeupdate', () => {
-        if (videoPanel && videoPanel.style.display === 'block') {
-          try {
-            seekBar.value = inlineVideo.duration ? (inlineVideo.currentTime / inlineVideo.duration) * 100 : 0;
-            currentTimeEl.textContent = formatTime(inlineVideo.currentTime || 0);
-            if (!isNaN(inlineVideo.currentTime)) audio.currentTime = inlineVideo.currentTime;
-            savePlayerStateThrottled();
-          } catch(_) {}
-        }
-      });
-      inlineVideo.addEventListener('loadedmetadata', () => {
-        if (videoPanel && videoPanel.style.display === 'block') {
-          try { durationEl.textContent = formatTime(inlineVideo.duration || 0); } catch(_) {}
-        }
-      });
-      inlineVideo.addEventListener('seeked', () => {
-        if (videoPanel && videoPanel.style.display === 'block') {
-          try { audio.currentTime = inlineVideo.currentTime || 0; } catch(_) {}
-        }
-      });
-      inlineVideo.addEventListener('ended', () => {
-        if (videoPanel && videoPanel.style.display === 'block') {
-          playNext(true);
-        }
-      });
-      inlineVideo.addEventListener('play', () => { try { audio.pause(); } catch(_) {} updatePlayPauseUI(); saveVideoState({ open: true, url, currentTime: inlineVideo.currentTime||0, playing: true }); });
-      inlineVideo.addEventListener('pause', () => { updatePlayPauseUI(); saveVideoState({ open: true, url, currentTime: inlineVideo.currentTime||0, playing: false }); });
-      inlineVideo.addEventListener('timeupdate', () => { saveVideoState({ open: true, url, currentTime: inlineVideo.currentTime||0, playing: !inlineVideo.paused && !inlineVideo.ended }); });
+      inlineVideo.addEventListener('timeupdate', handleVideoTimeUpdate);
+      inlineVideo.addEventListener('loadedmetadata', handleVideoLoadedMetadata);
+      inlineVideo.addEventListener('seeked', handleVideoSeeked);
+      inlineVideo.addEventListener('ended', handleVideoEnded);
+      inlineVideo.addEventListener('play', handleVideoPlay);
+      inlineVideo.addEventListener('pause', handleVideoPause);
     } catch(_) {}
   }
 

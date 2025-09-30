@@ -533,7 +533,8 @@ if (mainContent && navHome && navSearch && navLibrary) {
 
 	function playlistTile(pl) {
 		// Use special cover for "Любимые треки" playlist, otherwise use placeholder
-		const cover = pl.cover ? `/muzic2/${pl.cover}` : '/muzic2/public/assets/img/playlist-placeholder.png';
+		const isFavorites = (String(pl.name||'').trim().toLowerCase() === 'любимые треки');
+		const cover = isFavorites ? '/muzic2/public/assets/img/playlist-placeholder.png' : (pl.cover ? `/muzic2/${pl.cover}` : '/muzic2/public/assets/img/playlist-placeholder.png');
 		const safeName = escapeHtml(pl.name);
 		return `
 			<div class="tile playlist-tile" id="pl-${pl.id}" data-playlist-id="${pl.id}" data-playlist-name="${safeName}" data-cover="${cover}" style="cursor: pointer;" onclick="window.openPlaylistProxy && window.openPlaylistProxy('${pl.id}','${safeName.replace(/'/g,"\'")}','${cover}')">
