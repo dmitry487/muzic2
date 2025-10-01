@@ -466,6 +466,25 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 				} catch(_) {}
 			})();
 
+			// Обновляем сердечки после загрузки лайков
+			(void async function(){
+				try {
+					const likesRes = await fetch(getLikesAPI(), { credentials: 'include' });
+					const likes = await likesRes.json();
+					window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
+					window.__likedAlbums = new Set((likes.albums||[]).map(a=>a.album_title || a.title));
+					// Обновляем иконки лайков на странице
+					document.querySelectorAll('.heart-btn[data-track-id]').forEach(btn => {
+						const id = Number(btn.getAttribute('data-track-id'));
+						if (window.__likedSet.has(id)) btn.classList.add('liked');
+					});
+					document.querySelectorAll('.album-heart-btn[data-album-title]').forEach(btn => {
+						const title = btn.getAttribute('data-album-title');
+						if (window.__likedAlbums.has(title)) btn.classList.add('liked');
+					});
+				} catch(_) {}
+			})();
+
 				return;
 		}
 		

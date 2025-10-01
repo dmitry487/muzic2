@@ -23,10 +23,31 @@ try {
     $pdo = get_db_connection();
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT);
     
-    // Простой запрос без JOIN
+    // Простой запрос без JOIN + создаём "Любимые треки" если нет
     $stmt = $pdo->prepare("SELECT id, name, cover FROM playlists WHERE user_id = ?");
     $stmt->execute([$_SESSION['user_id']]);
     $playlists = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Проверяем есть ли "Любимые треки", если нет — создаём
+    $hasFavorites = false;
+    foreach ($playlists as $pl) {
+        if (strtolower(trim($pl['name'])) === 'любимые треки') {
+            $hasFavorites = true;
+            break;
+        }
+    }
+    if (!$hasFavorites) {
+        try {
+            $stmt = $pdo->prepare("INSERT INTO playlists (user_id, name, is_public) VALUES (?, ?, 0)");
+            $stmt->execute([$_SESSION['user_id'], 'Любимые треки']);
+            $newId = $pdo->lastInsertId();
+            if ($newId) {
+                array_unshift($playlists, ['id' => $newId, 'name' => 'Любимые треки', 'cover' => null, 'track_count' => 0]);
+            }
+        } catch (Exception $e) {
+            // Игнорируем ошибки создания
+        }
+    }
     
     // Добавляем количество треков (упрощенно)
     foreach ($playlists as &$playlist) {
