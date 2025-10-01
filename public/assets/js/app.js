@@ -882,12 +882,19 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 					if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Войти'; }
 					return;
 				}
+				// Ultra-fast path for Windows: trust API payload and avoid extra roundtrip
+				if (isWindows && payload && payload.user) {
+					currentUser = payload.user;
+					closeAll();
+					renderAuthHeader();
+					return;
+				}
+				// Mac (or fallback): verify via GET user endpoint
 				const uRes = await fetch(getUserAPI(), { credentials: 'include' });
 				const u = await uRes.json();
 				if (u && u.authenticated && u.user) {
 					currentUser = u.user;
 					closeAll();
-					// Перезагрузка страницы для гарантированного применения состояния сессии везде
 					window.location.reload();
 				} else {
 					if (errBox) { errBox.textContent = 'Сессия не установлена'; errBox.style.display='block'; }
@@ -907,7 +914,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 			if (!email || !username || !password) { if (errBox){ errBox.textContent='Заполните все поля'; errBox.style.display='block'; } return; }
 			try {
 				const authAPI = getAuthAPI();
-				const res = await fetch(authAPI, { 
+			const res = await fetch(authAPI, { 
 					method: 'POST', 
 					credentials: 'include', 
 					headers: { 'Content-Type': 'application/json' }, 
@@ -920,6 +927,27 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 				});
 				let ok = res.ok; let payload=null; try { payload = await res.json(); } catch(_) {}
 				if (!ok) { if (errBox){ errBox.textContent=(payload&&payload.error)||'Ошибка регистрации'; errBox.style.display='block'; } return; }
+			// Ultra-fast path for Windows: server already set session and returns user
+			if (isWindows && payload && payload.success) {
+				try {
+					// Immediately login without extra roundtrips
+					const loginAPI = getAuthAPI();
+					const lr = await fetch(loginAPI, {
+						method: 'POST',
+						credentials: 'include',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ action:'login', login: username, password })
+					});
+					let lp = null; try { lp = await lr.json(); } catch(_){ lp = null; }
+					if (lr.ok && lp && lp.user) {
+						currentUser = lp.user;
+						closeAll();
+						renderAuthHeader();
+						return;
+					}
+				} catch(_) {}
+			}
+			// Fallback (Mac or if fast path failed)
 				await doLoginPostRegister(username, password);
 			} catch (e) {
 				if (errBox) { errBox.textContent='Сетевая ошибка'; errBox.style.display='block'; }
