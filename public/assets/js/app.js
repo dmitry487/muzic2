@@ -183,8 +183,16 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 				const res = await fetch('/muzic2/src/api/home_windows.php');
 				const data = await res.json();
 				
-				// Отключаем лайки для Windows (самая медленная часть)
+		// Загрузка лайков пользователя (Windows)
+		try {
+			const likesRes = await fetch(getLikesAPI(), { credentials: 'include' });
+			const likes = await likesRes.json();
+			window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
+			window.__likedAlbums = new Set((likes.albums||[]).map(a=>a.album_title || a.title));
+		} catch(e){
 				window.__likedSet = new Set();
+			window.__likedAlbums = new Set();
+		}
 				
 				mainContent.innerHTML = `
 					<section class="main-filters">
@@ -392,8 +400,45 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 				const playlistsData = await listsRes.json();
 				const playlists = playlistsData.playlists || [];
 
-				// Отключаем лайки альбомов для Windows
-				window.__likedAlbums = new Set();
+			// Загрузка лайков альбомов и отрисовка блока "Любимые альбомы" (как на Mac)
+			let albumCards = '<div class="empty">Пока нет любимых альбомов</div>';
+			try {
+				const likesRes = await fetch(getLikesAPI(), { credentials: 'include' });
+				const likesData = await likesRes.json();
+				const likedAlbums = likesData.albums || [];
+				window.__likedAlbums = new Set(likedAlbums.map(a => a.album_title));
+				if (likedAlbums.length > 0) {
+					const allAlbumsRes = await fetch('/muzic2/src/api/all_albums.php');
+					const allAlbumsData = await allAlbumsRes.json();
+					const allAlbums = allAlbumsData.albums || [];
+					const matchedAlbums = await Promise.all(likedAlbums.map(async (likedAlbum) => {
+						let matched = allAlbums.find(album => album.album && album.album.toLowerCase() === likedAlbum.album_title.toLowerCase());
+						if (!matched) matched = allAlbums.find(album => album.album && album.album.toLowerCase().includes(likedAlbum.album_title.toLowerCase()));
+						if (!matched) matched = allAlbums.find(album => album.album && likedAlbum.album_title.toLowerCase().includes(album.album.toLowerCase()));
+						if (!matched) {
+							try {
+								const searchApiUrl = `/muzic2/src/api/search_windows.php?q=${encodeURIComponent(likedAlbum.album_title)}&type=albums`;
+								const searchRes = await fetch(searchApiUrl);
+								const searchData = await searchRes.json();
+								if (searchData.albums && searchData.albums.length > 0) { matched = searchData.albums[0]; }
+							} catch(_) {}
+						}
+						return matched ? { title: matched.album || matched.title, artist: matched.artist, cover: matched.cover } : { title: likedAlbum.album_title, artist: 'Неизвестный артист', cover: 'tracks/covers/placeholder.jpg' };
+					}));
+					albumCards = matchedAlbums.map(album => createAlbumCard(album)).join('');
+				}
+			} catch(_) {}
+			// Вставляем блок любимых альбомов поверх плейлистов
+			const favAlbumsSection = `
+				<div class="favorite-albums-section">
+					<h3>Любимые альбомы</h3>
+					<div class="albums-grid" id="favorite-albums-grid">${albumCards}</div>
+				</div>
+			`;
+			const container = document.querySelector('.my-music-content');
+			if (container && !document.getElementById('favorite-albums-grid')) {
+				container.insertAdjacentHTML('beforeend', favAlbumsSection);
+			}
 
 				mainContent.innerHTML = `
 					<div class="my-music-container">
@@ -1597,14 +1642,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 
 	// Load album likes
 	async function loadAlbumLikes() {
-		// Отключаем альбомные лайки только для Windows для тестирования скорости
-		if (isWindows) {
-			console.log('Windows detected - skipping album likes for speed test');
-			window.__likedAlbums = new Set();
-			return;
-		}
-		
-		// Оригинальная логика для Mac
+		// Единая логика загрузки лайков альбомов (Windows и Mac)
 		try {
 			const res = await fetch(getLikesAPI(), { credentials: 'include' });
 			const data = await res.json();
