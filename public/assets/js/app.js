@@ -408,98 +408,65 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 	// My Music (Favorites & Playlists)
 	// =====================
 	async function renderMyMusic() {
-		// Упрощенная "Моя музыка" для Windows (без лайков)
+		// Windows: мгновенный скелет + фоновые загрузки
 		if (isWindows) {
-			console.log('Windows detected - using simplified My Music');
-			mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
+			console.log('Windows detected - fast My Music');
 			injectMyMusicStyles();
-
-			try {
-				const listsRes = await fetch('/muzic2/src/api/playlists_windows.php', { credentials: 'include' });
-				const playlistsData = await listsRes.json();
-				const playlists = playlistsData.playlists || [];
-
-			// Загрузка лайков альбомов и отрисовка блока "Любимые альбомы" (как на Mac)
-			let albumCards = '<div class="empty">Пока нет любимых альбомов</div>';
-			try {
-				const likesRes = await fetch(getLikesAPI(), { credentials: 'include' });
-				const likesData = await likesRes.json();
-				const likedAlbums = likesData.albums || [];
-				window.__likedAlbums = new Set(likedAlbums.map(a => a.album_title));
-				if (likedAlbums.length > 0) {
-					const allAlbumsRes = await fetch('/muzic2/src/api/all_albums.php');
-					const allAlbumsData = await allAlbumsRes.json();
-					const allAlbums = allAlbumsData.albums || [];
-					const matchedAlbums = await Promise.all(likedAlbums.map(async (likedAlbum) => {
-						let matched = allAlbums.find(album => album.album && album.album.toLowerCase() === likedAlbum.album_title.toLowerCase());
-						if (!matched) matched = allAlbums.find(album => album.album && album.album.toLowerCase().includes(likedAlbum.album_title.toLowerCase()));
-						if (!matched) matched = allAlbums.find(album => album.album && likedAlbum.album_title.toLowerCase().includes(album.album.toLowerCase()));
-						if (!matched) {
-							try {
-								const searchApiUrl = `/muzic2/src/api/search_windows.php?q=${encodeURIComponent(likedAlbum.album_title)}&type=albums`;
-								const searchRes = await fetch(searchApiUrl);
-								const searchData = await searchRes.json();
-								if (searchData.albums && searchData.albums.length > 0) { matched = searchData.albums[0]; }
-							} catch(_) {}
-						}
-						return matched ? { title: matched.album || matched.title, artist: matched.artist, cover: matched.cover } : { title: likedAlbum.album_title, artist: 'Неизвестный артист', cover: 'tracks/covers/placeholder.jpg' };
-					}));
-					albumCards = matchedAlbums.map(album => createAlbumCard(album)).join('');
-				}
-			} catch(_) {}
-			// Вставляем блок любимых альбомов поверх плейлистов
-			const favAlbumsSection = `
-				<div class="favorite-albums-section">
-					<h3>Любимые альбомы</h3>
-					<div class="albums-grid" id="favorite-albums-grid">${albumCards}</div>
-				</div>
-			`;
-			const container = document.querySelector('.my-music-content');
-			if (container && !document.getElementById('favorite-albums-grid')) {
-				container.insertAdjacentHTML('beforeend', favAlbumsSection);
-			}
-
 				mainContent.innerHTML = `
 					<div class="my-music-container">
-						<div class="my-music-header">
-							<h2>Моя музыка</h2>
-						</div>
+					<div class="my-music-header"><h2>Моя музыка</h2></div>
 						<div class="my-music-content">
 							<div class="playlists-section">
 								<h3>Плейлисты</h3>
-								<div class="playlists-grid" id="playlists-grid">
-									${playlists.map(pl => `
-										<div class="playlist-tile" data-playlist-id="${pl.id}" data-playlist-name="${pl.name}">
-											<div class="playlist-cover">
-												${pl.cover ? `<img src="${pl.cover}" alt="${pl.name}">` : '<div class="playlist-placeholder">🎵</div>'}
-											</div>
-											<div class="playlist-info">
-												<h4>${pl.name}</h4>
-												<p>${pl.track_count || 0} треков</p>
-											</div>
-										</div>
-									`).join('')}
-								</div>
+							<div class="playlists-grid" id="playlists-grid"><div class="empty">Загрузка плейлистов…</div></div>
 							</div>
 							<div class="favorite-albums-section">
 								<h3>Любимые альбомы</h3>
-								<div class="albums-grid" id="favorite-albums-grid">
-									<p>Функция лайков отключена для оптимизации скорости на Windows</p>
+							<div class="albums-grid" id="favorite-albums-grid"><div class="empty">Загрузка любимых альбомов…</div></div>
 								</div>
 							</div>
-						</div>
-					</div>
-				`;
-				
-				// Показываем время загрузки для Windows
-				const loadTime = Date.now() - (window.startTime || Date.now());
-				console.log('Windows My Music load time:', loadTime + 'ms');
+				</div>`;
+
+			// Плейлисты — в фоне
+			(void async function(){
+				try {
+					const listsRes = await fetch('/muzic2/src/api/playlists_windows.php', { credentials: 'include' });
+					const playlistsData = await listsRes.json();
+					const playlists = playlistsData.playlists || [];
+					const grid = document.getElementById('playlists-grid');
+					if (grid) {
+						grid.innerHTML = playlists.length ? playlists.map(pl => `
+							<div class="playlist-tile" data-playlist-id="${pl.id}" data-playlist-name="${pl.name}">
+								<div class="playlist-cover">${pl.cover ? `<img src="${pl.cover}" alt="${pl.name}">` : '<div class="playlist-placeholder">🎵</div>'}</div>
+								<div class="playlist-info"><h4>${pl.name}</h4><p>${pl.track_count || 0} треков</p></div>
+							</div>`).join('') : '<div class="empty">Плейлистов пока нет</div>';
+					}
+					// Навешиваем клики
+					document.querySelectorAll('#playlists-grid .playlist-tile').forEach(tile => {
+						tile.onclick = (e)=>{
+							e.preventDefault(); e.stopPropagation();
+							const playlistId = tile.dataset.playlistId;
+							const playlistName = tile.dataset.playlistName;
+							if (playlistId && playlistName) { openPlaylist(playlistId, playlistName); }
+						};
+					});
+				} catch (_) {}
+			})();
+
+			// Любимые альбомы — в фоне, без тяжёлых сопоставлений
+			(void async function(){
+				try {
+					const favGrid = document.getElementById('favorite-albums-grid');
+					if (!favGrid) return;
+					const likesRes = await fetch(getLikesAPI(), { credentials: 'include' });
+					const likesData = await likesRes.json();
+					const likedAlbums = likesData.albums || [];
+					window.__likedAlbums = new Set(likedAlbums.map(a => a.album_title));
+					favGrid.innerHTML = likedAlbums.length ? likedAlbums.map(a => createAlbumCard({ title: a.album_title, artist: 'Любимый альбом', cover: 'tracks/covers/placeholder.jpg' })).join('') : '<div class="empty">Пока нет любимых альбомов</div>';
+				} catch(_) {}
+			})();
+
 				return;
-			} catch (e) {
-				console.error('Windows My Music error:', e);
-				mainContent.innerHTML = '<div class="error">Ошибка загрузки моей музыки</div>';
-				return;
-			}
 		}
 		
 		// Оригинальная логика для Mac
