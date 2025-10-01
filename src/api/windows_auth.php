@@ -45,12 +45,15 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
-    $data = json_decode(file_get_contents('php://input'), true);
+    $raw = file_get_contents('php://input');
+    $data = is_string($raw) && strlen($raw) ? json_decode($raw, true) : null;
+    if (!is_array($data)) { $data = $_POST ?: []; }
+    if (!is_array($data) || !count($data)) { $data = $_GET ?: []; }
     $action = $data['action'] ?? 'login';
     
     if ($action === 'login') {
-        $login = trim($data['login'] ?? '');
-        $password = $data['password'] ?? '';
+        $login = trim((string)($data['login'] ?? ''));
+        $password = (string)($data['password'] ?? '');
         
         if (!$login || !$password) {
             http_response_code(400);
