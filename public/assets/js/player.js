@@ -19,6 +19,10 @@
       .player-progress { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; }
       #seek-bar { width: 100%; }
       .player-right { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+      /* Lyrics */
+      #lyrics-container { display: none; max-height: 140px; overflow: hidden; padding: 10px; background: rgba(255,255,255,0.06); border-radius: 8px; font-size: 1.05rem; line-height: 1.5; margin-top: 6px; }
+      #lyrics-container .lyric-line { color: #b3b3b3; opacity: 0; transform: translateY(8px); transition: opacity .25s ease, transform .25s ease; text-align: center; }
+      #lyrics-container .lyric-line.show { opacity: 1; transform: translateY(0); color: #1ed760; }
       #like-btn { background: transparent; border: none; color: #bbb; cursor: pointer; padding: 6px; border-radius: 50%; pointer-events: auto; }
       #like-btn.btn-active { color: #1ed760; }
       .volume-bar { width: 120px; }
@@ -90,12 +94,16 @@
           <button id="repeat-btn" title="Повтор: выкл">
             <svg id="repeat-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
           </button>
+          <button id="lyrics-btn" title="Текст (караоке)">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h9"/><path d="M17 3h4v4"/><path d="M21 3l-7 7"/></svg>
+          </button>
         </div>
         <div class="player-progress">
           <span id="current-time">0:00</span>
           <input type="range" id="seek-bar" min="0" max="100" value="0">
           <span id="duration">0:00</span>
         </div>
+        <div id="lyrics-container"></div>
       </div>
       <div class="player-right">
         <button id="like-btn" type="button" title="В избранное">❤</button>
@@ -159,6 +167,7 @@
   
   const shuffleBtn = playerContainer.querySelector('#shuffle-btn');
   const repeatBtn = playerContainer.querySelector('#repeat-btn');
+  const lyricsBtn = playerContainer.querySelector('#lyrics-btn');
   const seekBar = playerContainer.querySelector('#seek-bar');
   const trackTitle = playerContainer.querySelector('#track-title');
   const trackArtist = playerContainer.querySelector('#track-artist');
@@ -185,6 +194,115 @@
   const fullscreenArtist = playerRoot.querySelector('#fullscreen-artist');
   const fullscreenClose = playerRoot.querySelector('#fullscreen-close');
   const fullscreenBack = playerRoot.querySelector('#fullscreen-back');
+  const lyricsContainer = playerContainer.querySelector('#lyrics-container');
+
+  // Lyrics state
+  let lyricsLines = []; // [{time:number, text:string}]
+  let lyricsVisible = false;
+  let currentLyricsIndex = -1;
+  let lastTrackTitle = '';
+  let lastTrackArtist = '';
+
+  function parseLRC(lrcText) {
+    const lines = [];
+    if (!lrcText) return lines;
+    const re = /\[(\d{1,2}):(\d{2})(?:[\.:](\d{1,2}))?\]\s*(.*)/;
+    lrcText.split(/\r?\n/).forEach(line => {
+      const m = line.match(re);
+      if (!m) return;
+      const min = parseInt(m[1],10)||0;
+      const sec = parseInt(m[2],10)||0;
+      const cs = parseInt(m[3]||'0',10)||0; // centiseconds
+      const t = min*60 + sec + (cs/100);
+      lines.push({ time: t, text: m[4]||'' });
+    });
+    return lines.sort((a,b)=>a.time-b.time);
+  }
+
+  async function loadLyricsForTrack(trackId) {
+    try {
+      if (!lyricsContainer) return;
+      // Always query lyrics API; if id нет, отправляем title/artist
+      let url = '';
+      if (trackId) { url = '/muzic2/src/api/lyrics.php?track_id='+encodeURIComponent(trackId); }
+      else {
+        const params = new URLSearchParams();
+        if (lastTrackTitle) params.set('title', lastTrackTitle);
+        if (lastTrackArtist) params.set('artist', lastTrackArtist);
+        url = '/muzic2/src/api/lyrics.php?'+params.toString();
+      }
+      lyricsContainer.innerHTML = '<div class="lyric-line">Загрузка…</div>';
+      const res = await fetch(url);
+      if (!res.ok) { lyricsLines = []; renderLyrics(); return; }
+      let data = null; try { data = await res.json(); } catch(e){ data = null; }
+      const lrcText = data && typeof data.lrc === 'string' ? data.lrc : '';
+      lyricsLines = parseLRC(lrcText);
+      // If no [mm:ss.xx] tags, approximate timings line-by-line
+      if (!lyricsLines.length && lrcText.trim()) {
+        const rawLines = lrcText.split(/\r?\n/).filter(s=>s.trim()!=='');
+        if (rawLines.length > 0) {
+          const total = (isFinite(audio && audio.duration) && audio.duration>0) ? audio.duration : (rawLines.length * 3);
+          const step = Math.max(1, total / (rawLines.length + 1));
+          lyricsLines = rawLines.map((txt, i) => ({ time: (i+1)*step, text: txt }));
+        } else {
+          lyricsLines = [{ time: 0, text: lrcText }];
+        }
+      }
+      renderLyrics();
+    } catch(e) {
+      lyricsLines = [];
+      renderLyrics();
+    }
+  }
+
+  async function fetchAndRenderLyricsDirect() {
+    try {
+      if (!lyricsContainer) return;
+      lyricsContainer.innerHTML = '<div class="lyric-line">Загрузка…</div>';
+      // Try title+artist first
+      const params = new URLSearchParams();
+      if (lastTrackTitle) params.set('title', lastTrackTitle);
+      if (lastTrackArtist) params.set('artist', lastTrackArtist);
+      let res = await fetch('/muzic2/src/api/lyrics.php?' + params.toString());
+      let data = null; try { data = await res.json(); } catch(_) { data = null; }
+      let lrcText = data && typeof data.lrc === 'string' ? data.lrc : '';
+      if (!lrcText && currentTrackId) {
+        // fallback to id
+        res = await fetch('/muzic2/src/api/lyrics.php?track_id=' + encodeURIComponent(currentTrackId));
+        try { data = await res.json(); } catch(_) { data = null; }
+        lrcText = data && typeof data.lrc === 'string' ? data.lrc : '';
+      }
+      lyricsLines = parseLRC(lrcText);
+      if (!lyricsLines.length && lrcText.trim()) {
+        lyricsLines = [{ time: 0, text: lrcText }];
+      }
+      renderLyrics();
+      updateLyricsHighlight(audio.currentTime || 0);
+    } catch(_) {
+      lyricsContainer.innerHTML = '<div class="lyric-line">Нет текста</div>';
+    }
+  }
+
+  function renderLyrics() {
+    if (!lyricsContainer) return;
+    if (!lyricsLines.length) { lyricsContainer.innerHTML = '<div class="lyric-line show">Нет текста</div>'; return; }
+    lyricsContainer.innerHTML = '<div class="lyric-line">'+(lyricsLines[0].text||'')+'</div>';
+    currentLyricsIndex = -1;
+  }
+
+  function updateLyricsHighlight(currentSec) {
+    if (!lyricsVisible || !lyricsLines.length) return;
+    let idx = currentLyricsIndex;
+    while (idx+1 < lyricsLines.length && lyricsLines[idx+1].time <= currentSec + 0.05) idx++;
+    if (idx !== currentLyricsIndex) {
+      currentLyricsIndex = idx;
+      const text = (idx >= 0 ? (lyricsLines[idx].text||'') : '');
+      lyricsContainer.innerHTML = '<div class="lyric-line">'+text+'</div>';
+      const line = lyricsContainer.querySelector('.lyric-line');
+      // Trigger fade-in
+      requestAnimationFrame(()=>{ if (line) line.classList.add('show'); });
+    }
+  }
 
   // Ensure page content is not covered by the fixed player: add bottom padding dynamically
   function adjustContentPadding() {
@@ -679,6 +797,10 @@
     } catch(_) { trackArtist.textContent = t.artist || ''; }
     if (cover) cover.src = t.cover || (cover.src || '');
     currentTrackId = t.id || null;
+    lastTrackTitle = String(t.title||'');
+    lastTrackArtist = String(t.artist||'');
+    // Load lyrics for new track (non-blocking)
+    if (currentTrackId) loadLyricsForTrack(currentTrackId);
     // Attach video URL (if any) to current track
     playerContainer.dataset.videoUrl = t.video_url || '';
     try { console.debug('[player] setNowPlaying video_url =', t.video_url||''); } catch(_){ }
@@ -690,6 +812,23 @@
       }
     } catch (_) {}
   }
+
+  // Toggle lyrics button
+  if (lyricsBtn) lyricsBtn.onclick = () => {
+    lyricsVisible = !lyricsVisible;
+    if (lyricsContainer) lyricsContainer.style.display = lyricsVisible ? 'block' : 'none';
+    if (lyricsVisible) {
+      // Always fetch directly by title/artist (with id fallback)
+      fetchAndRenderLyricsDirect();
+    }
+    lyricsBtn.classList.toggle('btn-active', lyricsVisible);
+  };
+
+  // Update lyrics on timeupdate
+  audio.addEventListener('timeupdate', () => {
+    if (!lyricsVisible) return;
+    updateLyricsHighlight(audio.currentTime || 0);
+  });
   window.playFromQueue = function(idx) {
     console.log('playFromQueue called with index:', idx);
     console.log('trackQueue length:', trackQueue.length);
@@ -1726,9 +1865,13 @@
     postToPopup({ cmd: 'play' }, { retries: 3, delay: 150 });
   }
 
-  // F7 and F9 keys handler for Mac
+  // Detect operating system
+  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  const isWindows = navigator.platform.toUpperCase().indexOf('WIN') >= 0;
+  
+  // F7 and F9 keys handler (cross-platform)
   document.addEventListener('keydown', (e) => {
-    // Try multiple approaches for Mac F-keys
+    // Try multiple approaches for F-keys
     const isF7 = e.keyCode === 118 || e.code === 'F7' || e.key === 'F7';
     const isF9 = e.keyCode === 120 || e.code === 'F9' || e.key === 'F9';
     
@@ -1749,23 +1892,57 @@
   }, true); // Use capture phase
   
   // Alternative: Try with modifier keys (Mac specific)
-  document.addEventListener('keydown', (e) => {
-    // On Mac, F-keys might need modifier keys
-    if ((e.keyCode === 118 || e.keyCode === 120) && (e.altKey || e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      
-      if (e.keyCode === 118) { // Modifier+F7
-        console.log('Modifier+F7 pressed - Previous track');
+  if (isMac) {
+    document.addEventListener('keydown', (e) => {
+      // On Mac, F-keys might need modifier keys
+      if ((e.keyCode === 118 || e.keyCode === 120) && (e.altKey || e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        
+        if (e.keyCode === 118) { // Modifier+F7
+          console.log('Modifier+F7 pressed - Previous track');
+          playPrev();
+        } else if (e.keyCode === 120) { // Modifier+F9
+          console.log('Modifier+F9 pressed - Next track');
+          playNext(false);
+        }
+        return false;
+      }
+    }, true);
+  }
+  
+  // Windows-specific keys
+  if (isWindows) {
+    document.addEventListener('keydown', (e) => {
+      // Windows media keys and additional shortcuts
+      if (e.code === 'MediaPlayPause' || e.keyCode === 179) {
+        e.preventDefault();
+        if (isPlaying) {
+          audio.pause();
+        } else {
+          audio.play();
+        }
+      } else if (e.code === 'MediaTrackNext' || e.keyCode === 176) {
+        e.preventDefault();
+        playNext(false);
+      } else if (e.code === 'MediaTrackPrevious' || e.keyCode === 177) {
+        e.preventDefault();
         playPrev();
-      } else if (e.keyCode === 120) { // Modifier+F9
-        console.log('Modifier+F9 pressed - Next track');
+      } else if (e.code === 'MediaStop' || e.keyCode === 178) {
+        e.preventDefault();
+        audio.pause();
+      }
+      // Windows-specific F-key combinations
+      else if (e.keyCode === 118 && e.ctrlKey) { // Ctrl+F7
+        e.preventDefault();
+        playPrev();
+      } else if (e.keyCode === 120 && e.ctrlKey) { // Ctrl+F9
+        e.preventDefault();
         playNext(false);
       }
-      return false;
-    }
-  }, true);
+    });
+  }
   
   // Debug: Log all key events to see what's happening
   document.addEventListener('keydown', (e) => {
@@ -1782,57 +1959,70 @@
     }
   });
   
-  // Show instructions for Mac users
-  console.log('🎵 Для работы F7/F9 на Mac:');
-  console.log('1. System Preferences → Keyboard → Shortcuts');
-  console.log('2. Отключите системные сочетания для F7/F9');
-  console.log('3. Или включите "Use F1, F2, etc. keys as standard function keys"');
-  console.log('4. Или используйте Fn+F7/F9');
+  // Show instructions based on OS
+  if (isMac) {
+    console.log('🍎 Mac: Для работы F7/F9:');
+    console.log('1. System Preferences → Keyboard → Shortcuts');
+    console.log('2. Отключите системные сочетания для F7/F9');
+    console.log('3. Или включите "Use F1, F2, etc. keys as standard function keys"');
+    console.log('4. Или используйте Fn+F7/F9');
+  } else if (isWindows) {
+    console.log('🪟 Windows: Поддерживаемые клавиши:');
+    console.log('• F7/F9 - переключение треков');
+    console.log('• Ctrl+F7/Ctrl+F9 - альтернативное переключение');
+    console.log('• Media клавиши - Play/Pause, Next, Previous, Stop');
+  } else {
+    console.log('🖥️ Другая ОС: Поддерживаемые клавиши:');
+    console.log('• F7/F9 - переключение треков');
+    console.log('• Media клавиши - Play/Pause, Next, Previous, Stop');
+  }
   
-  // Try to detect if F-keys work without Fn
-  let fnRequired = false;
-  let testAttempts = 0;
-  
-  const testFKeys = () => {
-    testAttempts++;
-    if (testAttempts > 3) {
-      if (fnRequired) {
-        console.log('⚠️ F7/F9 требуют нажатия Fn. Настройте Mac для работы без Fn:');
-        console.log('System Preferences → Keyboard → "Use F1, F2, etc. keys as standard function keys"');
-      }
-      return;
-    }
+  // Try to detect if F-keys work without Fn (Mac only)
+  if (isMac) {
+    let fnRequired = false;
+    let testAttempts = 0;
     
-    // Show test message
-    console.log(`🧪 Тест ${testAttempts}: Нажмите F7 или F9 (без Fn) для проверки...`);
-    
-    const testHandler = (e) => {
-      if (e.keyCode === 118 || e.keyCode === 120) {
-        if (!e.altKey && !e.metaKey && !e.ctrlKey) {
-          console.log('✅ F-клавиши работают без Fn!');
-          fnRequired = false;
-        } else {
-          console.log('⚠️ F-клавиши требуют модификаторы');
-          fnRequired = true;
+    const testFKeys = () => {
+      testAttempts++;
+      if (testAttempts > 3) {
+        if (fnRequired) {
+          console.log('⚠️ F7/F9 требуют нажатия Fn. Настройте Mac для работы без Fn:');
+          console.log('System Preferences → Keyboard → "Use F1, F2, etc. keys as standard function keys"');
         }
-        document.removeEventListener('keydown', testHandler);
-        setTimeout(testFKeys, 2000);
+        return;
       }
+      
+      // Show test message
+      console.log(`🧪 Тест ${testAttempts}: Нажмите F7 или F9 (без Fn) для проверки...`);
+      
+      const testHandler = (e) => {
+        if (e.keyCode === 118 || e.keyCode === 120) {
+          if (!e.altKey && !e.metaKey && !e.ctrlKey) {
+            console.log('✅ F-клавиши работают без Fn!');
+            fnRequired = false;
+          } else {
+            console.log('⚠️ F-клавиши требуют модификаторы');
+            fnRequired = true;
+          }
+          document.removeEventListener('keydown', testHandler);
+          setTimeout(testFKeys, 2000);
+        }
+      };
+      
+      document.addEventListener('keydown', testHandler);
+      setTimeout(() => {
+        document.removeEventListener('keydown', testHandler);
+        if (testAttempts <= 3) {
+          setTimeout(testFKeys, 2000);
+        }
+      }, 3000);
     };
     
-    document.addEventListener('keydown', testHandler);
-    setTimeout(() => {
-      document.removeEventListener('keydown', testHandler);
-      if (testAttempts <= 3) {
-        setTimeout(testFKeys, 2000);
-      }
-    }, 3000);
-  };
-  
-  // Start test after 2 seconds
-  setTimeout(testFKeys, 2000);
+    // Start test after 2 seconds
+    setTimeout(testFKeys, 2000);
+  }
 
-  // Media keys support
+  // Universal media keys support (all OS)
   document.addEventListener('keydown', (e) => {
     if (e.code === 'MediaPlayPause') {
       e.preventDefault();

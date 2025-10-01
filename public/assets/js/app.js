@@ -39,6 +39,15 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	// Session state
 	let currentUser = null;
 
+// Detect operating system
+const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+const isWindows = navigator.platform.toUpperCase().indexOf('WIN') >= 0;
+
+// API endpoints based on OS
+const getAuthAPI = () => isWindows ? '/muzic2/src/api/windows_auth.php' : '/muzic2/src/api/login.php';
+const getUserAPI = () => isWindows ? '/muzic2/src/api/windows_auth.php' : '/muzic2/src/api/user.php';
+const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/muzic2/src/api/likes.php';
+
 	// Ensure auth modals exist globally
 	ensureAuthModals();
 
@@ -81,7 +90,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 		
 		// Оригинальная логика для Mac
 		try {
-			const res = await fetch('/muzic2/src/api/user.php', { credentials: 'include' });
+			const res = await fetch(getUserAPI(), { credentials: 'include' });
 			const data = await res.json();
 			currentUser = data.authenticated ? data.user : null;
 			renderAuthHeader();
@@ -233,7 +242,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			const data = await res.json();
 			// Load liked set for current user to render green hearts
 			try {
-				const likesRes = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
+				const likesRes = await fetch(getLikesAPI(), { credentials: 'include' });
 				const likes = await likesRes.json();
 				window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
 			} catch(e){ window.__likedSet = new Set(); }
@@ -439,7 +448,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			const playlists = playlistsData.playlists || [];
 
 			// Load liked albums
-			const likesRes = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
+			const likesRes = await fetch(getLikesAPI(), { credentials: 'include' });
 			const likesData = await likesRes.json();
 			const likedAlbums = likesData.albums || [];
 
@@ -565,12 +574,12 @@ if (mainContent && navHome && navSearch && navLibrary) {
 		const trackId = Number(btn.getAttribute('data-track-id'));
 		if (trackId) {
 			if (btn.classList.contains('liked')) {
-				await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: trackId })});
+				await fetch(getLikesAPI(), { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: trackId })});
 				btn.classList.remove('liked');
 				window.__likedSet && window.__likedSet.delete(trackId);
 				try{ document.dispatchEvent(new CustomEvent('likes:updated', { detail:{ trackId, liked:false } })); }catch(_){ }
 			} else {
-				await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: trackId })});
+				await fetch(getLikesAPI(), { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: trackId })});
 				btn.classList.add('liked');
 				if (!window.__likedSet) window.__likedSet = new Set();
 				window.__likedSet.add(trackId);
@@ -584,7 +593,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 		if (albumTitle) {
 			try {
 				if (btn.classList.contains('liked')) {
-					const res = await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
+					const res = await fetch(getLikesAPI(), { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
 					if (res.ok) {
 						btn.classList.remove('liked');
 						window.__likedAlbums && window.__likedAlbums.delete(albumTitle);
@@ -596,7 +605,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 						console.error('Failed to remove album like:', res.status);
 					}
 				} else {
-					const res = await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
+					const res = await fetch(getLikesAPI(), { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
 					if (res.ok) {
 						btn.classList.add('liked');
 						if (!window.__likedAlbums) window.__likedAlbums = new Set();
@@ -850,7 +859,17 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			if (errBox) { errBox.style.display='none'; errBox.textContent=''; }
 			if (!login || !password) { if (errBox){ errBox.textContent='Введите логин и пароль'; errBox.style.display='block'; } return; }
 			try {
-				const res = await fetch('/muzic2/src/api/login.php', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login, password }) });
+				const authAPI = getAuthAPI();
+				const res = await fetch(authAPI, { 
+					method: 'POST', 
+					credentials: 'include', 
+					headers: { 'Content-Type': 'application/json' }, 
+					body: JSON.stringify({ 
+						action: 'login',
+						login, 
+						password 
+					}) 
+				});
 				let ok = res.ok;
 				let payload = null;
 				try { payload = await res.json(); } catch(_) { payload = null; }
@@ -859,7 +878,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 					if (errBox) { errBox.textContent = msg; errBox.style.display='block'; }
 					return;
 				}
-				const uRes = await fetch('/muzic2/src/api/user.php', { credentials: 'include' });
+				const uRes = await fetch(getUserAPI(), { credentials: 'include' });
 				const u = await uRes.json();
 				if (u && u.authenticated && u.user) {
 					currentUser = u.user;
@@ -881,7 +900,18 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			if (errBox) { errBox.style.display='none'; errBox.textContent=''; }
 			if (!email || !username || !password) { if (errBox){ errBox.textContent='Заполните все поля'; errBox.style.display='block'; } return; }
 			try {
-				const res = await fetch('/muzic2/src/api/register.php', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, username, password }) });
+				const authAPI = getAuthAPI();
+				const res = await fetch(authAPI, { 
+					method: 'POST', 
+					credentials: 'include', 
+					headers: { 'Content-Type': 'application/json' }, 
+					body: JSON.stringify({ 
+						action: 'register',
+						email, 
+						username, 
+						password 
+					}) 
+				});
 				let ok = res.ok; let payload=null; try { payload = await res.json(); } catch(_) {}
 				if (!ok) { if (errBox){ errBox.textContent=(payload&&payload.error)||'Ошибка регистрации'; errBox.style.display='block'; } return; }
 				await doLoginPostRegister(username, password);
@@ -891,10 +921,20 @@ if (mainContent && navHome && navSearch && navLibrary) {
 		};
 		async function doLoginPostRegister(login, password){
 			const errBox = document.getElementById('login-error'); if (errBox){ errBox.style.display='none'; errBox.textContent=''; }
-			const res = await fetch('/muzic2/src/api/login.php', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login, password }) });
+			const authAPI = getAuthAPI();
+			const res = await fetch(authAPI, { 
+				method: 'POST', 
+				credentials: 'include', 
+				headers: { 'Content-Type': 'application/json' }, 
+				body: JSON.stringify({ 
+					action: 'login',
+					login, 
+					password 
+				}) 
+			});
 			let ok = res.ok; let payload=null; try { payload = await res.json(); } catch(_) {}
 			if (!ok) { if (errBox){ errBox.textContent=(payload&&payload.error)||'Ошибка авторизации'; errBox.style.display='block'; } return; }
-			const uRes = await fetch('/muzic2/src/api/user.php', { credentials: 'include' });
+			const uRes = await fetch(getUserAPI(), { credentials: 'include' });
 			const u = await uRes.json();
 			if (u && u.authenticated && u.user) {
 				currentUser = u.user; closeAll(); window.location.reload();
@@ -1519,7 +1559,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 		
 		// Оригинальная логика для Mac
 		try {
-			const res = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
+			const res = await fetch(getLikesAPI(), { credentials: 'include' });
 			const data = await res.json();
 			window.__likedAlbums = new Set((data.albums || []).map(a => a.album_title || a.title));
 			
@@ -1559,7 +1599,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 		if (!albumsRow) return;
 		
 		try {
-			const likesRes = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
+			const likesRes = await fetch(getLikesAPI(), { credentials: 'include' });
 			const likesData = await likesRes.json();
 			const likedAlbums = likesData.albums || [];
 			
