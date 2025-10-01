@@ -68,6 +68,14 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 		// Ультра-быстрая инициализация сессии для Windows
 		if (isWindows) {
 			console.log('Windows detected - using ultra-fast session init');
+            // Optimistic render from localStorage to avoid header lag
+            try {
+                const cached = localStorage.getItem('currentUser');
+                if (cached) {
+                    currentUser = JSON.parse(cached);
+                    renderAuthHeader();
+                }
+            } catch(_) {}
 			try {
 				const res = await fetch('/muzic2/src/api/user_windows.php', { credentials: 'include' });
 				const data = await res.json();
@@ -134,13 +142,13 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 					</div>
 				</div>
 			`;
-			const btn = document.getElementById('user-menu-btn');
+            const btn = document.getElementById('user-menu-btn');
 			const pop = document.getElementById('user-menu-popover');
 			if (btn && pop) {
 				btn.onclick = (e) => { e.stopPropagation(); pop.style.display = pop.style.display==='none'?'block':'none'; };
 				document.addEventListener('click', (e)=>{ if(pop.style.display==='block' && !e.target.closest('#user-menu-popover') && e.target!==btn){ pop.style.display='none'; } });
 				const logoutBtn = document.getElementById('logout-btn');
-				if (logoutBtn){ logoutBtn.onclick = async ()=>{ try{ await fetch('/muzic2/src/api/logout.php',{ method:'POST', credentials:'include' }); location.reload(); }catch(_){ location.reload(); } } }
+                if (logoutBtn){ logoutBtn.onclick = async ()=>{ try{ await fetch('/muzic2/src/api/logout.php',{ method:'POST', credentials:'include' }); }catch(_){} try{ localStorage.removeItem('currentUser'); }catch(_){} location.reload(); } }
 			}
 		} else {
 			panel.innerHTML = `
@@ -939,8 +947,9 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 					return;
 				}
 				// Ultra-fast path for Windows: trust API payload and avoid extra roundtrip
-				if (isWindows && payload && payload.user) {
+                if (isWindows && payload && payload.user) {
 					currentUser = payload.user;
+                    try { localStorage.setItem('currentUser', JSON.stringify(currentUser)); } catch(_) {}
 					closeAll();
 					renderAuthHeader();
 					return;
@@ -950,6 +959,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 				const u = await uRes.json();
 				if (u && u.authenticated && u.user) {
 					currentUser = u.user;
+                    try { localStorage.setItem('currentUser', JSON.stringify(currentUser)); } catch(_) {}
 					closeAll();
 					window.location.reload();
 				} else {
@@ -984,7 +994,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 				let ok = res.ok; let payload=null; try { payload = await res.json(); } catch(_) {}
 				if (!ok) { if (errBox){ errBox.textContent=(payload&&payload.error)||'Ошибка регистрации'; errBox.style.display='block'; } return; }
 			// Ultra-fast path for Windows: server already set session and returns user
-			if (isWindows && payload && payload.success) {
+            if (isWindows && payload && payload.success) {
 				try {
 					// Immediately login without extra roundtrips
 					const loginAPI = getAuthAPI();
@@ -997,6 +1007,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 					let lp = null; try { lp = await lr.json(); } catch(_){ lp = null; }
 					if (lr.ok && lp && lp.user) {
 						currentUser = lp.user;
+                        try { localStorage.setItem('currentUser', JSON.stringify(currentUser)); } catch(_) {}
 						closeAll();
 						renderAuthHeader();
 						return;
