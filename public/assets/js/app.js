@@ -641,9 +641,9 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 
     async function openPlaylist(playlistId, playlistName, coverOverride) {
         // Render playlist as album-like page (full-page), even if empty
-        try {
-            const res = await fetch(`/muzic2/src/api/playlists.php?playlist_id=${playlistId}`, { credentials: 'include' });
-            const data = await res.json();
+		try {
+			const res = await fetch(`/muzic2/src/api/playlists.php?playlist_id=${playlistId}`, { credentials: 'include' });
+			const data = await res.json();
             const tracks = Array.isArray(data.tracks) ? data.tracks : [];
             // Determine cover: prefer cover passed from tile, else special for favorites or first track
             let cover = coverOverride || '';
@@ -678,8 +678,8 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
                     <div class="album-meta">
                         <div class="album-title">${escapeHtml(playlistName)}</div>
                         <div class="album-artist">Плейлист • ${tracks.length} треков • ${minutes}:${String(seconds).padStart(2,'0')}</div>
-                    </div>
-                </div>
+						</div>
+					</div>
                 <table class="tracks-table">
                     <thead><tr><th>#</th><th>Название</th><th>⏱</th></tr></thead>
                     <tbody id="tracks-tbody"></tbody>
@@ -710,10 +710,10 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
                     tbody.appendChild(tr);
                 });
             }
-        } catch (e) {
+		} catch (e) {
             mainContent.innerHTML = '<div class="error">Ошибка загрузки плейлиста</div>';
-        }
-    }
+		}
+	}
 
 	// Expose safe proxy for inline onclick
 	window.openPlaylistProxy = function(pid, pname, cover){ try{ openPlaylist(pid, pname, cover); }catch(_){} };
@@ -856,9 +856,12 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 			const login = document.getElementById('login-login').value.trim();
 			const password = document.getElementById('login-password').value;
 			const errBox = document.getElementById('login-error');
+			const submitBtn = document.getElementById('login-submit');
 			if (errBox) { errBox.style.display='none'; errBox.textContent=''; }
 			if (!login || !password) { if (errBox){ errBox.textContent='Введите логин и пароль'; errBox.style.display='block'; } return; }
 			try {
+				if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Входим...'; }
+				console.log('[Auth] Windows doLogin start');
 				const authAPI = getAuthAPI();
 				const res = await fetch(authAPI, { 
 					method: 'POST', 
@@ -876,6 +879,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 				if (!ok) {
 					const msg = (payload && payload.error) ? payload.error : 'Ошибка авторизации';
 					if (errBox) { errBox.textContent = msg; errBox.style.display='block'; }
+					if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Войти'; }
 					return;
 				}
 				const uRes = await fetch(getUserAPI(), { credentials: 'include' });
@@ -887,9 +891,11 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 					window.location.reload();
 				} else {
 					if (errBox) { errBox.textContent = 'Сессия не установлена'; errBox.style.display='block'; }
+					if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Войти'; }
 				}
 			} catch (e) {
 				if (errBox) { errBox.textContent = 'Сетевая ошибка'; errBox.style.display='block'; }
+				if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Войти'; }
 			}
 		};
 		const doRegister = async () => {
@@ -944,8 +950,21 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 		}
 		const loginSubmit = document.getElementById('login-submit');
 		const regSubmit = document.getElementById('reg-submit');
-		if (loginSubmit) loginSubmit.onclick = doLogin;
+		if (loginSubmit) {
+			loginSubmit.onclick = doLogin;
+			// Enter key within login inputs
+			const loginInput = document.getElementById('login-login');
+			const passInput = document.getElementById('login-password');
+			[loginInput, passInput].forEach(inp => {
+				if (inp) inp.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') { e.preventDefault(); doLogin(); } });
+			});
+		}
 		if (regSubmit) regSubmit.onclick = doRegister;
+		// Fallback delegated handler in case direct binding missed
+		document.addEventListener('click', (e)=>{
+			const btn = e.target && e.target.closest && e.target.closest('#login-submit');
+			if (btn) { e.preventDefault(); doLogin(); }
+		}, true);
 	}
 
 	function renderCards(rowId, items, type) {
@@ -1024,16 +1043,16 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 			row.onclick = function(e) {
 				let el = e.target;
 				while (el && el !== row && !el.hasAttribute('data-idx')) el = el.parentElement;
-                if (el && el.hasAttribute('data-idx')) {
+				if (el && el.hasAttribute('data-idx')) {
 					const idx = parseInt(el.getAttribute('data-idx'), 10);
-                    const queue = items.map(i => ({
-                        src: '/muzic2/' + (i.file_path || ''),
-                        title: i.title,
-                        artist: i.artist || '',
+					const queue = items.map(i => ({
+						src: '/muzic2/' + (i.file_path || ''),
+						title: i.title,
+						artist: i.artist || '',
                         feats: i.feats || '',
-                        cover: '/muzic2/' + (i.cover || 'tracks/covers/placeholder.jpg'),
-                        video_url: i.video_url || ''
-                    }));
+						cover: '/muzic2/' + (i.cover || 'tracks/covers/placeholder.jpg'),
+						video_url: i.video_url || ''
+					}));
 					window.playTrack({
 						...queue[idx],
 						queue,
@@ -1192,8 +1211,8 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
             const featsSet = new Set((data.tracks||[]).flatMap(t => (t.feats? String(t.feats).split(',').map(x=>x.trim()).filter(Boolean):[])));
             const featsText = Array.from(featsSet).filter(n=>n && n.toLowerCase()!==String(data.artist||'').toLowerCase()).join(', ');
             const albumArtistCombined = featsText ? `${data.artist||''}, ${featsText}` : (data.artist||'');
-            
-            mainContent.innerHTML = albumStyles + `
+			
+			mainContent.innerHTML = albumStyles + `
 				<div class="album-header">
 					<img class="album-cover" loading="lazy" src="/muzic2/${data.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
 					<div class="album-meta">
@@ -1229,7 +1248,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 				
 				const likedClass = window.__likedSet && window.__likedSet.has(t.id) ? 'liked' : '';
                 const combinedArtist = (t.feats && String(t.feats).trim()) ? `${t.artist||''}, ${t.feats}` : (t.artist||'');
-                tr.innerHTML = `
+				tr.innerHTML = `
 					<td class="track-num">${i+1}</td>
 					<td class="track-title">
 						${t.explicit ? '<span class="exp-badge">E</span>' : ''}${escapeHtml(t.title||'')}
@@ -1435,7 +1454,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 				d.className='track-item-numbered'; 
 				const likedClass = window.__likedSet && window.__likedSet.has(t.id) ? 'liked' : '';
                 const combined = (t.feats && String(t.feats).trim()) ? `${t.artist}, ${t.feats}` : (t.artist||'');
-                d.innerHTML=`
+				d.innerHTML=`
 					<div class="track-number">${i+1}</div>
 					<div class="track-info">
 						<div class="track-title-primary">${t.explicit ? '<span class="exp-badge">E</span>' : ''}${escapeHtml(t.title||'')}</div>
