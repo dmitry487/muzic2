@@ -63,7 +63,20 @@ if ($method === 'POST') {
         $stmt->execute([$login, $login]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
-        if (!$user || !password_verify($password, $user['password'])) {
+        $valid = false;
+        if ($user) {
+            // Primary: verify modern hash
+            if (password_verify($password, $user['password'])) {
+                $valid = true;
+            } else {
+                // Fallback: allow legacy plaintext/equal match if old data stored unhashed
+                // This does NOT change the stored password; just accepts if they match exactly
+                if (hash_equals((string)$user['password'], (string)$password)) {
+                    $valid = true;
+                }
+            }
+        }
+        if (!$valid) {
             http_response_code(401);
             echo json_encode(['error' => 'Неверный логин или пароль']);
             exit;
