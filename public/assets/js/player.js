@@ -206,15 +206,22 @@
   function parseLRC(lrcText) {
     const lines = [];
     if (!lrcText) return lines;
-    const re = /\[(\d{1,2}):(\d{2})(?:[\.:](\d{1,2}))?\]\s*(.*)/;
-    lrcText.split(/\r?\n/).forEach(line => {
-      const m = line.match(re);
-      if (!m) return;
-      const min = parseInt(m[1],10)||0;
-      const sec = parseInt(m[2],10)||0;
-      const cs = parseInt(m[3]||'0',10)||0; // centiseconds
-      const t = min*60 + sec + (cs/100);
-      lines.push({ time: t, text: m[4]||'' });
+    const tagRe = /\[(\d{1,2})[:.](\d{2})(?:[.:](\d{1,2}))?\]/g; // supports mm:ss.xx and mm.ss.cc
+    lrcText.split(/\r?\n/).forEach(raw => {
+      if (!raw) return;
+      const times = [];
+      let m;
+      while ((m = tagRe.exec(raw)) !== null) {
+        const min = parseInt(m[1], 10) || 0;
+        const sec = parseInt(m[2], 10) || 0;
+        const cs = parseInt(m[3] || '0', 10) || 0;
+        const t = min * 60 + sec + (cs / 100);
+        times.push(t);
+      }
+      const text = raw.replace(tagRe, '').trim();
+      if (times.length && text) {
+        times.forEach(t => lines.push({ time: t, text }));
+      }
     });
     return lines.sort((a,b)=>a.time-b.time);
   }
@@ -799,8 +806,16 @@
     currentTrackId = t.id || null;
     lastTrackTitle = String(t.title||'');
     lastTrackArtist = String(t.artist||'');
-    // Load lyrics for new track (non-blocking)
-    if (currentTrackId) loadLyricsForTrack(currentTrackId);
+    // Reset karaoke on track change
+    if (lyricsContainer) lyricsContainer.innerHTML = lyricsVisible ? '<div class="lyric-line">Загрузка…</div>' : '';
+    currentLyricsIndex = -1;
+    lyricsLines = [];
+    if (lyricsVisible) {
+      fetchAndRenderLyricsDirect();
+    } else if (currentTrackId) {
+      // Preload silently in background if hidden
+      loadLyricsForTrack(currentTrackId);
+    }
     // Attach video URL (if any) to current track
     playerContainer.dataset.videoUrl = t.video_url || '';
     try { console.debug('[player] setNowPlaying video_url =', t.video_url||''); } catch(_){ }
