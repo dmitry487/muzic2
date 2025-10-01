@@ -183,16 +183,9 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 				const res = await fetch('/muzic2/src/api/home_windows.php');
 				const data = await res.json();
 				
-		// Загрузка лайков пользователя (Windows)
-		try {
-			const likesRes = await fetch(getLikesAPI(), { credentials: 'include' });
-			const likes = await likesRes.json();
-			window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
-			window.__likedAlbums = new Set((likes.albums||[]).map(a=>a.album_title || a.title));
-		} catch(e){
-				window.__likedSet = new Set();
-			window.__likedAlbums = new Set();
-		}
+		// Мгновенная отрисовка: лайки загрузим асинхронно, чтобы не блокировать рендер
+		window.__likedSet = window.__likedSet || new Set();
+		window.__likedAlbums = window.__likedAlbums || new Set();
 				
 				mainContent.innerHTML = `
 					<section class="main-filters">
@@ -229,13 +222,31 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 				
 				addFilterButtonHandlers();
 				
-				// Показываем время загрузки для Windows
+				// Показываем время загрузки для Windows (до фоновой подгрузки лайков)
 				const loadTime = Date.now() - (window.startTime || Date.now());
 				console.log('Windows page load time:', loadTime + 'ms');
 				const header = document.querySelector('#main-header .logo');
 				if (header) {
 					header.textContent = `Muzic2 (${loadTime}ms)`;
 				}
+				// Асинхронная подгрузка лайков, не блокирующая отрисовку
+				setTimeout(async () => {
+					try {
+						const likesRes = await fetch(getLikesAPI(), { credentials: 'include' });
+						const likes = await likesRes.json();
+						window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
+						window.__likedAlbums = new Set((likes.albums||[]).map(a=>a.album_title || a.title));
+						// Обновляем иконки лайков на странице, если присутствуют
+						document.querySelectorAll('.heart-btn[data-track-id]').forEach(btn => {
+							const id = Number(btn.getAttribute('data-track-id'));
+							if (window.__likedSet.has(id)) btn.classList.add('liked');
+						});
+						document.querySelectorAll('.album-heart-btn[data-album-title]').forEach(btn => {
+							const title = btn.getAttribute('data-album-title');
+							if (window.__likedAlbums.has(title)) btn.classList.add('liked');
+						});
+					} catch(_) {}
+				}, 0);
 				return;
 			} catch (e) {
 				console.error('Windows API error:', e);
