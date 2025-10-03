@@ -20,9 +20,36 @@
       #seek-bar { width: 100%; }
       .player-right { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
       /* Lyrics */
-      #lyrics-container { display: none; max-height: 140px; overflow: hidden; padding: 10px; background: rgba(255,255,255,0.06); border-radius: 8px; font-size: 1.05rem; line-height: 1.5; margin-top: 6px; }
-      #lyrics-container .lyric-line { color: #b3b3b3; opacity: 0; transform: translateY(8px); transition: opacity .25s ease, transform .25s ease; text-align: center; }
-      #lyrics-container .lyric-line.show { opacity: 1; transform: translateY(0); color: #1ed760; }
+      #lyrics-container { display: none; position: fixed; left: 50%; transform: translateX(-50%); bottom: 76px; width: min(820px, 92vw); max-height: 42vh; overflow: hidden; padding: 18px 14px; background: rgba(0,0,0,0.7); backdrop-filter: blur(6px); border: 1px solid #242424; border-radius: 14px; box-shadow: 0 12px 30px rgba(0,0,0,.55); z-index: 9500; }
+      #lyrics-list { display: flex; flex-direction: column; align-items: center; gap: 8px; transition: transform .35s ease; will-change: transform; }
+      #lyrics-container .lyric-line { color: #b3b3b3; opacity: .35; text-align: center; font-size: 1.1rem; line-height: 1.6; }
+      #lyrics-container .lyric-line.active { opacity: 1; color: #fff; font-weight: 700; font-size: 1.6rem; }
+
+      /* Fullscreen karaoke (Yandex-style) */
+      #lyrics-fs { position: fixed; top: 0; left: 0; right: 0; bottom: 120px; background: #1f1f1f; display: none; z-index: 9000; }
+      #lyrics-fs-close { position: absolute; top: 20px; right: 24px; width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.08); color: #fff; border: 1px solid #2a2a2a; cursor: pointer; font-size: 24px; line-height: 44px; text-align: center; }
+      #lyrics-fs-mode { position: absolute; top: 20px; right: 78px; width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.08); color: #fff; border: 1px solid #2a2a2a; cursor: pointer; font-size: 18px; line-height: 44px; text-align: center; }
+      #lyrics-fs-grid { position: absolute; inset: 0; display: grid; grid-template-columns: 420px 1fr; gap: 48px; align-items: center; padding: 80px 72px 120px; }
+      #lyrics-fs-meta { display: flex; flex-direction: column; gap: 18px; justify-content: center; }
+      #lyrics-fs-cover { width: 260px; height: 260px; border-radius: 18px; object-fit: cover; background: #111; box-shadow: 0 24px 70px rgba(0,0,0,.55); }
+      #lyrics-fs-title { color: #fff; font-size: 30px; font-weight: 800; }
+      #lyrics-fs-artist { color: #bdbdbd; font-size: 18px; }
+      #lyrics-fs-panel { position: relative; width: 100%; margin: 0 auto; overflow: hidden; }
+      #lyrics-fs-inner { position: relative; height: calc(100vh - 80px - 120px); max-height: 70vh; display: block; overflow: auto; scroll-behavior: smooth; }
+      #lyrics-fs.static #lyrics-fs-inner { overflow: auto; align-items: flex-start; justify-content: center; }
+      #lyrics-fs.static #lyrics-fs-list { transform: none !important; padding: 24px 16px 24px; }
+      #lyrics-fs.static .lyric-line { opacity: .6; }
+      #lyrics-fs.static .lyric-line.active { opacity: 1; }
+      #lyrics-fs-list { display: flex; flex-direction: column; align-items: center; gap: 20px; transition: transform .45s ease; will-change: transform; padding: 0 16px; }
+      #lyrics-fs-inner .lyric-line { color: #7e7e7e; opacity: .26; text-align: center; font-weight: 700; letter-spacing: 0.1px; font-size: clamp(18px, 2.1vw, 28px); line-height: 1.6; max-width: 980px; transition: opacity .35s ease, color .35s ease; }
+      #lyrics-fs-inner .lyric-line.active { opacity: 1; color: #ffffff; font-weight: 800; font-size: clamp(24px, 3.2vw, 48px); text-shadow: 0 2px 18px rgba(0,0,0,0.4); }
+      .lyrics-fs-fade { display: none; }
+      @media (max-width: 960px) {
+        #lyrics-fs-grid { grid-template-columns: 1fr; gap: 16px; padding: 72px 20px 110px; }
+        #lyrics-fs-meta { align-items: center; text-align: center; }
+        #lyrics-fs-cover { width: 160px; height: 160px; }
+        #lyrics-fs-inner .lyric-line.active { font-size: clamp(26px, 6vw, 44px); }
+      }
       #like-btn { background: transparent; border: none; color: #bbb; cursor: pointer; padding: 6px; border-radius: 50%; pointer-events: auto; }
       #like-btn.btn-active { color: #1ed760; }
       .volume-bar { width: 120px; }
@@ -138,6 +165,22 @@
         <button id="fullscreen-close">×</button>
       </div>
     </div>
+    <div id="lyrics-fs">
+      <button id="lyrics-fs-close" title="Закрыть">×</button>
+      <button id="lyrics-fs-mode" title="Показать весь текст">≡</button>
+      <div id="lyrics-fs-grid">
+        <div id="lyrics-fs-meta">
+          <img id="lyrics-fs-cover" src="" alt="cover" />
+          <div id="lyrics-fs-title"></div>
+          <div id="lyrics-fs-artist"></div>
+        </div>
+        <div id="lyrics-fs-panel">
+          <div class="lyrics-fs-fade top"></div>
+          <div id="lyrics-fs-inner"><div id="lyrics-fs-list"></div><div id="lyrics-fs-dots"><span class="lyrics-dot"></span><span class="lyrics-dot"></span><span class="lyrics-dot"></span><span class="lyrics-dot"></span></div></div>
+          <div class="lyrics-fs-fade bottom"></div>
+        </div>
+      </div>
+    </div>
     <div id="queue-panel">
       <div id="queue-header">
         <span id="queue-title">Очередь воспроизведения</span>
@@ -195,6 +238,16 @@
   const fullscreenClose = playerRoot.querySelector('#fullscreen-close');
   const fullscreenBack = playerRoot.querySelector('#fullscreen-back');
   const lyricsContainer = playerContainer.querySelector('#lyrics-container');
+  const lyricsFs = playerRoot.querySelector('#lyrics-fs');
+  const lyricsFsClose = playerRoot.querySelector('#lyrics-fs-close');
+  const lyricsFsMode = playerRoot.querySelector('#lyrics-fs-mode');
+  const lyricsFsInner = playerRoot.querySelector('#lyrics-fs-inner');
+  const lyricsFsList = playerRoot.querySelector('#lyrics-fs-list');
+  const lyricsFsCover = playerRoot.querySelector('#lyrics-fs-cover');
+  const lyricsFsTitle = playerRoot.querySelector('#lyrics-fs-title');
+  const lyricsFsArtist = playerRoot.querySelector('#lyrics-fs-artist');
+  const lyricsFsDots = playerRoot.querySelector('#lyrics-fs-dots');
+  const lyricsFsDotsArr = lyricsFsDots ? Array.from(lyricsFsDots.querySelectorAll('.lyrics-dot')) : [];
 
   // Lyrics state
   let lyricsLines = []; // [{time:number, text:string}]
@@ -202,6 +255,9 @@
   let currentLyricsIndex = -1;
   let lastTrackTitle = '';
   let lastTrackArtist = '';
+  let userScrolling = false;
+  let scrollResumeTimer = null;
+  let lyricsSyncLocked = false; // lock centering until first timestamp
 
   function parseLRC(lrcText) {
     const lines = [];
@@ -292,23 +348,84 @@
 
   function renderLyrics() {
     if (!lyricsContainer) return;
-    if (!lyricsLines.length) { lyricsContainer.innerHTML = '<div class="lyric-line show">Нет текста</div>'; return; }
-    lyricsContainer.innerHTML = '<div class="lyric-line">'+(lyricsLines[0].text||'')+'</div>';
+    if (!lyricsLines.length) { lyricsContainer.innerHTML = '<div id="lyrics-list"><div class="lyric-line">Нет текста</div></div>'; if (lyricsFsList) lyricsFsList.innerHTML = '<div class="lyric-line">Нет текста</div>'; return; }
+    const listHtml = lyricsLines.map((l, i) => `<div class="lyric-line" data-idx="${i}" data-time="${l.time}">${escapeHtml(l.text||'')}</div>`).join('');
+    lyricsContainer.innerHTML = `<div id="lyrics-list">${listHtml}</div>`;
+    if (lyricsFsList) {
+      lyricsFsList.innerHTML = listHtml;
+      try { lyricsFsList.style.transform = 'translateY(0)'; } catch(_) {}
+    }
     currentLyricsIndex = -1;
+    // Center from the start
+    const list = lyricsContainer.querySelector('#lyrics-list');
+    if (list) list.style.transform = 'translateY(0)';
+    // No forced highlight; render neutral until timeupdate
+    if (lyricsFsList && lyricsFsInner) {
+      try {
+        // do nothing; let timeupdate add .active when time reaches first tag
+        currentLyricsIndex = -1; // позволим timeupdate выбрать корректный индекс
+        // Show preroll dots initially if there is a gap before first line
+        if (lyricsFsDots) {
+          // remove dots feature per user request
+          lyricsFsDots.style.display = 'none';
+          lyricsFsDotsArr && lyricsFsDotsArr.forEach(d => d.classList.remove('on'));
+        }
+        // Position first line at ~32% from top by padding the list; keep scrollTop at 0
+        const anchor = Math.round((lyricsFsInner.clientHeight) * 0.32);
+        lyricsFsList.style.paddingTop = anchor + 'px';
+        try { lyricsFsInner.scrollTop = 0; } catch(_) {}
+      } catch(_) {}
+    }
   }
 
   function updateLyricsHighlight(currentSec) {
     if (!lyricsVisible || !lyricsLines.length) return;
     let idx = currentLyricsIndex;
     while (idx+1 < lyricsLines.length && lyricsLines[idx+1].time <= currentSec + 0.05) idx++;
+    // Do not force first line until timestamp; idx stays -1 before first tag
+
+    // Dots removed
     if (idx !== currentLyricsIndex) {
+      const prev = currentLyricsIndex;
       currentLyricsIndex = idx;
-      const text = (idx >= 0 ? (lyricsLines[idx].text||'') : '');
-      lyricsContainer.innerHTML = '<div class="lyric-line">'+text+'</div>';
-      const line = lyricsContainer.querySelector('.lyric-line');
-      // Trigger fade-in
-      requestAnimationFrame(()=>{ if (line) line.classList.add('show'); });
+      const list = lyricsContainer.querySelector('#lyrics-list');
+      const lines = lyricsContainer.querySelectorAll('.lyric-line');
+      const fsLines = lyricsFsList ? lyricsFsList.querySelectorAll('.lyric-line') : [];
+      if (lines.length) {
+        if (prev >= 0 && lines[prev]) lines[prev].classList.remove('active');
+        if (idx >= 0 && lines[idx]) requestAnimationFrame(()=>lines[idx].classList.add('active'));
+        const active = lines[idx];
+        if (!lyricsSyncLocked && active && typeof active.offsetTop === 'number' && list) {
+          const containerH = lyricsContainer.clientHeight || 0;
+          const target = (containerH / 2) - (active.offsetTop + active.clientHeight / 2);
+          list.style.transform = `translateY(${Math.round(target)}px)`;
+        }
+      }
+      if (fsLines && fsLines.length) {
+        if (prev >= 0 && fsLines[prev]) fsLines[prev].classList.remove('active');
+        if (idx >= 0 && fsLines[idx]) requestAnimationFrame(()=>fsLines[idx].classList.add('active'));
+        const fsActive = fsLines[idx];
+        // Auto-scroll container to keep active line at ~32% from top if user isn't scrolling
+        if (lyricsFsInner && fsActive && !userScrolling) {
+          const anchor = Math.round((lyricsFsInner.clientHeight) * 0.32);
+          const targetTop = fsActive.offsetTop - anchor;
+          lyricsFsInner.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+        }
+      }
     }
+  }
+
+  // Pause auto-scroll when user scrolls; resume after inactivity
+  if (lyricsFsInner) {
+    const pauseMs = 1800;
+    const onUserScroll = () => {
+      userScrolling = true;
+      if (scrollResumeTimer) clearTimeout(scrollResumeTimer);
+      scrollResumeTimer = setTimeout(() => { userScrolling = false; }, pauseMs);
+    };
+    lyricsFsInner.addEventListener('wheel', onUserScroll, { passive: true });
+    lyricsFsInner.addEventListener('touchmove', onUserScroll, { passive: true });
+    lyricsFsInner.addEventListener('scroll', onUserScroll, { passive: true });
   }
 
   // Ensure page content is not covered by the fixed player: add bottom padding dynamically
@@ -831,13 +948,46 @@
   // Toggle lyrics button
   if (lyricsBtn) lyricsBtn.onclick = () => {
     lyricsVisible = !lyricsVisible;
-    if (lyricsContainer) lyricsContainer.style.display = lyricsVisible ? 'block' : 'none';
+    const useFullscreen = true;
+    if (useFullscreen) {
+      if (lyricsFs) lyricsFs.style.display = lyricsVisible ? 'block' : 'none';
+      if (lyricsContainer) lyricsContainer.style.display = 'none';
+      // Keep player in place; overlay leaves bottom 120px free for it
+      document.body.style.overflow = lyricsVisible ? 'hidden' : '';
+    } else {
+      if (lyricsContainer) lyricsContainer.style.display = lyricsVisible ? 'block' : 'none';
+    }
     if (lyricsVisible) {
-      // Always fetch directly by title/artist (with id fallback)
+      lyricsSyncLocked = true;
+      // Fill meta like on the screenshot
+      try {
+        if (lyricsFsCover) lyricsFsCover.src = cover && cover.src ? cover.src : '';
+        if (lyricsFsTitle) lyricsFsTitle.textContent = lastTrackTitle || '';
+        if (lyricsFsArtist) lyricsFsArtist.textContent = lastTrackArtist || '';
+      } catch(_) {}
       fetchAndRenderLyricsDirect();
     }
     lyricsBtn.classList.toggle('btn-active', lyricsVisible);
   };
+
+  const hideKaraoke = () => {
+    lyricsVisible = false;
+    if (lyricsFs) lyricsFs.style.display = 'none';
+    document.body.style.overflow = '';
+    lyricsBtn && lyricsBtn.classList.remove('btn-active');
+    lyricsSyncLocked = false;
+  };
+  if (lyricsFsClose) lyricsFsClose.onclick = hideKaraoke;
+  document.addEventListener('keydown', (e)=>{ if (lyricsVisible && e.key==='Escape') hideKaraoke(); });
+
+  if (lyricsFsMode) {
+    try { lyricsFsMode.style.display = 'none'; } catch(_) {}
+    lyricsFsMode.onclick = () => {
+    if (!lyricsFs) return;
+    const isStatic = lyricsFs.classList.toggle('static');
+    lyricsFsMode.title = isStatic ? 'Режим караоке (по строкам)' : 'Показать весь текст';
+    };
+  }
 
   // Update lyrics on timeupdate
   audio.addEventListener('timeupdate', () => {
