@@ -1976,7 +1976,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 			const likedClass = window.__likedSet && window.__likedSet.has(track.id) ? 'liked' : '';
 			// Do not URL-encode values here; player will normalize paths. Escape single quotes for inline handler safety.
 			const esc = v => String(v==null?'':v).replace(/'/g, "\\'");
-			const play = `playTrack({ src: '${esc(track.file_path)}', title: '${esc(track.title)}', artist: '${esc(track.artist)}', cover: '${esc(track.cover)}', id: ${track.id||0}, video_url: '${esc(track.video_url||'')}', explicit: ${track.explicit?1:0} })`;
+			const play = `console.log('Search track clicked:', '${esc(track.file_path)}'); playTrack({ src: '${esc(track.file_path)}', title: '${esc(track.title)}', artist: '${esc(track.artist)}', cover: '${esc(track.cover)}', id: ${track.id||0}, video_url: '${esc(track.video_url||'')}', explicit: ${track.explicit?1:0} })`;
 		return `
 			<div class="card">
 				<img class="card-cover" src="/muzic2/${track.cover || 'tracks/covers/placeholder.jpg'}" alt="cover" onclick="${play}">
