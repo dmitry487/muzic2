@@ -26,12 +26,16 @@
       #lyrics-container .lyric-line.active { opacity: 1; color: #fff; font-weight: 700; font-size: 1.6rem; }
 
       /* Fullscreen karaoke (Yandex-style) */
-      #lyrics-fs { position: fixed; top: 0; left: 0; right: 0; bottom: 120px; background: #1f1f1f; display: none; z-index: 9000; }
+      #lyrics-fs { position: fixed; top: 0; left: 0; right: 0; bottom: 110px; background: #1f1f1f; display: none; z-index: 9000; }
       #lyrics-fs-close { position: absolute; top: 20px; right: 24px; width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.08); color: #fff; border: 1px solid #2a2a2a; cursor: pointer; font-size: 24px; line-height: 44px; text-align: center; }
       #lyrics-fs-mode { position: absolute; top: 20px; right: 78px; width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.08); color: #fff; border: 1px solid #2a2a2a; cursor: pointer; font-size: 18px; line-height: 44px; text-align: center; }
-      #lyrics-fs-grid { position: absolute; inset: 0; display: grid; grid-template-columns: 420px 1fr; gap: 48px; align-items: center; padding: 80px 72px 120px; }
+      #lyrics-fs-grid { position: absolute; inset: 0; display: grid; grid-template-columns: 520px 1fr; gap: 48px; align-items: center; padding: 80px 72px 120px; }
       #lyrics-fs-meta { display: flex; flex-direction: column; gap: 18px; justify-content: center; }
       #lyrics-fs-cover { width: 260px; height: 260px; border-radius: 18px; object-fit: cover; background: #111; box-shadow: 0 24px 70px rgba(0,0,0,.55); }
+      #lyrics-fs-video-wrap { width: 100%; max-width: 100%; aspect-ratio: 16/9; background:#000; border-radius:18px; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.45); display:none; }
+      #lyrics-fs-video-embed { width:100%; height:100%; display:none; background:#000; }
+      #lyrics-fs-video-embed::-webkit-media-controls { display: none !important; }
+      #lyrics-fs-video-cover { width:100%; height:100%; object-fit:cover; display:none; background:#000; }
       #lyrics-fs-title { color: #fff; font-size: 30px; font-weight: 800; }
       #lyrics-fs-artist { color: #bdbdbd; font-size: 18px; }
       #lyrics-fs-panel { position: relative; width: 100%; margin: 0 auto; overflow: hidden; }
@@ -171,6 +175,10 @@
       <div id="lyrics-fs-grid">
         <div id="lyrics-fs-meta">
           <img id="lyrics-fs-cover" src="" alt="cover" />
+          <div id="lyrics-fs-video-wrap">
+          <video id="lyrics-fs-video-embed" playsinline></video>
+            <img id="lyrics-fs-video-cover" alt="cover" />
+          </div>
           <div id="lyrics-fs-title"></div>
           <div id="lyrics-fs-artist"></div>
         </div>
@@ -248,6 +256,9 @@
   const lyricsFsArtist = playerRoot.querySelector('#lyrics-fs-artist');
   const lyricsFsDots = playerRoot.querySelector('#lyrics-fs-dots');
   const lyricsFsDotsArr = lyricsFsDots ? Array.from(lyricsFsDots.querySelectorAll('.lyrics-dot')) : [];
+  const lyricsFsVideoWrap = playerRoot.querySelector('#lyrics-fs-video-wrap');
+  const lyricsFsVideo = playerRoot.querySelector('#lyrics-fs-video-embed');
+  const lyricsFsVideoCover = playerRoot.querySelector('#lyrics-fs-video-cover');
 
   // Lyrics state
   let lyricsLines = []; // [{time:number, text:string}]
@@ -258,6 +269,17 @@
   let userScrolling = false;
   let scrollResumeTimer = null;
   let lyricsSyncLocked = false; // lock centering until first timestamp
+
+  // Keep active line anchored at ~32% helper
+  function scrollLyricsToAnchorForIndex(targetIndex) {
+    if (!lyricsVisible || !lyricsFsInner || !lyricsFsList) return;
+    const fsLines = lyricsFsList.querySelectorAll('.lyric-line');
+    const el = fsLines && fsLines[targetIndex] ? fsLines[targetIndex] : null;
+    if (!el) return;
+    const anchor = Math.round(lyricsFsInner.clientHeight * 0.32);
+    const top = Math.max(0, el.offsetTop - anchor);
+    try { lyricsFsInner.scrollTo({ top, behavior: 'smooth' }); } catch(_) {}
+  }
 
   function parseLRC(lrcText) {
     const lines = [];
@@ -923,12 +945,31 @@
     currentTrackId = t.id || null;
     lastTrackTitle = String(t.title||'');
     lastTrackArtist = String(t.artist||'');
+    // Update karaoke meta immediately on track change when overlay is visible
+    try {
+      if (lyricsVisible) {
+        if (lyricsFsCover) lyricsFsCover.src = t.cover || (cover && cover.src) || '';
+        if (lyricsFsTitle) lyricsFsTitle.textContent = t.title || '';
+        if (lyricsFsArtist) lyricsFsArtist.textContent = t.artist || '';
+        // reset video cover in karaoke panel
+        if (lyricsFsVideo && !t.video_url) {
+          try { lyricsFsVideo.pause(); lyricsFsVideo.removeAttribute('src'); lyricsFsVideo.load(); } catch(_) {}
+          if (lyricsFsVideoCover) lyricsFsVideoCover.src = t.cover || '';
+        }
+      }
+    } catch(_) {}
+    // Reset scroll pause and re-anchor to first line for new track
+    userScrolling = false;
+    if (scrollResumeTimer) { try { clearTimeout(scrollResumeTimer); } catch(_) {} scrollResumeTimer = null; }
+    currentLyricsIndex = -1;
     // Reset karaoke on track change
     if (lyricsContainer) lyricsContainer.innerHTML = lyricsVisible ? '<div class="lyric-line">Загрузка…</div>' : '';
     currentLyricsIndex = -1;
     lyricsLines = [];
     if (lyricsVisible) {
       fetchAndRenderLyricsDirect();
+      // Ensure initial anchor after render
+      setTimeout(() => { scrollLyricsToAnchorForIndex(0); }, 50);
     } else if (currentTrackId) {
       // Preload silently in background if hidden
       loadLyricsForTrack(currentTrackId);
@@ -976,6 +1017,11 @@
     document.body.style.overflow = '';
     lyricsBtn && lyricsBtn.classList.remove('btn-active');
     lyricsSyncLocked = false;
+    // Stop karaoke video if playing
+    try { if (lyricsFsVideo) { lyricsFsVideo.pause(); lyricsFsVideo.removeAttribute('src'); lyricsFsVideo.load(); } } catch(_) {}
+    try { if (lyricsFsVideoWrap) lyricsFsVideoWrap.style.display='none'; } catch(_) {}
+    // Restore audio sound
+    try { audio.muted = false; } catch(_) {}
   };
   if (lyricsFsClose) lyricsFsClose.onclick = hideKaraoke;
   document.addEventListener('keydown', (e)=>{ if (lyricsVisible && e.key==='Escape') hideKaraoke(); });
@@ -992,7 +1038,14 @@
   // Update lyrics on timeupdate
   audio.addEventListener('timeupdate', () => {
     if (!lyricsVisible) return;
-    updateLyricsHighlight(audio.currentTime || 0);
+    // If karaoke video is playing in left slot, sync from it to keep scrolling
+    let t = audio.currentTime || 0;
+    try {
+      if (lyricsFsVideo && lyricsFsVideoWrap && lyricsFsVideo.style.display === 'block' && !lyricsFsVideo.paused && !lyricsFsVideo.ended) {
+        t = isNaN(lyricsFsVideo.currentTime) ? t : lyricsFsVideo.currentTime;
+      }
+    } catch(_) {}
+    updateLyricsHighlight(t);
   });
   window.playFromQueue = function(idx) {
     console.log('playFromQueue called with index:', idx);
@@ -1344,6 +1397,8 @@
       console.log('Video is still playing, not calling playNext yet');
       return;
     }
+    // Keep karaoke anchor on the last active line before switching
+    try { if (lyricsVisible && currentLyricsIndex >= 0) scrollLyricsToAnchorForIndex(currentLyricsIndex); } catch(_) {}
     console.log('Calling playNext(true)');
     playNext(true);
   });
@@ -1636,8 +1691,52 @@
     } catch(_) {}
   }
 
-  // Video button: toggle inline panel; play video if доступно, иначе обложку
+  // Video button: if karaoke open, show video inside karaoke left panel; else use inline panel
   if (videoBtn) videoBtn.onclick = () => {
+    if (lyricsVisible && lyricsFsVideoWrap) {
+      // Open video in karaoke slot
+      const ds = (playerContainer.dataset && typeof playerContainer.dataset.videoUrl !== 'undefined') ? playerContainer.dataset.videoUrl : '';
+      let url = ds && ds.trim() !== '' ? ds : ((trackQueue[queueIndex] && trackQueue[queueIndex].video_url) ? trackQueue[queueIndex].video_url : '');
+      // Normalize relative paths like "tracks/video/.." via API proxy for proper serving
+      if (url && !/^https?:/i.test(url) && url.indexOf('/public/src/api/video.php?f=') === -1) {
+        const i = url.indexOf('tracks/');
+        const rel = i !== -1 ? url.slice(i) : url.replace(/^\/+/, '');
+        url = '/muzic2/public/src/api/video.php?f=' + encodeURIComponent(rel);
+      }
+      if (!url) {
+        // no video: show cover placeholder (keep at top of left column)
+        lyricsFsVideoWrap.style.display = 'block';
+        if (lyricsFsCover) lyricsFsCover.style.display = 'none';
+        if (lyricsFsVideo) { try { lyricsFsVideo.pause(); } catch(_) {}; lyricsFsVideo.src=''; lyricsFsVideo.style.display='none'; }
+        if (lyricsFsVideoCover) { lyricsFsVideoCover.src = (cover && cover.src) ? cover.src : ''; lyricsFsVideoCover.style.display='block'; }
+        return;
+      }
+      // Reset states
+      try { lyricsFsVideo.pause(); } catch(_) {}
+      if (lyricsFsVideo) {
+        lyricsFsVideo.style.display = 'block';
+        lyricsFsVideo.src = url;
+        lyricsFsVideo.currentTime = isNaN(audio.currentTime) ? 0 : (audio.currentTime||0);
+        // ensure no native controls
+        try { lyricsFsVideo.controls = false; } catch(_) {}
+        lyricsFsVideo.play().catch(()=>{});
+      }
+      if (lyricsFsVideoCover) lyricsFsVideoCover.style.display = 'none';
+      if (lyricsFsCover) lyricsFsCover.style.display = 'none';
+      lyricsFsVideoWrap.style.display = 'block';
+      // Make sure audio element is muted and video outputs the sound
+      try { audio.muted = true; } catch(_) {}
+      try { lyricsFsVideo.muted = false; } catch(_) {}
+      // Ensure timeupdate keeps running while video plays
+      try {
+        if (lyricsFsVideo) {
+          const rebroadcast = () => { try { updateLyricsHighlight(lyricsFsVideo.currentTime||0); } catch(_) {} };
+          lyricsFsVideo.removeEventListener('timeupdate', rebroadcast);
+          lyricsFsVideo.addEventListener('timeupdate', rebroadcast);
+        }
+      } catch(_) {}
+      return;
+    }
     const ds = (playerContainer.dataset && typeof playerContainer.dataset.videoUrl !== 'undefined') ? playerContainer.dataset.videoUrl : '';
     let url = ds && ds.trim() !== '' ? ds : ((trackQueue[queueIndex] && trackQueue[queueIndex].video_url) ? trackQueue[queueIndex].video_url : '');
     // If looks like raw tracks/... path, route via proxy for proper Content-Type
