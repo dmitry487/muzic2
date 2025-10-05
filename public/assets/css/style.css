@@ -476,6 +476,8 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+.track-artist .artist-link { color: inherit; cursor: pointer; text-decoration: none; }
+.track-artist .artist-link:hover { text-decoration: underline; }
 .track-play-btn {
     background: #1db954;
     color: #fff;
@@ -718,6 +720,8 @@ body {
     text-overflow: ellipsis;
     max-width: 100%;
 }
+.card-artist .artist-link { color: inherit; cursor: pointer; text-decoration: none; }
+.card-artist .artist-link:hover { text-decoration: underline; }
 .card-type {
     font-size: 0.95rem;
     color: #1db954;
@@ -1037,6 +1041,8 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+.artist-name .artist-link { color: inherit; cursor: pointer; text-decoration: none; }
+.artist-name .artist-link:hover { text-decoration: underline; }
 @media (max-width: 900px) {
     /* Миксы и треки - 2 в ряд */
     #mixes-row.tile-row,

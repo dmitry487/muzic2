@@ -11,6 +11,8 @@
       .track-info { min-width: 0; }
       #track-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       #track-artist { color: #b3b3b3; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #track-artist .artist-link { color: inherit; cursor: pointer; text-decoration: none; }
+      #track-artist .artist-link:hover { text-decoration: underline; }
       #track-status { color: #1ed760; font-size: 0.85rem; }
       .player-center { display: flex; flex-direction: column; gap: 6px; }
       .player-controls { display: flex; align-items: center; justify-content: center; gap: 12px; }
@@ -75,6 +77,8 @@
       .queue-idx { color: #777; text-align: right; }
       .queue-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .queue-artist { color: #9aa0a6; font-size: 0.86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .queue-artist .artist-link { color: inherit; cursor: pointer; text-decoration: none; }
+      .queue-artist .artist-link:hover { text-decoration: underline; }
       .queue-meta { color: #666; font-size: 0.8rem; }
       .queue-current { background: #1a1f1a; }
 
@@ -526,6 +530,34 @@
   adjustContentPadding();
   window.addEventListener('resize', adjustContentPadding);
 
+  // Artist links helpers
+  function escapeAttr(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+  function renderArtistInline(artistString) {
+    if (!artistString) return '';
+    try {
+      const parts = String(artistString).split(',').map(s => s.trim()).filter(Boolean);
+      return parts.map(p => `<span class="artist-link" data-artist='${escapeAttr(p)}'>${typeof escapeHtml === 'function' ? escapeHtml(p) : p}</span>`).join(', ');
+    } catch (_) { return typeof escapeHtml === 'function' ? escapeHtml(artistString) : String(artistString); }
+  }
+  function bindArtistLinks(rootEl) {
+    if (!rootEl) return;
+    rootEl.addEventListener('click', function onClick(e) {
+      const link = e.target && e.target.closest ? e.target.closest('.artist-link') : null;
+      if (!link) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const name = link.getAttribute('data-artist') || '';
+      try { (window.navigateTo || navigateTo)('artist', { artist: name }); } catch (_) {}
+    });
+  }
+
   // Persistent popup player integration
   let popupWin = null;
   let popupActive = false;
@@ -556,7 +588,10 @@
       currentTimeEl.textContent = formatTime(popupState.currentTime || 0);
       durationEl.textContent = formatTime(popupState.duration || 0);
       if (popupState.title) trackTitle.textContent = popupState.title;
-      if (popupState.artist) trackArtist.textContent = popupState.artist;
+      if (popupState.artist) {
+        trackArtist.innerHTML = renderArtistInline(popupState.artist);
+        bindArtistLinks(trackArtist);
+      }
       if (popupState.cover) cover.src = popupState.cover;
       updatePlayPauseUI();
       savePlayerStateThrottled();
@@ -781,7 +816,8 @@
     
     // Update fullscreen content
     fullscreenTitle.textContent = currentTrack.title || '';
-    fullscreenArtist.textContent = currentTrack.artist || '';
+    fullscreenArtist.innerHTML = renderArtistInline(currentTrack.artist || '');
+    bindArtistLinks(fullscreenArtist);
     
     // Check if there's a video source (you can extend this logic)
     const hasVideo = currentTrack.video || false; // Add video property to tracks if needed
@@ -981,15 +1017,23 @@
       const base = (t && typeof t.artist === 'string') ? t.artist.trim() : '';
       const feats = (t && typeof t.feats === 'string') ? t.feats.trim() : '';
       const combined = feats ? (base ? `${base}, ${feats}` : feats) : base;
+      const artistHTML = renderArtistInline(combined);
       li.innerHTML = `
         <div class="queue-idx">${idx + 1}</div>
         <div>
           <div class="queue-title">${escapeHtml(t.title || '')}</div>
-          <div class="queue-artist">${escapeHtml(combined)}</div>
+          <div class="queue-artist">${artistHTML}</div>
         </div>
         <div class="queue-meta">${t.duration ? formatTime(t.duration) : ''}</div>
       `;
-      li.onclick = () => {
+      li.onclick = (e) => {
+        const a = e.target && e.target.closest ? e.target.closest('.artist-link') : null;
+        if (a) {
+          e.stopPropagation();
+          const name = a.getAttribute('data-artist') || '';
+          try { (window.navigateTo || navigateTo)('artist', { artist: name }); } catch (_) {}
+          return;
+        }
         playFromQueue(idx);
       };
       queueList.appendChild(li);
@@ -1004,7 +1048,9 @@
       const base = (t && typeof t.artist === 'string') ? t.artist.trim() : '';
       const feats = (t && typeof t.feats === 'string') ? t.feats.trim() : '';
       const combinedArtist = feats ? (base ? `${base}, ${feats}` : feats) : base;
-      trackArtist.innerHTML = (t.explicit ? '<span class="exp-badge" title="Нецензурная лексика">E</span>' : '') + escapeHtml(combinedArtist);
+      const artistHtml = renderArtistInline(combinedArtist);
+      trackArtist.innerHTML = (t.explicit ? '<span class="exp-badge" title="Нецензурная лексика">E</span>' : '') + artistHtml;
+      bindArtistLinks(trackArtist);
     } catch(_) { trackArtist.textContent = t.artist || ''; }
     if (cover) cover.src = t.cover || (cover.src || '');
     currentTrackId = t.id || null;
@@ -1016,6 +1062,39 @@
         if (lyricsFsCover) lyricsFsCover.src = t.cover || (cover && cover.src) || '';
         if (lyricsFsTitle) lyricsFsTitle.textContent = t.title || '';
         if (lyricsFsArtist) lyricsFsArtist.textContent = t.artist || '';
+        // Update background cover/video in karaoke
+        const bgCover = t.cover || (cover && cover.src) || '';
+        if (lyricsFsBgImg) { 
+          lyricsFsBgImg.src = bgCover; 
+          lyricsFsBgImg.style.display = bgCover ? 'block' : 'none'; 
+        }
+        if (lyricsFsBgVideo) {
+          let bgVideoUrl = '';
+          try {
+            const ds = (playerContainer.dataset && typeof playerContainer.dataset.videoUrl !== 'undefined') ? playerContainer.dataset.videoUrl : '';
+            bgVideoUrl = ds && ds.trim() !== '' ? ds : (t.video_url || '');
+            if (bgVideoUrl && !/^https?:/i.test(bgVideoUrl) && bgVideoUrl.indexOf('/public/src/api/video.php?f=') === -1) {
+              const i = bgVideoUrl.indexOf('tracks/');
+              const rel = i !== -1 ? bgVideoUrl.slice(i) : bgVideoUrl.replace(/^\/+/, '');
+              bgVideoUrl = '/muzic2/public/src/api/video.php?f=' + encodeURIComponent(rel);
+            }
+          } catch(_) {}
+          if (bgVideoUrl) {
+            try { 
+              lyricsFsBgVideo.src = bgVideoUrl; 
+              lyricsFsBgVideo.currentTime = 0; 
+              lyricsFsBgVideo.play().catch(()=>{}); 
+              lyricsFsBgVideo.style.display = 'block'; 
+            } catch(_) {}
+          } else {
+            try { 
+              lyricsFsBgVideo.pause(); 
+              lyricsFsBgVideo.removeAttribute('src'); 
+              lyricsFsBgVideo.load(); 
+              lyricsFsBgVideo.style.display = 'none'; 
+            } catch(_) {}
+          }
+        }
         // reset video cover in karaoke panel
         if (lyricsFsVideo && !t.video_url) {
           try { lyricsFsVideo.pause(); lyricsFsVideo.removeAttribute('src'); lyricsFsVideo.load(); } catch(_) {}

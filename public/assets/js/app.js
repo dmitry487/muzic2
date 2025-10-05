@@ -614,8 +614,18 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 		}
 	}
 
-	// Global delegation for heart toggle
+	// Global delegation for heart toggle and artist links
 		document.addEventListener('click', async (e) => {
+		// Handle artist link clicks
+		const artistLink = e.target.closest('.artist-link');
+		if (artistLink) {
+			e.preventDefault();
+			e.stopPropagation();
+			const artistName = artistLink.getAttribute('data-artist') || '';
+			try { navigateTo('artist', { artist: artistName }); } catch(_) {}
+			return;
+		}
+		
 		const btn = e.target.closest('.heart-btn, .album-like-btn');
 		if (!btn) return;
 		if (!currentUser) { attachAuthModalTriggers(); const open = id => { document.querySelector('#auth-modals .modal-overlay').style.display='block'; document.getElementById(id).style.display='block'; }; open('login-modal'); return; }
@@ -744,8 +754,17 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
                     const d = parseInt(t.duration)||0; const mm=Math.floor(d/60); const ss=d%60;
                     tr.innerHTML = `
                         <td class="track-num">${i+1}</td>
-                        <td class="track-title">${t.explicit?'<span class="exp-badge">E</span>':''}${escapeHtml(t.title||'')}<div class="track-artist">${escapeHtml((t.feats && String(t.feats).trim()) ? `${t.artist||''}, ${t.feats}` : (t.artist||''))}</div></td>
+                        <td class="track-title">${t.explicit?'<span class="exp-badge">E</span>':''}${escapeHtml(t.title||'')}<div class="track-artist">${renderArtistInline((t.feats && String(t.feats).trim()) ? `${t.artist||''}, ${t.feats}` : (t.artist||''))}</div></td>
                         <td class="track-duration">${mm}:${String(ss).padStart(2,'0')}</td>`;
+                    // Click on artist name navigates to artist page, not play
+                    tr.addEventListener('click', (e)=>{
+                        const link = e.target && e.target.closest ? e.target.closest('.artist-link') : null;
+                        if (link) {
+                            e.preventDefault(); e.stopPropagation();
+                            const name = link.getAttribute('data-artist') || '';
+                            try { navigateTo('artist', { artist: name }); } catch(_) {}
+                        }
+                    });
                     tr.onclick = ()=>{
                         const q = tracks.map(tt=>({
                             src: (/^https?:/i.test(tt.src||'')) ? tt.src : ('/muzic2/' + ((tt.src||'').indexOf('tracks/')!==-1 ? (tt.src||'').slice((tt.src||'').indexOf('tracks/')) : (tt.src||'').replace(/^\/+/, ''))),
@@ -1093,7 +1112,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 					<img class="card-cover" loading="lazy" src="${coverPath}" alt="cover">
 					<div class="card-info">
                 <div class="card-title">${escapeHtml(item.title)}</div>
-                <div class="card-artist">${item.explicit? '<span class=\"exp-badge\" title=\"Нецензурная лексика\">E</span>':''}${escapeHtml(item.feats && String(item.feats).trim() ? `${item.artist}, ${item.feats}` : item.artist)}</div>
+                <div class="card-artist">${item.explicit? '<span class=\"exp-badge\" title=\"Нецензурная лексика\">E</span>':''}${renderArtistInline(item.feats && String(item.feats).trim() ? `${item.artist}, ${item.feats}` : item.artist)}</div>
 						<div class="card-type">${item.album_type || ''}</div>
 					</div>
 				</div>
@@ -1333,11 +1352,20 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 					<td class="track-num">${i+1}</td>
 					<td class="track-title">
 						${t.explicit ? '<span class="exp-badge">E</span>' : ''}${escapeHtml(t.title||'')}
-						<div class="track-artist">${escapeHtml(combinedArtist)}</div>
+						<div class="track-artist">${renderArtistInline(combinedArtist)}</div>
 					</td>
 					<td class="track-duration">${durationFormatted}</td>
 					<td class="track-like"><button class="heart-btn ${likedClass}" data-track-id="${t.id}" title="В избранное">❤</button></td>
 				`;
+				// Make artist names clickable inside album tracks
+				tr.addEventListener('click', (e)=>{
+					const link = e.target && e.target.closest ? e.target.closest('.artist-link') : null;
+					if (link) {
+						e.preventDefault(); e.stopPropagation();
+						const name = link.getAttribute('data-artist') || '';
+						try { navigateTo('artist', { artist: name }); } catch(_) {}
+					}
+				});
                 const playBtn=document.createElement('button'); playBtn.className='track-play-btn'; playBtn.innerHTML='&#9654;'; playBtn.onclick=(e)=>{ 
 					e.stopPropagation(); 
 					const q=(data.tracks||[]).map(tt=>{
@@ -1982,7 +2010,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 				<img class="card-cover" src="/muzic2/${track.cover || 'tracks/covers/placeholder.jpg'}" alt="cover" onclick="${play}">
 				<div class="card-info" onclick="${play}">
 					<div class="card-title">${escapeHtml(track.title)}${track.explicit? ' <span class="exp-badge" title="Нецензурная лексика">E</span>':''}</div>
-                    <div class="card-artist">${escapeHtml(track.feats && String(track.feats).trim() ? `${track.artist}, ${track.feats}` : track.artist)}</div>
+				<div class="card-artist">${renderArtistInline(track.feats && String(track.feats).trim() ? `${track.artist}, ${track.feats}` : track.artist)}</div>
 					<div class="card-type">${escapeHtml(track.album || '')}</div>
 				</div>
 				<button class="heart-btn ${likedClass}" data-track-id="${track.id}" title="В избранное">❤</button>
@@ -1994,7 +2022,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 			return `
 				<div class="artist-tile" onclick="navigateTo('artist', { artist: '${encodeURIComponent(artist.name)}' })">
 					<img class="artist-avatar" loading="lazy" src="/muzic2/${artist.cover || 'tracks/covers/placeholder.jpg'}" alt="avatar">
-					<div class="artist-name">${escapeHtml(artist.name)}</div>
+					<div class="artist-name">${renderArtistInline(artist.name)}</div>
 					<div class="artist-tracks">${artist.track_count} треков</div>
 				</div>
 			`;
@@ -2010,5 +2038,13 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 			`;
 		}
 	}
+}
+
+function renderArtistInline(artistString) {
+    if (!artistString) return '';
+    try {
+        const parts = String(artistString).split(',').map(s => s.trim()).filter(Boolean);
+        return parts.map(p => `<span class="artist-link" data-artist="${escapeHtml(p)}">${escapeHtml(p)}</span>`).join(', ');
+    } catch (_) { return escapeHtml(artistString); }
 }
 
