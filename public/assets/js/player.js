@@ -26,10 +26,16 @@
       #lyrics-container .lyric-line.active { opacity: 1; color: #fff; font-weight: 700; font-size: 1.6rem; }
 
       /* Fullscreen karaoke (Yandex-style) */
-      #lyrics-fs { position: fixed; top: 0; left: 0; right: 0; bottom: 110px; background: #1f1f1f; display: none; z-index: 9000; }
+      #lyrics-fs { position: fixed; top: 0; left: 0; right: 0; bottom: 110px; background: #0f0f0f; display: none; z-index: 9000; }
+      #lyrics-fs-underlay { position: fixed; inset: 0; z-index: 0; display: none; overflow: hidden; pointer-events: none; }
+      #lyrics-fs-underlay img, #lyrics-fs-underlay video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(16px) brightness(0.45) saturate(1.05); transform: scale(1.06); }
+      #lyrics-fs-underlay video { opacity: 0.85; }
+      #lyrics-fs-bg { position: absolute; inset: 0; overflow: hidden; z-index: 0; }
+      #lyrics-fs-bg img, #lyrics-fs-bg video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(16px) brightness(0.45) saturate(1.05); transform: scale(1.06); }
+      #lyrics-fs-bg video { opacity: 0.85; }
       #lyrics-fs-close { position: absolute; top: 20px; right: 24px; width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.08); color: #fff; border: 1px solid #2a2a2a; cursor: pointer; font-size: 24px; line-height: 44px; text-align: center; }
       #lyrics-fs-mode { position: absolute; top: 20px; right: 78px; width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.08); color: #fff; border: 1px solid #2a2a2a; cursor: pointer; font-size: 18px; line-height: 44px; text-align: center; }
-      #lyrics-fs-grid { position: absolute; inset: 0; display: grid; grid-template-columns: 520px 1fr; gap: 48px; align-items: center; padding: 80px 72px 120px; }
+      #lyrics-fs-grid { position: absolute; inset: 0; display: grid; grid-template-columns: 520px 1fr; gap: 48px; align-items: center; padding: 80px 72px 120px; z-index: 1; }
       #lyrics-fs-meta { display: flex; flex-direction: column; gap: 18px; justify-content: center; }
       #lyrics-fs-cover { width: 260px; height: 260px; border-radius: 18px; object-fit: cover; background: #111; box-shadow: 0 24px 70px rgba(0,0,0,.55); }
       #lyrics-fs-video-wrap { width: 100%; max-width: 100%; aspect-ratio: 16/9; background:#000; border-radius:18px; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.45); display:none; }
@@ -169,7 +175,9 @@
         <button id="fullscreen-close">×</button>
       </div>
     </div>
+    <div id="lyrics-fs-underlay"><img id="lyrics-fs-underlay-img" alt="bg" style="display:none;"><video id="lyrics-fs-underlay-video" playsinline muted loop style="display:none;"></video></div>
     <div id="lyrics-fs">
+      <div id="lyrics-fs-bg"><img id="lyrics-fs-bg-img" alt="bg" style="display:none;"><video id="lyrics-fs-bg-video" playsinline muted loop style="display:none;"></video></div>
       <button id="lyrics-fs-close" title="Закрыть">×</button>
       <button id="lyrics-fs-mode" title="Показать весь текст">≡</button>
       <div id="lyrics-fs-grid">
@@ -247,6 +255,11 @@
   const fullscreenBack = playerRoot.querySelector('#fullscreen-back');
   const lyricsContainer = playerContainer.querySelector('#lyrics-container');
   const lyricsFs = playerRoot.querySelector('#lyrics-fs');
+  const lyricsFsUnderlay = playerRoot.querySelector('#lyrics-fs-underlay');
+  const lyricsFsUnderlayImg = playerRoot.querySelector('#lyrics-fs-underlay-img');
+  const lyricsFsUnderlayVideo = playerRoot.querySelector('#lyrics-fs-underlay-video');
+  const lyricsFsBgImg = playerRoot.querySelector('#lyrics-fs-bg-img');
+  const lyricsFsBgVideo = playerRoot.querySelector('#lyrics-fs-bg-video');
   const lyricsFsClose = playerRoot.querySelector('#lyrics-fs-close');
   const lyricsFsMode = playerRoot.querySelector('#lyrics-fs-mode');
   const lyricsFsInner = playerRoot.querySelector('#lyrics-fs-inner');
@@ -279,6 +292,41 @@
     const anchor = Math.round(lyricsFsInner.clientHeight * 0.32);
     const top = Math.max(0, el.offsetTop - anchor);
     try { lyricsFsInner.scrollTo({ top, behavior: 'smooth' }); } catch(_) {}
+  }
+
+  // Click-to-seek on lyrics lines (inline and fullscreen karaoke)
+  function handleLyricClick(event) {
+    const target = event.target && event.target.closest ? event.target.closest('.lyric-line') : null;
+    if (!target) return;
+    const timeAttr = target.getAttribute('data-time');
+    const idxAttr = target.getAttribute('data-idx');
+    const seekTime = parseFloat(timeAttr || '0');
+    const targetIdx = parseInt(idxAttr || '-1', 10);
+    if (!isFinite(seekTime) || seekTime < 0) return;
+
+    let usedVideo = false;
+    // If karaoke video is shown, seek video; otherwise seek audio
+    if (lyricsFsVideo && lyricsFsVideo.style.display === 'block' && !lyricsFsVideo.ended) {
+      try { lyricsFsVideo.currentTime = seekTime; lyricsFsVideo.play().catch(()=>{}); usedVideo = true; } catch(_) {}
+    }
+    if (!usedVideo && typeof audio !== 'undefined' && audio) {
+      try { audio.currentTime = seekTime; audio.play().catch(()=>{}); } catch(_) {}
+    }
+
+    // Reset active classes to avoid stale highlight, then re-evaluate and scroll to anchor
+    try {
+      const inlineActives = lyricsContainer ? lyricsContainer.querySelectorAll('.lyric-line.active') : [];
+      inlineActives && inlineActives.forEach && inlineActives.forEach(el => el.classList.remove('active'));
+      const fsActives = lyricsFsList ? lyricsFsList.querySelectorAll('.lyric-line.active') : [];
+      fsActives && fsActives.forEach && fsActives.forEach(el => el.classList.remove('active'));
+    } catch(_) {}
+    try { currentLyricsIndex = -1; } catch(_) { currentLyricsIndex = -1; }
+    try { updateLyricsHighlight(seekTime); } catch(_) {}
+    if (lyricsVisible) {
+      userScrolling = false;
+      if (scrollResumeTimer) { try { clearTimeout(scrollResumeTimer); } catch(_) {} scrollResumeTimer = null; }
+      try { scrollLyricsToAnchorForIndex(Math.max(0, isFinite(targetIdx) ? targetIdx : 0)); } catch(_) {}
+    }
   }
 
   function parseLRC(lrcText) {
@@ -371,12 +419,26 @@
   function renderLyrics() {
     if (!lyricsContainer) return;
     if (!lyricsLines.length) { lyricsContainer.innerHTML = '<div id="lyrics-list"><div class="lyric-line">Нет текста</div></div>'; if (lyricsFsList) lyricsFsList.innerHTML = '<div class="lyric-line">Нет текста</div>'; return; }
-    const listHtml = lyricsLines.map((l, i) => `<div class="lyric-line" data-idx="${i}" data-time="${l.time}">${escapeHtml(l.text||'')}</div>`).join('');
+    const listHtml = lyricsLines.map((l, i) => `<div class=\"lyric-line\" data-idx=\"${i}\" data-time=\"${l.time}\">${escapeHtml(l.text||'')}</div>`).join('');
     lyricsContainer.innerHTML = `<div id="lyrics-list">${listHtml}</div>`;
     if (lyricsFsList) {
       lyricsFsList.innerHTML = listHtml;
       try { lyricsFsList.style.transform = 'translateY(0)'; } catch(_) {}
     }
+    // Bind click handlers (event delegation) once per render
+    try {
+      const inlineList = lyricsContainer.querySelector('#lyrics-list');
+      if (inlineList) {
+        inlineList.removeEventListener('click', handleLyricClick);
+        inlineList.addEventListener('click', handleLyricClick);
+      }
+    } catch(_) {}
+    try {
+      if (lyricsFsInner) {
+        lyricsFsInner.removeEventListener('click', handleLyricClick);
+        lyricsFsInner.addEventListener('click', handleLyricClick);
+      }
+    } catch(_) {}
     currentLyricsIndex = -1;
     // Center from the start
     const list = lyricsContainer.querySelector('#lyrics-list');
@@ -402,8 +464,11 @@
 
   function updateLyricsHighlight(currentSec) {
     if (!lyricsVisible || !lyricsLines.length) return;
-    let idx = currentLyricsIndex;
-    while (idx+1 < lyricsLines.length && lyricsLines[idx+1].time <= currentSec + 0.05) idx++;
+    // Recompute from scratch so seeking backward/forward updates correctly
+    let idx = -1;
+    const linesRef = lyricsLines;
+    // Linear scan is fine for typical lyric counts; replace with binary search if needed
+    while ((idx + 1) < linesRef.length && linesRef[idx + 1].time <= currentSec + 0.05) idx++;
     // Do not force first line until timestamp; idx stays -1 before first tag
 
     // Dots removed
@@ -991,10 +1056,45 @@
     lyricsVisible = !lyricsVisible;
     const useFullscreen = true;
     if (useFullscreen) {
-      if (lyricsFs) lyricsFs.style.display = lyricsVisible ? 'block' : 'none';
+      if (lyricsFs) {
+        lyricsFs.style.display = lyricsVisible ? 'block' : 'none';
+      }
+      // Ensure player pinned and visible above underlay
+      try {
+        if (playerContainer) {
+          playerContainer.style.position = lyricsVisible ? 'fixed' : '';
+          playerContainer.style.left = lyricsVisible ? '0' : '';
+          playerContainer.style.right = lyricsVisible ? '0' : '';
+          playerContainer.style.bottom = lyricsVisible ? '0' : '';
+          playerContainer.style.zIndex = lyricsVisible ? '12000' : '';
+        }
+      } catch(_) {}
+      // Show underlay background behind player too (fills gray corners) while karaoke open
+      try {
+        if (lyricsFsUnderlay) lyricsFsUnderlay.style.display = lyricsVisible ? 'block' : 'none';
+        // sync the same background source
+        const bgCover = (cover && cover.src) ? cover.src : '';
+        if (lyricsFsUnderlayImg) { lyricsFsUnderlayImg.src = bgCover; lyricsFsUnderlayImg.style.display = bgCover ? 'block' : 'none'; }
+        if (lyricsFsUnderlayVideo) {
+          let bgVideoUrl = '';
+          const ds = (playerContainer.dataset && typeof playerContainer.dataset.videoUrl !== 'undefined') ? playerContainer.dataset.videoUrl : '';
+          bgVideoUrl = ds && ds.trim() !== '' ? ds : ((trackQueue[queueIndex] && trackQueue[queueIndex].video_url) ? trackQueue[queueIndex].video_url : '');
+          if (bgVideoUrl && !/^https?:/i.test(bgVideoUrl) && bgVideoUrl.indexOf('/public/src/api/video.php?f=') === -1) {
+            const i = bgVideoUrl.indexOf('tracks/');
+            const rel = i !== -1 ? bgVideoUrl.slice(i) : bgVideoUrl.replace(/^\/+/, '');
+            bgVideoUrl = '/muzic2/public/src/api/video.php?f=' + encodeURIComponent(rel);
+          }
+          if (bgVideoUrl) {
+            lyricsFsUnderlayVideo.src = bgVideoUrl; lyricsFsUnderlayVideo.currentTime = 0; lyricsFsUnderlayVideo.play().catch(()=>{}); lyricsFsUnderlayVideo.style.display='block';
+          } else {
+            lyricsFsUnderlayVideo.pause(); lyricsFsUnderlayVideo.removeAttribute('src'); lyricsFsUnderlayVideo.load(); lyricsFsUnderlayVideo.style.display='none';
+          }
+        }
+      } catch(_) {}
       if (lyricsContainer) lyricsContainer.style.display = 'none';
       // Keep player in place; overlay leaves bottom 120px free for it
       document.body.style.overflow = lyricsVisible ? 'hidden' : '';
+      // Keep player visible above background (no gray gaps)
     } else {
       if (lyricsContainer) lyricsContainer.style.display = lyricsVisible ? 'block' : 'none';
     }
@@ -1005,6 +1105,26 @@
         if (lyricsFsCover) lyricsFsCover.src = cover && cover.src ? cover.src : '';
         if (lyricsFsTitle) lyricsFsTitle.textContent = lastTrackTitle || '';
         if (lyricsFsArtist) lyricsFsArtist.textContent = lastTrackArtist || '';
+        // Background: show video if available via karaoke slot, else cover
+        const bgCover = (cover && cover.src) ? cover.src : '';
+        if (lyricsFsBgImg) { lyricsFsBgImg.src = bgCover; lyricsFsBgImg.style.display = bgCover ? 'block' : 'none'; }
+        if (lyricsFsBgVideo) {
+          let bgVideoUrl = '';
+          try {
+            const ds = (playerContainer.dataset && typeof playerContainer.dataset.videoUrl !== 'undefined') ? playerContainer.dataset.videoUrl : '';
+            bgVideoUrl = ds && ds.trim() !== '' ? ds : ((trackQueue[queueIndex] && trackQueue[queueIndex].video_url) ? trackQueue[queueIndex].video_url : '');
+            if (bgVideoUrl && !/^https?:/i.test(bgVideoUrl) && bgVideoUrl.indexOf('/public/src/api/video.php?f=') === -1) {
+              const i = bgVideoUrl.indexOf('tracks/');
+              const rel = i !== -1 ? bgVideoUrl.slice(i) : bgVideoUrl.replace(/^\/+/, '');
+              bgVideoUrl = '/muzic2/public/src/api/video.php?f=' + encodeURIComponent(rel);
+            }
+          } catch(_) {}
+          if (bgVideoUrl) {
+            try { lyricsFsBgVideo.src = bgVideoUrl; lyricsFsBgVideo.currentTime = 0; lyricsFsBgVideo.play().catch(()=>{}); lyricsFsBgVideo.style.display = 'block'; } catch(_) {}
+          } else {
+            try { lyricsFsBgVideo.pause(); lyricsFsBgVideo.removeAttribute('src'); lyricsFsBgVideo.load(); lyricsFsBgVideo.style.display = 'none'; } catch(_) {}
+          }
+        }
       } catch(_) {}
       fetchAndRenderLyricsDirect();
     }
@@ -1013,15 +1133,32 @@
 
   const hideKaraoke = () => {
     lyricsVisible = false;
-    if (lyricsFs) lyricsFs.style.display = 'none';
+    if (lyricsFs) { lyricsFs.style.display = 'none'; }
+    // Unpin player
+    try {
+      if (playerContainer) {
+        playerContainer.style.position = '';
+        playerContainer.style.left = '';
+        playerContainer.style.right = '';
+        playerContainer.style.bottom = '';
+        playerContainer.style.zIndex = '';
+      }
+    } catch(_) {}
+    try {
+      if (lyricsFsUnderlay) lyricsFsUnderlay.style.display = 'none';
+      if (lyricsFsUnderlayVideo) { lyricsFsUnderlayVideo.pause(); lyricsFsUnderlayVideo.removeAttribute('src'); lyricsFsUnderlayVideo.load(); lyricsFsUnderlayVideo.style.display='none'; }
+    } catch(_) {}
     document.body.style.overflow = '';
     lyricsBtn && lyricsBtn.classList.remove('btn-active');
     lyricsSyncLocked = false;
     // Stop karaoke video if playing
     try { if (lyricsFsVideo) { lyricsFsVideo.pause(); lyricsFsVideo.removeAttribute('src'); lyricsFsVideo.load(); } } catch(_) {}
     try { if (lyricsFsVideoWrap) lyricsFsVideoWrap.style.display='none'; } catch(_) {}
+    // Stop background video
+    try { if (lyricsFsBgVideo) { lyricsFsBgVideo.pause(); lyricsFsBgVideo.removeAttribute('src'); lyricsFsBgVideo.load(); lyricsFsBgVideo.style.display='none'; } } catch(_) {}
     // Restore audio sound
     try { audio.muted = false; } catch(_) {}
+    // Player remains visible during karaoke; nothing to restore
   };
   if (lyricsFsClose) lyricsFsClose.onclick = hideKaraoke;
   document.addEventListener('keydown', (e)=>{ if (lyricsVisible && e.key==='Escape') hideKaraoke(); });
@@ -1046,6 +1183,25 @@
       }
     } catch(_) {}
     updateLyricsHighlight(t);
+  });
+  // Re-highlight on seek (user dragged to start or anywhere)
+  audio.addEventListener('seeked', () => {
+    if (!lyricsVisible) return;
+    let t = audio.currentTime || 0;
+    try {
+      if (lyricsFsVideo && lyricsFsVideoWrap && lyricsFsVideo.style.display === 'block' && !lyricsFsVideo.paused && !lyricsFsVideo.ended) {
+        t = isNaN(lyricsFsVideo.currentTime) ? t : lyricsFsVideo.currentTime;
+      }
+    } catch(_) {}
+    // Reset current index so highlight recalculates cleanly and scroll to anchor
+    try { currentLyricsIndex = -1; } catch(_) {}
+    updateLyricsHighlight(t);
+    if (lyricsVisible && typeof scrollLyricsToAnchorForIndex === 'function') {
+      // Find nearest index to current time for centering
+      let idx = 0;
+      for (let i = 0; i < lyricsLines.length; i++) { if (lyricsLines[i].time <= t) idx = i; else break; }
+      try { scrollLyricsToAnchorForIndex(idx); } catch(_) {}
+    }
   });
   window.playFromQueue = function(idx) {
     console.log('playFromQueue called with index:', idx);
@@ -1733,6 +1889,22 @@
           const rebroadcast = () => { try { updateLyricsHighlight(lyricsFsVideo.currentTime||0); } catch(_) {} };
           lyricsFsVideo.removeEventListener('timeupdate', rebroadcast);
           lyricsFsVideo.addEventListener('timeupdate', rebroadcast);
+          // Also fix highlight after manual seek in karaoke video
+          const onSeeked = () => {
+            try { currentLyricsIndex = -1; } catch(_) {}
+            try {
+              const t = isNaN(lyricsFsVideo.currentTime) ? 0 : (lyricsFsVideo.currentTime||0);
+              updateLyricsHighlight(t);
+              // Scroll to nearest line to keep anchor
+              if (lyricsVisible && typeof scrollLyricsToAnchorForIndex === 'function') {
+                let idx = 0;
+                for (let i = 0; i < lyricsLines.length; i++) { if (lyricsLines[i].time <= t) idx = i; else break; }
+                scrollLyricsToAnchorForIndex(idx);
+              }
+            } catch(_) {}
+          };
+          lyricsFsVideo.removeEventListener('seeked', onSeeked);
+          lyricsFsVideo.addEventListener('seeked', onSeeked);
         }
       } catch(_) {}
       return;
