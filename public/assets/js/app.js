@@ -182,19 +182,158 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 
 	async function renderHome() {
 		mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
-		
-		// Для Windows используем ультра-быстрый API
+		try { ensureStyle('/muzic2/public/assets/css/home_modern.css'); } catch(_) {}
+
+		function injectHero(preferredAlbumCover) {
+			try {
+				const heroCover = '/muzic2/' + (String(preferredAlbumCover||'tracks/covers/m1000x1000.jpeg').replace(/^\/+/, ''));
+				const hero = `
+				<section class="home-hero">
+					<div class="hero-bg" style="background-image:url('${heroCover}')"></div>
+					<div class="hero-scrim"></div>
+					<div class="hero-content">
+						<h1>Продолжим слушать</h1>
+						<p>Подборка для вас — треки, альбомы и артисты</p>
+						<div class="hero-actions">
+							<button class="hero-btn" id="hero-search-btn">Поиск</button>
+							<button class="hero-btn primary" id="hero-library-btn">Моя музыка</button>
+						</div>
+						<div class="hero-spotlights">
+							<div class="spotlight pulse" id="pulse-tile">
+								<div class="pulse-wave"></div>
+								<div class="pulse-label">
+									<div class="pulse-title">Пульс</div>
+									<div class="pulse-sub">Персональный поток прямо сейчас</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</section>`;
+				mainContent.insertAdjacentHTML('afterbegin', hero);
+				const sb = document.getElementById('hero-search-btn'); if (sb) sb.onclick = () => showPage('Поиск');
+				const lb = document.getElementById('hero-library-btn'); if (lb) lb.onclick = () => showPage('Моя музыка');
+				const pt = document.getElementById('pulse-tile'); if (pt) pt.onclick = startPulse;
+				try {
+					const bg = document.querySelector('.home-hero .hero-bg');
+					if (bg) {
+						let ticking = false;
+						const onScroll = () => { if (ticking) return; ticking = true; requestAnimationFrame(()=>{ const y = window.scrollY||0; bg.style.transform = `translateY(${Math.min(30, y*0.08)}px) scale(1.08)`; ticking = false; }); };
+						window.addEventListener('scroll', onScroll, { passive: true });
+					}
+				} catch(_) {}
+			} catch(_) {}
+		}
+
+		async function startPulse() {
+			try {
+				let recents = [];
+				try { recents = JSON.parse(localStorage.getItem('muzic2_recent_listening_v1')||'[]'); } catch(_) { recents = []; }
+			const recentArtists = new Set(recents.map(x=>String(x.artist||'').trim()).filter(Boolean));
+			const recentGenres = new Set(recents.map(x=>String(x.genre||'').toLowerCase().trim()).filter(Boolean));
+
+			// Derive preferred artists from user likes (tracks + albums)
+			let preferredArtists = new Set();
+			try {
+				const likesRes = await fetch(getLikesAPI(), { credentials: 'include' });
+				const likes = await likesRes.json();
+				(likes.tracks||[]).forEach(t => { const a = String(t.artist||'').trim(); if (a) preferredArtists.add(a); if (t.genre) recentGenres.add(String(t.genre).toLowerCase()); });
+				(likes.albums||[]).forEach(a => { const ar = String(a.artist||a.artist_name||'').trim(); if (ar) preferredArtists.add(ar); });
+			} catch(_) { /* not logged in or no likes */ }
+			// If no preferred artists yet, fall back to recent artists
+			if (!preferredArtists.size) preferredArtists = new Set(recentArtists);
+				const likedSet = (window.__likedSet instanceof Set) ? window.__likedSet : new Set();
+				let candidates = [];
+				if (isWindows) {
+					const r = await fetch('/muzic2/src/api/home_windows.php'); const d = await r.json();
+					candidates = (d.tracks||[]).concat(d.mixes||[]).filter(Boolean);
+				} else {
+					const r = await fetch('/muzic2/public/src/api/home.php?limit_tracks=60&limit_mixes=60'); const d = await r.json();
+					candidates = (d.tracks||[]).concat(d.mixes||[]).filter(Boolean);
+				}
+			const scored = candidates.map(t => {
+					const artist = String(t.artist||'').trim();
+					let score = 0;
+				// Strongly focus on preferred artists from likes
+				if (preferredArtists.has(artist)) score += 6; else if (recentArtists.has(artist)) score += 2.5;
+					if (likedSet.size && likedSet.has(t.id)) score += 2;
+					const feats = String(t.feats||'').split(',').map(s=>s.trim()).filter(Boolean);
+					if (feats.some(f => recentArtists.has(f))) score += 1;
+				// Genre coherence if available
+				const genre = String(t.genre||'').toLowerCase().trim();
+				if (genre && recentGenres.size && recentGenres.has(genre)) score += 1.5;
+					score += Math.random()*0.5;
+					return { t, score };
+				});
+			scored.sort((a,b)=>b.score-a.score);
+
+			// Diversify by artist: group, then interleave while limiting repetition
+			const byArtist = new Map();
+			for (const item of scored) {
+				const artist = String(item.t.artist||'').trim();
+				if (!artist) continue;
+				if (!byArtist.has(artist)) byArtist.set(artist, []);
+				byArtist.get(artist).push(item);
+			}
+			// Sort each artist bucket by score desc
+			for (const [,arr] of byArtist) arr.sort((a,b)=>b.score-a.score);
+
+			// Priority list of artists by their top score
+			const artistOrder = Array.from(byArtist.keys()).sort((a,b)=>{
+				const as = byArtist.get(a)[0]?.score||0; const bs = byArtist.get(b)[0]?.score||0; return bs-as;
+			});
+
+			const seen = new Set();
+			const queue = [];
+			const perArtistLimitFirstChunk = 2; // max per artist in first 10 items
+			const firstChunkSize = 10;
+			const perArtistCounts = new Map();
+			let lastArtist = '';
+
+			function takeNextDifferentArtist() {
+				for (let i=0;i<artistOrder.length;i++) {
+					const artist = artistOrder[i];
+					if (!byArtist.get(artist)?.length) continue;
+					if (artist === lastArtist && artistOrder.length>1) continue;
+					// Enforce early chunk cap
+					if (queue.length < firstChunkSize) {
+						const cnt = perArtistCounts.get(artist)||0;
+						if (cnt >= perArtistLimitFirstChunk) continue;
+					}
+					return artist;
+				}
+				// fallback any
+				for (const artist of artistOrder) {
+					if (byArtist.get(artist)?.length) return artist;
+				}
+				return null;
+			}
+
+			while (queue.length < 30) {
+				const artist = takeNextDifferentArtist();
+				if (!artist) break;
+				const item = byArtist.get(artist).shift();
+				const t = item.t;
+				let s = t.src || t.file_path || '';
+				if (!s) continue;
+				if (!/^https?:/i.test(s)) s = (s.indexOf('tracks/')!==-1) ? ('/muzic2/' + s.slice(s.indexOf('tracks/'))) : ('/muzic2/' + s.replace(/^\/+/, ''));
+				if (seen.has(s)) continue; seen.add(s);
+				queue.push({ src: encodeURI(s), title: t.title, artist: t.artist, cover: '/muzic2/' + (t.cover || 'tracks/covers/placeholder.jpg'), video_url: t.video_url || '' });
+				perArtistCounts.set(artist, (perArtistCounts.get(artist)||0)+1);
+				lastArtist = artist;
+			}
+				if (queue.length) {
+					window.setQueue && window.setQueue(queue, 0);
+					window.playFromQueue ? window.playFromQueue(0) : (window.playTrack && window.playTrack(queue[0]));
+				}
+			} catch (e) { console.error('Pulse error', e); }
+		}
+
 		console.log('renderHome - isWindows:', isWindows);
 		if (isWindows) {
 			console.log('Windows detected - using ultra-fast API');
 			try {
 				const res = await fetch('/muzic2/src/api/home_windows.php');
 				const data = await res.json();
-				
-		// Мгновенная отрисовка: лайки загрузим асинхронно, чтобы не блокировать рендер
-		window.__likedSet = window.__likedSet || new Set();
-		window.__likedAlbums = window.__likedAlbums || new Set();
-				
 				mainContent.innerHTML = `
 					<section class="main-filters">
 						<button class="filter-btn active">Все</button>
@@ -222,37 +361,21 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 						<div class="card-row" id="artists-row"></div>
 					</section>
 				`;
+				injectHero((data.albums && data.albums[0] && data.albums[0].cover) || '');
 				renderCards('favorites-row', data.favorites, 'track');
 				renderCards('mixes-row', data.mixes, 'track');
 				renderCards('albums-row', data.albums, 'album');
 				renderCards('tracks-row', data.tracks, 'track');
 				renderCards('artists-row', data.artists, 'artist');
-				
-				addFilterButtonHandlers();
-				
-				// Показываем время загрузки для Windows (до фоновой подгрузки лайков)
-				const loadTime = Date.now() - (window.startTime || Date.now());
-				console.log('Windows page load time:', loadTime + 'ms');
-				const header = document.querySelector('#main-header .logo');
-				if (header) {
-					header.textContent = `Muzic2 (${loadTime}ms)`;
-				}
-				// Асинхронная подгрузка лайков, не блокирующая отрисовку
+				// likes async (as before)
 				setTimeout(async () => {
 					try {
 						const likesRes = await fetch(getLikesAPI(), { credentials: 'include' });
 						const likes = await likesRes.json();
 						window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
 						window.__likedAlbums = new Set((likes.albums||[]).map(a=>a.album_title || a.title));
-						// Обновляем иконки лайков на странице, если присутствуют
-						document.querySelectorAll('.heart-btn[data-track-id]').forEach(btn => {
-							const id = Number(btn.getAttribute('data-track-id'));
-							if (window.__likedSet.has(id)) btn.classList.add('liked');
-						});
-						document.querySelectorAll('.album-heart-btn[data-album-title]').forEach(btn => {
-							const title = btn.getAttribute('data-album-title');
-							if (window.__likedAlbums.has(title)) btn.classList.add('liked');
-						});
+						document.querySelectorAll('.heart-btn[data-track-id]').forEach(btn => { const id = Number(btn.getAttribute('data-track-id')); if (window.__likedSet.has(id)) btn.classList.add('liked'); });
+						document.querySelectorAll('.album-heart-btn[data-album-title]').forEach(btn => { const title = btn.getAttribute('data-album-title'); if (window.__likedAlbums.has(title)) btn.classList.add('liked'); });
 					} catch(_) {}
 				}, 0);
 				return;
@@ -263,17 +386,11 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 			}
 		}
 		
-		// Оригинальная логика для Mac
+		// Mac path
 		try {
 			const res = await fetch('/muzic2/public/src/api/home.php?limit_tracks=8&limit_albums=6&limit_artists=6&limit_mixes=6&limit_favorites=6');
 			const data = await res.json();
-			// Load liked set for current user to render green hearts
-			try {
-				const likesRes = await fetch(getLikesAPI(), { credentials: 'include' });
-				const likes = await likesRes.json();
-				window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
-			} catch(e){ window.__likedSet = new Set(); }
-			
+			try { const likesRes = await fetch(getLikesAPI(), { credentials: 'include' }); const likes = await likesRes.json(); window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id)); } catch(e){ window.__likedSet = new Set(); }
 			mainContent.innerHTML = `
 				<section class="main-filters">
 					<button class="filter-btn active">Все</button>
@@ -297,15 +414,14 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 					<div class="card-row" id="artists-row"></div>
 				</section>
 			`;
-			// Favorites удалены с главной: открываем их в разделе "Моя музыка"
+			injectHero((data.albums && data.albums[0] && data.albums[0].cover) || '');
 			renderCards('mixes-row', data.mixes, 'track');
 			renderCards('albums-row', data.albums, 'album');
 			renderCards('tracks-row', data.tracks, 'track');
 			renderCards('artists-row', data.artists, 'artist');
-			
 			addFilterButtonHandlers();
 		} catch (e) {
-			mainContent.innerHTML = '<div class="error">Ошибка загрузки главной страницы</div>';
+			mainContent.innerHTML = '<div class="error">Ошибка загрузки</div>';
 		}
 	}
 
@@ -614,7 +730,15 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 		}
 	}
 
-	// Global delegation for heart toggle and artist links
+	// Capture-phase guard: prevent autoplay when clicking artist names or hearts
+	document.addEventListener('click', (e)=>{
+		const artistLink = e.target && e.target.closest ? e.target.closest('.artist-link') : null;
+		if (artistLink) { e.preventDefault(); e.stopPropagation(); const name = artistLink.getAttribute('data-artist')||''; try { navigateTo('artist', { artist: name }); } catch(_){} return; }
+		const heart = e.target && e.target.closest ? e.target.closest('.heart-btn, .album-like-btn') : null;
+		if (heart) { e.stopPropagation(); }
+	}, true);
+
+	// Global delegation for heart toggle and artist links (bubbling phase business logic)
 		document.addEventListener('click', async (e) => {
 		// Handle artist link clicks
 		const artistLink = e.target.closest('.artist-link');
@@ -1112,7 +1236,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 					<img class="card-cover" loading="lazy" src="${coverPath}" alt="cover">
 					<div class="card-info">
                 <div class="card-title">${escapeHtml(item.title)}</div>
-                <div class="card-artist">${item.explicit? '<span class=\"exp-badge\" title=\"Нецензурная лексика\">E</span>':''}${renderArtistInline(item.feats && String(item.feats).trim() ? `${item.artist}, ${item.feats}` : item.artist)}</div>
+                <div class="card-artist">${item.explicit? '<span class="exp-badge" title="Нецензурная лексика">E</span>':''}${renderArtistInline(item.feats && String(item.feats).trim() ? `${item.artist}, ${item.feats}` : item.artist)}</div>
 						<div class="card-type">${item.album_type || ''}</div>
 					</div>
 				</div>
@@ -2004,7 +2128,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 			const likedClass = window.__likedSet && window.__likedSet.has(track.id) ? 'liked' : '';
 			// Do not URL-encode values here; player will normalize paths. Escape single quotes for inline handler safety.
 			const esc = v => String(v==null?'':v).replace(/'/g, "\\'");
-			const play = `console.log('Search track clicked:', '${esc(track.file_path)}'); playTrack({ src: '${esc(track.file_path)}', title: '${esc(track.title)}', artist: '${esc(track.artist)}', cover: '${esc(track.cover)}', id: ${track.id||0}, video_url: '${esc(track.video_url||'')}', explicit: ${track.explicit?1:0} })`;
+			const play = `(()=>{ try{ let s='${esc(track.src||track.file_path||'')}'.trim(); if(!/^https?:/i.test(s)) s = (s.indexOf('tracks/')!==-1? '/muzic2/'+s.slice(s.indexOf('tracks/')) : '/muzic2/'+s.replace(/^\\/+/, '')); playTrack({ src: encodeURI(s), title: '${esc(track.title)}', artist: '${esc(track.artist)}', cover: '/muzic2/${esc(track.cover||'tracks/covers/placeholder.jpg')}', id: ${track.id||0}, video_url: '${esc(track.video_url||'')}', explicit: ${track.explicit?1:0} }); }catch(e){ console.error('search play error', e); } })()`;
 		return `
 			<div class="card">
 				<img class="card-cover" src="/muzic2/${track.cover || 'tracks/covers/placeholder.jpg'}" alt="cover" onclick="${play}">
@@ -2038,6 +2162,46 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 			`;
 		}
 	}
+
+	function renderContinueListening() {
+		try {
+			const raw = localStorage.getItem('muzic2_recent_listening_v1') || '[]';
+			let items = [];
+			try { items = JSON.parse(raw) || []; } catch(_) { items = []; }
+			items = items.filter(x => x && x.src).slice(0, 8);
+			if (!items.length) return;
+			const sec = document.createElement('section');
+			sec.className = 'continue-listening-section';
+			sec.innerHTML = '<h3>Продолжить слушать</h3><div class="continue-grid" id="continue-grid"></div>';
+			const anchor = document.querySelector('.home-hero') || mainContent.firstElementChild;
+			if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(sec, anchor.nextSibling);
+			const grid = sec.querySelector('#continue-grid');
+			const html = items.map(it => {
+				const cover = it.cover || '/muzic2/tracks/covers/placeholder.jpg';
+				const pct = it.duration ? Math.max(0, Math.min(100, Math.round((it.currentTime/it.duration)*100))) : 0;
+				return `
+				<div class="continue-card" data-src="${escapeHtml(it.src)}" data-title="${escapeHtml(it.title||'')}" data-artist="${escapeHtml(it.artist||'')}" data-cover="${escapeHtml(cover)}">
+					<div class="cc-cover-wrap">
+						<img class="cc-cover" loading="lazy" decoding="async" src="${escapeHtml(cover)}" alt="cover" onerror="this.onerror=null;this.src='/muzic2/tracks/covers/placeholder.jpg'">
+						<div class="cc-progress"><div class="cc-bar" style="width:${pct}%"></div></div>
+					</div>
+					<div class="cc-meta">
+						<div class="cc-title">${escapeHtml(it.title||'')}</div>
+						<div class="cc-artist">${escapeHtml(it.artist||'')}</div>
+					</div>
+				</div>`;
+			}).join('');
+			grid.innerHTML = html;
+			grid.onclick = (e)=>{
+				const card = e.target.closest('.continue-card'); if (!card) return;
+				const src = card.getAttribute('data-src');
+				const title = card.getAttribute('data-title')||'';
+				const artist = card.getAttribute('data-artist')||'';
+				const cover = card.getAttribute('data-cover')||'';
+				try { playTrack({ src, title, artist, cover }); } catch(_) {}
+			};
+		} catch(_) {}
+	}
 }
 
 function renderArtistInline(artistString) {
@@ -2046,5 +2210,68 @@ function renderArtistInline(artistString) {
         const parts = String(artistString).split(',').map(s => s.trim()).filter(Boolean);
         return parts.map(p => `<span class="artist-link" data-artist="${escapeHtml(p)}">${escapeHtml(p)}</span>`).join(', ');
     } catch (_) { return escapeHtml(artistString); }
+}
+
+function buildStories(data) {
+	try {
+		const storiesInner = document.getElementById('stories-inner'); if (!storiesInner) return;
+		const bubbles = [];
+		if (data.artists && data.artists.length) {
+			data.artists.slice(0,12).forEach(a=>{
+				bubbles.push({ type:'artist', title: a.name || a.artist, cover: a.cover });
+			});
+		}
+		if (data.albums && data.albums.length) {
+			data.albums.slice(0,8).forEach(al=>{
+				bubbles.push({ type:'album', title: al.title, cover: al.cover });
+			});
+		}
+		storiesInner.innerHTML = bubbles.map(b=>{
+			const img = '/muzic2/' + String(b.cover || 'tracks/covers/placeholder.jpg').replace(/^\/+/, '');
+			return `<div class="story" data-type="${b.type}" data-title="${escapeHtml(b.title||'')}"><img src="${img}" alt="${escapeHtml(b.title||'')}"><div class="story-label">${escapeHtml(b.title||'')}</div></div>`;
+		}).join('');
+		storiesInner.onclick = (e)=>{
+			const st = e.target.closest('.story'); if (!st) return;
+			const type = st.getAttribute('data-type'); const title = st.getAttribute('data-title');
+			if (type === 'artist') navigateTo('artist', { artist: title }); else if (type === 'album') navigateTo('album', { album: title });
+		};
+	} catch(_) {}
+}
+
+function buildSpotlight(data) {
+	try {
+		const grid = document.getElementById('spotlight-grid'); if (!grid) return;
+		const picks = [];
+		if (data.albums && data.albums.length) picks.push(...data.albums.slice(0,2).map(a=>({kind:'album', title:a.title, cover:a.cover})));
+		if (data.tracks && data.tracks.length) picks.push(...data.tracks.slice(0,4).map(t=>({kind:'track', title:t.title, artist:t.artist, cover:t.cover, src:t.src||t.file_path})));
+		grid.innerHTML = picks.map(p=>{
+			const img = '/muzic2/' + String(p.cover || 'tracks/covers/placeholder.jpg').replace(/^\/+/, '');
+			if (p.kind==='album') return `<div class="spotlight-card album" data-album="${escapeHtml(p.title)}"><img src="${img}"><div class="spotlight-meta"><div class="spotlight-title">${escapeHtml(p.title)}</div><div class="spotlight-sub">Альбом</div></div></div>`;
+			return `<div class="spotlight-card track" data-title="${escapeHtml(p.title)}" data-artist="${escapeHtml(p.artist||'')}" data-src="${escapeHtml(p.src||'')}"><img src="${img}"><div class="spotlight-meta"><div class="spotlight-title">${escapeHtml(p.title)}</div><div class="spotlight-sub">${escapeHtml(p.artist||'')}</div></div></div>`;
+		}).join('');
+		grid.onclick = (e)=>{
+			const card = e.target.closest('.spotlight-card'); if (!card) return;
+			if (card.classList.contains('album')) { navigateTo('album', { album: card.getAttribute('data-album') }); return; }
+			const src = card.getAttribute('data-src')||''; const title = card.getAttribute('data-title')||''; const artist = card.getAttribute('data-artist')||'';
+			if (src) {
+				try { playTrack({ src, title, artist, cover: card.querySelector('img')?.getAttribute('src')||'' }); } catch(_) {}
+			}
+		};
+	} catch(_) {}
+}
+
+function upgradeRowsToHScroll() {
+	try {
+		['favorites-row','mixes-row','albums-row','tracks-row','artists-row'].forEach(id=>{
+			const row = document.getElementById(id); if (!row) return;
+			row.classList.add('hscroll');
+			const wrap = row.parentElement; if (!wrap) return;
+			const navLeft = document.createElement('button'); navLeft.className='row-nav left'; navLeft.innerHTML='‹';
+			const navRight = document.createElement('button'); navRight.className='row-nav right'; navRight.innerHTML='›';
+			wrap.style.position='relative'; wrap.appendChild(navLeft); wrap.appendChild(navRight);
+			navLeft.onclick=()=>{ row.scrollBy({ left: -Math.max(300, row.clientWidth*0.6), behavior: 'smooth' }); };
+			navRight.onclick=()=>{ row.scrollBy({ left: Math.max(300, row.clientWidth*0.6), behavior: 'smooth' }); };
+		});
+	} catch(_) {}
 }
 

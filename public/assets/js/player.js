@@ -47,7 +47,8 @@
       #lyrics-fs-title { color: #fff; font-size: 30px; font-weight: 800; }
       #lyrics-fs-artist { color: #bdbdbd; font-size: 18px; }
       #lyrics-fs-panel { position: relative; width: 100%; margin: 0 auto; overflow: hidden; }
-      #lyrics-fs-inner { position: relative; height: calc(100vh - 80px - 120px); max-height: 70vh; display: block; overflow: auto; scroll-behavior: smooth; }
+      #lyrics-fs-inner { position: relative; height: calc(100vh - 80px - 120px); max-height: 70vh; display: block; overflow: auto; scroll-behavior: smooth; scrollbar-width: none; }
+      #lyrics-fs-inner::-webkit-scrollbar { width: 0; height: 0; }
       #lyrics-fs.static #lyrics-fs-inner { overflow: auto; align-items: flex-start; justify-content: center; }
       #lyrics-fs.static #lyrics-fs-list { transform: none !important; padding: 24px 16px 24px; }
       #lyrics-fs.static .lyric-line { opacity: .6; }
@@ -60,7 +61,16 @@
         #lyrics-fs-grid { grid-template-columns: 1fr; gap: 16px; padding: 72px 20px 110px; }
         #lyrics-fs-meta { align-items: center; text-align: center; }
         #lyrics-fs-cover { width: 160px; height: 160px; }
-        #lyrics-fs-inner .lyric-line.active { font-size: clamp(26px, 6vw, 44px); }
+        #lyrics-fs-inner { max-height: calc(100vh - 200px); }
+        #lyrics-fs-inner .lyric-line { font-size: clamp(16px, 4.8vw, 22px); }
+        #lyrics-fs-inner .lyric-line.active { font-size: clamp(20px, 7vw, 34px); }
+        #queue-panel { right: 8px; left: 8px; width: auto; }
+        #video-panel { right: 8px !important; left: 8px; width: auto !important; }
+      }
+      @media (max-width: 600px) {
+        #player { grid-template-columns: 1fr; }
+        #queue-panel { bottom: 120px; max-height: 40vh; }
+        #lyrics-fs { bottom: 120px; }
       }
       #like-btn { background: transparent; border: none; color: #bbb; cursor: pointer; padding: 6px; border-radius: 50%; pointer-events: auto; }
       #like-btn.btn-active { color: #1ed760; }
@@ -645,6 +655,7 @@
   const REPLAY_ENABLED_KEY = 'muzic2_player_replay_once_enabled';
   const REPLAY_TOKEN_KEY = 'muzic2_player_replay_token';
   const VIDEO_STATE_KEY = 'muzic2_player_video_state';
+  const RECENTS_KEY = 'muzic2_recent_listening_v1';
 
   let isPlaying = false;
   let trackQueue = [];
@@ -909,8 +920,9 @@
       artist: trackArtist.textContent,
       cover: cover.src,
       currentTime: usingPopup ? (popupState.currentTime || 0) : audio.currentTime,
-      isPlaying: usingPopup ? !!popupState.isPlaying : !audio.paused,
-      volume: usingPopup ? (popupState.volume ?? audio.volume) : audio.volume,
+      duration: usingPopup ? (popupState.duration || 0) : audio.duration,
+      volume: usingPopup ? (popupState.volume || audio.volume) : audio.volume,
+      isPlaying,
       shuffle: shuffleEnabled,
       repeat: repeatMode,
       queueIndex,
@@ -918,6 +930,8 @@
       replayToken,
     };
     localStorage.setItem(PLAYER_STATE_KEY, JSON.stringify(state));
+    // Update Continue Listening recents
+    saveRecentProgress();
     // Persist replay toggle separately for robustness
     localStorage.setItem(REPLAY_ENABLED_KEY, replayOnceEnabled ? '1' : '0');
     if (replayToken) localStorage.setItem(REPLAY_TOKEN_KEY, replayToken); else localStorage.removeItem(REPLAY_TOKEN_KEY);
@@ -2557,4 +2571,38 @@
       audio.pause();
     }
   });
+
+  function loadRecents() {
+    try { return JSON.parse(localStorage.getItem(RECENTS_KEY) || '[]'); } catch(_) { return []; }
+  }
+  function saveRecents(list) {
+    try { localStorage.setItem(RECENTS_KEY, JSON.stringify(list.slice(0, 24))); } catch(_) {}
+  }
+  function upsertRecent(entry) {
+    try {
+      const list = loadRecents();
+      const idx = list.findIndex(x => x && x.src === entry.src);
+      if (idx >= 0) list.splice(idx, 1);
+      list.unshift(entry);
+      saveRecents(list);
+    } catch(_) {}
+  }
+
+  function saveRecentProgress() {
+    try {
+      const src = audio.currentSrc || audio.src || '';
+      if (!src) return;
+      const duration = isFinite(audio.duration) ? audio.duration : 0;
+      const currentTime = isFinite(audio.currentTime) ? audio.currentTime : 0;
+      if (!duration || currentTime < 3) return; // avoid noise
+      const percent = duration ? (currentTime / duration) : 0;
+      const coverUrl = (cover && cover.src) ? cover.src : '';
+      const title = (trackTitle && trackTitle.textContent) ? trackTitle.textContent : '';
+      const artist = (trackArtist && trackArtist.textContent) ? trackArtist.textContent : '';
+      const entry = { src, title, artist, cover: coverUrl, currentTime, duration, updatedAt: Date.now() };
+      // If near the end, mark as completed (progress 100%) and reset currentTime
+      if (duration - currentTime < 2) { entry.currentTime = 0; }
+      upsertRecent(entry);
+    } catch(_) {}
+  }
 })();
