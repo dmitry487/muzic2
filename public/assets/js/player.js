@@ -346,6 +346,164 @@
   } catch (e) {
     console.warn('SmartCrossfade not available:', e);
   }
+
+
+  // Media keys support
+  function setupMediaKeys() {
+    // Handle keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      // Don't interfere with input fields
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+        return;
+      }
+
+      switch (e.key) {
+        case 'F7':
+          e.preventDefault();
+          if (prevBtn) prevBtn.click();
+          break;
+        case 'F9':
+          e.preventDefault();
+          if (nextBtn) nextBtn.click();
+          break;
+        case 'F8':
+          e.preventDefault();
+          if (playBtn) playBtn.click();
+          break;
+        case 'F6':
+          e.preventDefault();
+          if (shuffleBtn) shuffleBtn.click();
+          break;
+        case 'F10':
+          e.preventDefault();
+          if (repeatBtn) repeatBtn.click();
+          break;
+        case ' ': // Spacebar
+          e.preventDefault();
+          if (playBtn) playBtn.click();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          if (audio.currentTime > 10) {
+            audio.currentTime -= 10;
+          } else {
+            audio.currentTime = 0;
+          }
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          if (audio.currentTime < audio.duration - 10) {
+            audio.currentTime += 10;
+          } else {
+            audio.currentTime = audio.duration;
+          }
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          if (volumeBar) {
+            const currentVolume = parseFloat(volumeBar.value) || 0;
+            const newVolume = Math.min(1, currentVolume + 0.1);
+            volumeBar.value = newVolume;
+            audio.volume = newVolume;
+            updateVolumeUI();
+          }
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          if (volumeBar) {
+            const currentVolume = parseFloat(volumeBar.value) || 0;
+            const newVolume = Math.max(0, currentVolume - 0.1);
+            volumeBar.value = newVolume;
+            audio.volume = newVolume;
+            updateVolumeUI();
+          }
+          break;
+      }
+    });
+
+    // Handle media session API for browser media controls
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.setActionHandler('play', () => {
+        if (playBtn) playBtn.click();
+      });
+
+      navigator.mediaSession.setActionHandler('pause', () => {
+        if (playBtn) playBtn.click();
+      });
+
+      navigator.mediaSession.setActionHandler('previoustrack', () => {
+        if (prevBtn) prevBtn.click();
+      });
+
+      navigator.mediaSession.setActionHandler('nexttrack', () => {
+        if (nextBtn) nextBtn.click();
+      });
+
+      navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+        const skipTime = details.seekOffset || 10;
+        if (audio.currentTime > skipTime) {
+          audio.currentTime -= skipTime;
+        } else {
+          audio.currentTime = 0;
+        }
+      });
+
+      navigator.mediaSession.setActionHandler('seekforward', (details) => {
+        const skipTime = details.seekOffset || 10;
+        if (audio.currentTime < audio.duration - skipTime) {
+          audio.currentTime += skipTime;
+        } else {
+          audio.currentTime = audio.duration;
+        }
+      });
+
+      navigator.mediaSession.setActionHandler('seekto', (details) => {
+        if (details.seekTime !== undefined) {
+          audio.currentTime = details.seekTime;
+        }
+      });
+
+      // Update media session metadata when track changes
+      function updateMediaSessionMetadata(track) {
+        if (!track) return;
+        
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: track.title || 'Неизвестный трек',
+          artist: track.artist || 'Неизвестный артист',
+          album: track.album || 'Неизвестный альбом',
+          artwork: track.cover ? [
+            { src: track.cover, sizes: '96x96', type: 'image/jpeg' },
+            { src: track.cover, sizes: '128x128', type: 'image/jpeg' },
+            { src: track.cover, sizes: '192x192', type: 'image/jpeg' },
+            { src: track.cover, sizes: '256x256', type: 'image/jpeg' },
+            { src: track.cover, sizes: '384x384', type: 'image/jpeg' },
+            { src: track.cover, sizes: '512x512', type: 'image/jpeg' }
+          ] : []
+        });
+      }
+
+      // Update playback state
+      function updateMediaSessionPlaybackState() {
+        navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+      }
+
+      // Make functions available globally for use in other parts of the code
+      window.updateMediaSessionMetadata = updateMediaSessionMetadata;
+      window.updateMediaSessionPlaybackState = updateMediaSessionPlaybackState;
+    }
+
+    // Handle visibility change to update media session
+    document.addEventListener('visibilitychange', () => {
+      if ('mediaSession' in navigator && !document.hidden) {
+        updateMediaSessionPlaybackState();
+      }
+    });
+  }
+
+  // Initialize media keys
+  setupMediaKeys();
+
+
   const lyricsFsDotsArr = lyricsFsDots ? Array.from(lyricsFsDots.querySelectorAll('.lyrics-dot')) : [];
   const lyricsFsVideoWrap = playerRoot.querySelector('#lyrics-fs-video-wrap');
   const lyricsFsVideo = playerRoot.querySelector('#lyrics-fs-video-embed');
@@ -1167,12 +1325,19 @@
     currentTrackId = t.id || null;
     lastTrackTitle = String(t.title||'');
     lastTrackArtist = String(t.artist||'');
+    
+    // Update media session metadata
+    if (window.updateMediaSessionMetadata) {
+      window.updateMediaSessionMetadata(t);
+    }
+    
     // Update karaoke meta immediately on track change when overlay is visible
     try {
       if (lyricsVisible) {
         if (lyricsFsCover) lyricsFsCover.src = t.cover || (cover && cover.src) || '';
         if (lyricsFsTitle) lyricsFsTitle.textContent = t.title || '';
         if (lyricsFsArtist) lyricsFsArtist.textContent = t.artist || '';
+        // Update background cover/video in karaoke using new system
         // Update background cover/video in karaoke
         const bgCover = t.cover || (cover && cover.src) || '';
         if (lyricsFsBgImg) { 
@@ -1710,6 +1875,11 @@
     
     // Reset crossfade state when new track starts
     crossfadeStarted = false;
+    
+    // Update media session playback state
+    if (window.updateMediaSessionPlaybackState) {
+      window.updateMediaSessionPlaybackState();
+    }
     // If video panel is open, let video take over sound and sync time
     if (videoPanel && videoPanel.style.display === 'block' && inlineVideo) {
       try { inlineVideo.currentTime = isNaN(audio.currentTime) ? (inlineVideo.currentTime||0) : (audio.currentTime||0); } catch(_) {}
@@ -1733,6 +1903,12 @@
     updatePlayPauseUI();
     document.getElementById('track-status').textContent = '';
     savePlayerState();
+    
+    // Update media session playback state
+    if (window.updateMediaSessionPlaybackState) {
+      window.updateMediaSessionPlaybackState();
+    }
+    
     // Pause any active videos when audio is paused to keep them in sync
     if (suppressVideoPauseOnce) {
       suppressVideoPauseOnce = false; // skip once: pause came from handing off to video

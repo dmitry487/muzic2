@@ -78,6 +78,43 @@ CREATE TABLE track_tags (
     PRIMARY KEY (track_id, tag_id),
     FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE,
     FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+);
+
+-- Artist videos table for concert videos, live performances, etc.
+CREATE TABLE artist_videos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    artist VARCHAR(255) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    video_path VARCHAR(500) NOT NULL,
+    thumbnail VARCHAR(500),
+    duration INT,
+    video_type ENUM('concert', 'live', 'behind_scenes', 'interview', 'other') DEFAULT 'other',
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_artist (artist)
+);
+
+-- Track-specific video mapping (optional - if not set, video applies to all artist tracks)
+CREATE TABLE track_video_mapping (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    track_id INT,
+    artist_video_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE,
+    FOREIGN KEY (artist_video_id) REFERENCES artist_videos(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_track_video (track_id, artist_video_id)
+);
+
+-- User preferences for karaoke background
+CREATE TABLE user_karaoke_preferences (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    background_type ENUM('cover', 'artist_video', 'auto') DEFAULT 'auto',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_user_preference (user_id)
 ); 
 
 INSERT INTO tracks (title, artist, album, album_type, duration, file_path, cover)

@@ -34,6 +34,38 @@ if ($method === 'GET') {
         ]);
         exit;
     }
+    
+    if ($action === 'get_artist_videos') {
+        try {
+            $stmt = $db->prepare('
+                SELECT av.*, 
+                       GROUP_CONCAT(tvm.track_id) as mapped_track_ids
+                FROM artist_videos av
+                LEFT JOIN track_video_mapping tvm ON av.id = tvm.artist_video_id
+                GROUP BY av.id
+                ORDER BY av.created_at DESC
+            ');
+            $stmt->execute();
+            $videos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Process videos to include track mappings
+            foreach ($videos as &$video) {
+                $video['track_mappings'] = [];
+                if ($video['mapped_track_ids']) {
+                    $trackIds = explode(',', $video['mapped_track_ids']);
+                    foreach ($trackIds as $trackId) {
+                        $video['track_mappings'][] = ['track_id' => intval($trackId)];
+                    }
+                }
+                unset($video['mapped_track_ids']);
+            }
+            
+            echo json_encode(['success' => true, 'videos' => $videos]);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+        exit;
+    }
 }
 
 if ($method === 'POST') {
@@ -190,6 +222,122 @@ if ($method === 'POST') {
             'total' => count($tracks),
             'errors' => $errors
         ]);
+        exit;
+    }
+    
+    // Handle artist videos
+    if ($action === 'add_artist_video') {
+        try {
+            $artist = trim($_POST['artist'] ?? '');
+            $title = trim($_POST['title'] ?? '');
+            $description = trim($_POST['description'] ?? '');
+            $videoPath = trim($_POST['video_path'] ?? '');
+            $thumbnail = trim($_POST['thumbnail'] ?? '');
+            $videoType = $_POST['video_type'] ?? 'other';
+            $duration = intval($_POST['duration'] ?? 0);
+            $isActive = isset($_POST['is_active']) ? 1 : 0;
+            
+            if (empty($artist) || empty($title) || empty($videoPath)) {
+                throw new Exception('Артист, название и путь к видео обязательны');
+            }
+            
+            $stmt = $db->prepare('
+                INSERT INTO artist_videos (artist, title, description, video_path, thumbnail, video_type, duration, is_active)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ');
+            $stmt->execute([$artist, $title, $description, $videoPath, $thumbnail, $videoType, $duration, $isActive]);
+            
+            echo json_encode(['success' => true, 'id' => $db->lastInsertId()]);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+        exit;
+    }
+    
+    if ($action === 'update_artist_video') {
+        try {
+            $id = intval($_POST['id'] ?? 0);
+            $artist = trim($_POST['artist'] ?? '');
+            $title = trim($_POST['title'] ?? '');
+            $description = trim($_POST['description'] ?? '');
+            $videoPath = trim($_POST['video_path'] ?? '');
+            $thumbnail = trim($_POST['thumbnail'] ?? '');
+            $videoType = $_POST['video_type'] ?? 'other';
+            $duration = intval($_POST['duration'] ?? 0);
+            $isActive = isset($_POST['is_active']) ? 1 : 0;
+            
+            if (empty($artist) || empty($title) || empty($videoPath)) {
+                throw new Exception('Артист, название и путь к видео обязательны');
+            }
+            
+            $stmt = $db->prepare('
+                UPDATE artist_videos 
+                SET artist = ?, title = ?, description = ?, video_path = ?, thumbnail = ?, 
+                    video_type = ?, duration = ?, is_active = ?
+                WHERE id = ?
+            ');
+            $stmt->execute([$artist, $title, $description, $videoPath, $thumbnail, $videoType, $duration, $isActive, $id]);
+            
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+        exit;
+    }
+    
+    if ($action === 'delete_artist_video') {
+        try {
+            $id = intval($data['id'] ?? 0);
+            
+            // Delete track mappings first
+            $db->prepare('DELETE FROM track_video_mapping WHERE artist_video_id = ?')->execute([$id]);
+            
+            // Delete video
+            $stmt = $db->prepare('DELETE FROM artist_videos WHERE id = ?');
+            $stmt->execute([$id]);
+            
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+        exit;
+    }
+    
+    if ($action === 'update_track_video_mapping') {
+        try {
+            $videoId = intval($data['video_id'] ?? 0);
+            $trackIds = $data['track_ids'] ?? [];
+            
+            // Remove existing mappings
+            $db->prepare('DELETE FROM track_video_mapping WHERE artist_video_id = ?')->execute([$videoId]);
+            
+            // Add new mappings
+            if (!empty($trackIds)) {
+                $stmt = $db->prepare('INSERT INTO track_video_mapping (artist_video_id, track_id) VALUES (?, ?)');
+                foreach ($trackIds as $trackId) {
+                    $stmt->execute([$videoId, intval($trackId)]);
+                }
+            }
+            
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+        exit;
+    }
+    
+    if ($action === 'remove_track_video_mapping') {
+        try {
+            $videoId = intval($data['video_id'] ?? 0);
+            $trackId = intval($data['track_id'] ?? 0);
+            
+            $stmt = $db->prepare('DELETE FROM track_video_mapping WHERE artist_video_id = ? AND track_id = ?');
+            $stmt->execute([$videoId, $trackId]);
+            
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
         exit;
     }
 }
