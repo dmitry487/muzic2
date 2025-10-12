@@ -132,6 +132,16 @@
           <button id="shuffle-btn" title="Случайно">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
           </button>
+          <button id="crossfade-btn" title="Умный кроссфейд">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+              <line x1="8" y1="21" x2="16" y2="21"/>
+              <line x1="12" y1="17" x2="12" y2="21"/>
+              <line x1="7" y1="8" x2="7" y2="12"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="17" y1="8" x2="17" y2="12"/>
+            </svg>
+          </button>
           <button id="prev-btn" title="Назад">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
           </button>
@@ -225,6 +235,39 @@
           <img id="inline-cover" alt="cover" style="display:none; width:100%; height:auto; max-height:55vh; object-fit:cover; background:#000;" />
         </div>
       </div>
+      <div id="crossfade-panel" style="display:none; position: fixed; right: 12px; bottom: 76px; width: 360px; max-height: 55vh; background: #0f0f0f; color: #fff; border: 1px solid #242424; border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,.5); overflow: hidden; z-index: 10000;">
+        <button id="crossfade-close" title="Закрыть" style="position:absolute; top:8px; right:8px; width:28px; height:28px; border:none; border-radius:50%; background:#2a2a2a; color:#b3b3b3; cursor:pointer; display:grid; place-items:center; z-index:2;">×</button>
+        <div style="padding:16px;">
+          <h3 style="margin:0 0 16px 0; font-size:16px; font-weight:600;">Умный кроссфейд</h3>
+          <div style="margin-bottom:16px;">
+            <label style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+              <input type="checkbox" id="crossfade-toggle" style="margin:0;">
+              <span style="font-size:14px;">Включить кроссфейд</span>
+            </label>
+          </div>
+          <div style="margin-bottom:16px;">
+            <label style="display:block; margin-bottom:8px; font-size:14px;">Длительность (сек):</label>
+            <input type="range" id="crossfade-duration" min="2" max="20" value="8" style="width:100%; margin-bottom:4px;">
+            <div style="display:flex; justify-content:space-between; font-size:12px; color:#888;">
+              <span>2с</span>
+              <span id="crossfade-duration-value">8с</span>
+              <span>20с</span>
+            </div>
+          </div>
+          <div style="margin-bottom:16px;">
+            <label style="display:block; margin-bottom:8px; font-size:14px;">Агрессивность:</label>
+            <input type="range" id="crossfade-aggressiveness" min="0" max="1" step="0.1" value="0.7" style="width:100%; margin-bottom:4px;">
+            <div style="display:flex; justify-content:space-between; font-size:12px; color:#888;">
+              <span>Мягко</span>
+              <span id="crossfade-aggressiveness-value">70%</span>
+              <span>Жёстко</span>
+            </div>
+          </div>
+          <div id="crossfade-preview" style="background:#1a1a1a; border-radius:8px; padding:12px; font-size:12px; color:#888;">
+            <div>Анализ треков для оптимального перехода...</div>
+          </div>
+        </div>
+      </div>
   `;
   
   // Global back button removed per design (caused overlap). Use SPA navigation instead.
@@ -253,6 +296,7 @@
   const videoBtn = playerContainer.querySelector('#video-btn');
   const queueBtn = playerContainer.querySelector('#queue-btn');
   const likeBtn = playerContainer.querySelector('#like-btn');
+  const crossfadeBtn = playerContainer.querySelector('#crossfade-btn');
   const queuePanel = playerRoot.querySelector('#queue-panel');
   const queueClose = playerRoot.querySelector('#queue-close');
   const queueList = playerRoot.querySelector('#queue-list');
@@ -260,6 +304,8 @@
   const videoClose = playerRoot.querySelector('#video-close');
   const inlineVideo = playerRoot.querySelector('#inline-video');
   const inlineCover = playerRoot.querySelector('#inline-cover');
+  const crossfadePanel = playerRoot.querySelector('#crossfade-panel');
+  const crossfadeClose = playerRoot.querySelector('#crossfade-close');
   const fullscreenOverlay = playerRoot.querySelector('#fullscreen-overlay');
   const fullscreenCover = playerRoot.querySelector('#fullscreen-cover');
   const fullscreenVideo = playerRoot.querySelector('#fullscreen-video');
@@ -282,6 +328,24 @@
   const lyricsFsTitle = playerRoot.querySelector('#lyrics-fs-title');
   const lyricsFsArtist = playerRoot.querySelector('#lyrics-fs-artist');
   const lyricsFsDots = playerRoot.querySelector('#lyrics-fs-dots');
+  // Prevent pausing video when audio pause is triggered as part of handing control to video
+  let suppressVideoPauseOnce = false;
+  // Visibility-based rendering control for karaoke (do not pause media)
+  let lyricsRenderSuspended = false;
+  
+  // Initialize Smart Crossfade
+  let smartCrossfade = null;
+  try {
+    if (typeof SmartCrossfade !== 'undefined') {
+      smartCrossfade = new SmartCrossfade();
+      // Initialize button state after a short delay to ensure DOM is ready
+      setTimeout(() => {
+        updateCrossfadeButtonState();
+      }, 100);
+    }
+  } catch (e) {
+    console.warn('SmartCrossfade not available:', e);
+  }
   const lyricsFsDotsArr = lyricsFsDots ? Array.from(lyricsFsDots.querySelectorAll('.lyrics-dot')) : [];
   const lyricsFsVideoWrap = playerRoot.querySelector('#lyrics-fs-video-wrap');
   const lyricsFsVideo = playerRoot.querySelector('#lyrics-fs-video-embed');
@@ -296,6 +360,39 @@
   let userScrolling = false;
   let scrollResumeTimer = null;
   let lyricsSyncLocked = false; // lock centering until first timestamp
+
+  // When tab visibility changes, suspend/resume lyrics rendering only
+  document.addEventListener('visibilitychange', () => {
+    lyricsRenderSuspended = !!document.hidden;
+    if (lyricsRenderSuspended && lyricsVisible && lyricsFsList) {
+      // While hidden: clear visual highlight to avoid a stuck active line
+      try {
+        const activeNodes = lyricsFsList.querySelectorAll('.lyric-line.active');
+        activeNodes && activeNodes.forEach && activeNodes.forEach(el => { try { el.classList.remove('active'); } catch(_){} });
+      } catch(_) {}
+    }
+    if (!lyricsRenderSuspended && lyricsVisible) {
+      // Resync highlight to current playback position without seeking
+      let t = 0;
+      try {
+        if (lyricsFsVideo && lyricsFsVideoWrap && lyricsFsVideo.style.display === 'block' && !isNaN(lyricsFsVideo.currentTime)) {
+          t = lyricsFsVideo.currentTime || 0;
+        } else if (videoPanel && videoPanel.style.display === 'block' && inlineVideo && !isNaN(inlineVideo.currentTime)) {
+          t = inlineVideo.currentTime || 0;
+        } else {
+          t = audio.currentTime || 0;
+        }
+      } catch(_) { t = audio.currentTime || 0; }
+      try { currentLyricsIndex = -1; } catch(_) {}
+      try { updateLyricsHighlight(t); } catch(_) {}
+      try {
+        if (typeof scrollLyricsToAnchorForIndex === 'function' && Array.isArray(lyricsLines) && lyricsLines.length) {
+          let idx = 0; for (let i=0;i<lyricsLines.length;i++){ if (lyricsLines[i].time <= t) idx = i; else break; }
+          scrollLyricsToAnchorForIndex(idx);
+        }
+      } catch(_) {}
+    }
+  });
 
   // Keep active line anchored at ~32% helper
   function scrollLyricsToAnchorForIndex(targetIndex) {
@@ -1245,8 +1342,11 @@
     lyricsBtn && lyricsBtn.classList.remove('btn-active');
     lyricsSyncLocked = false;
     // Stop karaoke video if playing
-    try { if (lyricsFsVideo) { lyricsFsVideo.pause(); lyricsFsVideo.removeAttribute('src'); lyricsFsVideo.load(); } } catch(_) {}
+    try { if (lyricsFsVideo) { lyricsFsVideo.pause(); lyricsFsVideo.removeAttribute('src'); lyricsFsVideo.load(); lyricsFsVideo.style.display='none'; } } catch(_) {}
     try { if (lyricsFsVideoWrap) lyricsFsVideoWrap.style.display='none'; } catch(_) {}
+    // Restore cover in the left panel when video is hidden
+    try { if (lyricsFsCover) { lyricsFsCover.style.display = 'block'; } } catch(_) {}
+    try { if (lyricsFsVideoCover) { lyricsFsVideoCover.style.display = 'none'; } } catch(_) {}
     // Stop background video
     try { if (lyricsFsBgVideo) { lyricsFsBgVideo.pause(); lyricsFsBgVideo.removeAttribute('src'); lyricsFsBgVideo.load(); lyricsFsBgVideo.style.display='none'; } } catch(_) {}
     // Restore audio sound
@@ -1268,6 +1368,7 @@
   // Update lyrics on timeupdate
   audio.addEventListener('timeupdate', () => {
     if (!lyricsVisible) return;
+    if (lyricsRenderSuspended) return;
     // If karaoke video is playing in left slot, sync from it to keep scrolling
     let t = audio.currentTime || 0;
     try {
@@ -1387,6 +1488,9 @@
       playFromQueue(queueIndex);
       return;
     }
+    
+    // Crossfade is now handled in timeupdate event, so we just do normal transition here
+    
     // Always follow current queue order; shuffle affects queue order, not next-pick randomness
     if (queueIndex + 1 < trackQueue.length) {
       console.log('Playing next track at index:', queueIndex + 1);
@@ -1603,12 +1707,25 @@
     updatePlayPauseUI();
     document.getElementById('track-status').textContent = '';
     savePlayerState();
+    
+    // Reset crossfade state when new track starts
+    crossfadeStarted = false;
     // If video panel is open, let video take over sound and sync time
     if (videoPanel && videoPanel.style.display === 'block' && inlineVideo) {
       try { inlineVideo.currentTime = isNaN(audio.currentTime) ? (inlineVideo.currentTime||0) : (audio.currentTime||0); } catch(_) {}
       try { inlineVideo.play().catch(()=>{}); } catch(_) {}
+      suppressVideoPauseOnce = true;
       try { audio.pause(); } catch(_) {}
     }
+    // If karaoke video is visible, let it drive playback and pause audio
+    try {
+      if (lyricsVisible && lyricsFsVideoWrap && lyricsFsVideo && lyricsFsVideoWrap.style.display === 'block') {
+        try { lyricsFsVideo.currentTime = isNaN(audio.currentTime) ? (lyricsFsVideo.currentTime||0) : (audio.currentTime||0); } catch(_) {}
+        try { lyricsFsVideo.play().catch(()=>{}); } catch(_) {}
+        suppressVideoPauseOnce = true;
+        try { audio.pause(); } catch(_) {}
+      }
+    } catch(_) {}
   });
   audio.addEventListener('pause', () => {
     if (popupActive) return;
@@ -1616,9 +1733,25 @@
     updatePlayPauseUI();
     document.getElementById('track-status').textContent = '';
     savePlayerState();
+    // Pause any active videos when audio is paused to keep them in sync
+    if (suppressVideoPauseOnce) {
+      suppressVideoPauseOnce = false; // skip once: pause came from handing off to video
+    } else {
+      try { if (videoPanel && videoPanel.style.display === 'block' && inlineVideo && !inlineVideo.paused) inlineVideo.pause(); } catch(_) {}
+      try { if (lyricsVisible && lyricsFsVideoWrap && lyricsFsVideo && lyricsFsVideoWrap.style.display === 'block' && !lyricsFsVideo.paused) lyricsFsVideo.pause(); } catch(_) {}
+    }
   });
+  // Crossfade state
+  let crossfadeStarted = false;
+  let crossfadeTimeout = null;
+
   audio.addEventListener('timeupdate', () => {
     if (popupActive) return;
+    if (lyricsRenderSuspended) return;
+    // If crossfade is active, don't update progress bar here - let crossfade handle it
+    if (crossfadeStarted) {
+      return;
+    }
     // If video is playing, don't update progress bar - let video handle it
     if (videoPanel && videoPanel.style.display === 'block' && inlineVideo && !inlineVideo.ended) {
       return;
@@ -1626,6 +1759,84 @@
     seekBar.value = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
     currentTimeEl.textContent = formatTime(audio.currentTime);
     savePlayerStateThrottled();
+    
+    // Check for crossfade trigger
+    if (smartCrossfade && smartCrossfade.isEnabled && !crossfadeStarted && trackQueue.length > 1) {
+      const currentTime = audio.currentTime || 0;
+      const audioDuration = audio.duration || 0;
+      const timeUntilEnd = audioDuration - currentTime;
+      const crossfadeDuration = smartCrossfade.crossfadeDuration || 8;
+      
+      // Start crossfade when we have enough time left
+      if (timeUntilEnd <= crossfadeDuration && timeUntilEnd > 0) {
+        console.log('Starting crossfade from timeupdate!');
+        crossfadeStarted = true;
+        
+        const currentTrack = trackQueue[queueIndex];
+        const nextTrack = trackQueue[(queueIndex + 1) % trackQueue.length];
+        
+        // Update UI immediately when crossfade starts
+        trackTitle.textContent = nextTrack.title || '';
+        trackArtist.textContent = nextTrack.artist || '';
+        cover.src = nextTrack.cover || cover.src;
+        
+        // Create next audio element
+        const nextAudio = new Audio(nextTrack.src);
+        nextAudio.volume = 0;
+        nextAudio.currentTime = 0;
+        
+        // Start next track
+        nextAudio.play().catch(e => console.warn('Next track play failed:', e));
+        
+        // Fade transition
+        const fadeSteps = 100;
+        const stepDuration = (crossfadeDuration * 1000) / fadeSteps;
+        let step = 0;
+        
+        const fadeInterval = setInterval(() => {
+          step++;
+          const progress = step / fadeSteps;
+          
+          // Smooth fade curve
+          const currentVolume = Math.pow(1 - progress, 2);
+          const nextVolume = Math.pow(progress, 2);
+          
+          audio.volume = Math.max(0, Math.min(1, currentVolume));
+          nextAudio.volume = Math.max(0, Math.min(1, nextVolume));
+          
+          // Update progress bar to show next track progress
+          if (nextAudio.duration) {
+            seekBar.value = nextAudio.duration ? (nextAudio.currentTime / nextAudio.duration) * 100 : 0;
+            currentTimeEl.textContent = formatTime(nextAudio.currentTime);
+            durationEl.textContent = formatTime(nextAudio.duration);
+          }
+          
+          if (step >= fadeSteps) {
+            clearInterval(fadeInterval);
+            console.log('Crossfade completed from timeupdate!');
+            
+            // Switch to next track
+            queueIndex = (queueIndex + 1) % trackQueue.length;
+            
+            // Stop current audio and switch to next
+            audio.pause();
+            audio.src = nextTrack.src;
+            audio.currentTime = nextAudio.currentTime; // Sync position
+            audio.volume = 1;
+            audio.play().catch(() => {});
+            
+            updatePlayPauseUI();
+            
+            // Clean up temporary audio
+            nextAudio.pause();
+            nextAudio.src = '';
+            
+            // Reset crossfade state
+            crossfadeStarted = false;
+          }
+        }, stepDuration);
+      }
+    }
   });
   audio.addEventListener('loadedmetadata', () => {
     if (popupActive) return;
@@ -1943,6 +2154,28 @@
   // Video button: if karaoke open, show video inside karaoke left panel; else use inline panel
   if (videoBtn) videoBtn.onclick = () => {
     if (lyricsVisible && lyricsFsVideoWrap) {
+      // Toggle video in karaoke slot: if already visible, close without restarting
+      try {
+        if (lyricsFsVideoWrap.style.display === 'block') {
+          let t = 0; let wasPlaying = false; let hadMedia = false;
+          try { hadMedia = !!(lyricsFsVideo.currentSrc || lyricsFsVideo.readyState >= 1); } catch(_){}
+          try { t = isNaN(lyricsFsVideo.currentTime) ? 0 : (lyricsFsVideo.currentTime||0); } catch(_){}
+          try { wasPlaying = !lyricsFsVideo.paused && !lyricsFsVideo.ended; } catch(_){}
+          try { lyricsFsVideo.pause(); } catch(_){}
+          try { lyricsFsVideo.removeAttribute('src'); lyricsFsVideo.load(); lyricsFsVideo.style.display='none'; } catch(_){}
+          // Hide video-cover placeholder and show main cover back
+          try { if (lyricsFsVideoCover) lyricsFsVideoCover.style.display='none'; } catch(_){}
+          lyricsFsVideoWrap.style.display = 'none';
+          try { if (lyricsFsCover) lyricsFsCover.style.display = 'block'; } catch(_){}
+          // Restore audio if there was media
+          try { if (hadMedia) audio.currentTime = t; } catch(_){}
+          try { if (wasPlaying) audio.play().catch(()=>{}); } catch(_){}
+          // Ensure audio is unmuted after closing karaoke video
+          try { audio.muted = false; } catch(_) {}
+          updatePlayPauseUI();
+          return;
+        }
+      } catch(_) {}
       // Open video in karaoke slot
       const ds = (playerContainer.dataset && typeof playerContainer.dataset.videoUrl !== 'undefined') ? playerContainer.dataset.videoUrl : '';
       let url = ds && ds.trim() !== '' ? ds : ((trackQueue[queueIndex] && trackQueue[queueIndex].video_url) ? trackQueue[queueIndex].video_url : '');
@@ -2042,6 +2275,178 @@
     openInlineMedia(url, (cover && cover.src) ? cover.src : '');
   };
   if (videoClose) videoClose.onclick = () => { let t=0, wasPlaying=false, hadMedia=false; try { hadMedia = !!(inlineVideo.currentSrc || inlineVideo.readyState >= 1); t = inlineVideo.currentTime || 0; wasPlaying = !inlineVideo.paused && !inlineVideo.ended; } catch(_){}; try { inlineVideo.pause(); } catch(_){}; inlineVideo.src=''; if (inlineCover) inlineCover.style.display='none'; videoPanel.style.display='none'; if (hadMedia) { try { audio.currentTime = t; } catch(_){} } if (wasPlaying) { try { audio.play().catch(()=>{}); } catch(_) {} } updatePlayPauseUI(); };
+
+  // Crossfade panel controls
+  if (crossfadeBtn) crossfadeBtn.onclick = () => {
+    if (crossfadePanel) {
+      const visible = crossfadePanel.style.display === 'block';
+      crossfadePanel.style.display = visible ? 'none' : 'block';
+      if (!visible && smartCrossfade) {
+        smartCrossfade.updateUI();
+        updateCrossfadePreview();
+      }
+    }
+  };
+
+  // Update crossfade button visual state
+  function updateCrossfadeButtonState() {
+    if (crossfadeBtn && smartCrossfade) {
+      crossfadeBtn.classList.toggle('btn-active', smartCrossfade.isEnabled);
+      crossfadeBtn.title = smartCrossfade.isEnabled ? 'Кроссфейд включён' : 'Умный кроссфейд';
+    }
+  }
+
+  // Test crossfade function for debugging
+  window.testCrossfade = function() {
+    console.log('Manual crossfade test triggered');
+    if (smartCrossfade && smartCrossfade.isEnabled && trackQueue.length > 1) {
+      console.log('Starting manual crossfade test...');
+      
+      const currentTrack = trackQueue[queueIndex];
+      const nextTrack = trackQueue[(queueIndex + 1) % trackQueue.length];
+      
+      console.log('Current track:', currentTrack.title);
+      console.log('Next track:', nextTrack.title);
+      
+      // Create next audio element
+      const nextAudio = new Audio(nextTrack.src);
+      nextAudio.volume = 0;
+      nextAudio.currentTime = 0;
+      
+      // Start next track
+      nextAudio.play().catch(e => console.warn('Next track play failed:', e));
+      
+      // Fade transition
+      const crossfadeDuration = smartCrossfade.crossfadeDuration || 8;
+      const fadeSteps = 100;
+      const stepDuration = (crossfadeDuration * 1000) / fadeSteps;
+      let step = 0;
+      
+      const fadeInterval = setInterval(() => {
+        step++;
+        const progress = step / fadeSteps;
+        
+        // Smooth fade curve
+        const currentVolume = Math.pow(1 - progress, 2);
+        const nextVolume = Math.pow(progress, 2);
+        
+        audio.volume = Math.max(0, Math.min(1, currentVolume));
+        nextAudio.volume = Math.max(0, Math.min(1, nextVolume));
+        
+        console.log(`Manual fade step ${step}/${fadeSteps}: current=${currentVolume.toFixed(2)}, next=${nextVolume.toFixed(2)}`);
+        
+        if (step >= fadeSteps) {
+          clearInterval(fadeInterval);
+          console.log('Manual crossfade completed!');
+          
+          // Switch to next track
+          queueIndex = (queueIndex + 1) % trackQueue.length;
+          audio.pause();
+          audio.src = nextTrack.src;
+          audio.currentTime = 0;
+          audio.volume = 1;
+          audio.play().catch(() => {});
+          
+          // Update UI
+          trackTitle.textContent = nextTrack.title || '';
+          trackArtist.textContent = nextTrack.artist || '';
+          cover.src = nextTrack.cover || cover.src;
+          updatePlayPauseUI();
+          
+          // Clean up
+          nextAudio.pause();
+          nextAudio.src = '';
+        }
+      }, stepDuration);
+      
+    } else {
+      console.log('Cannot test crossfade: not enabled or not enough tracks');
+      console.log('smartCrossfade:', !!smartCrossfade);
+      console.log('isEnabled:', smartCrossfade?.isEnabled);
+      console.log('trackQueue.length:', trackQueue.length);
+    }
+  };
+  
+  if (crossfadeClose) crossfadeClose.onclick = () => {
+    if (crossfadePanel) crossfadePanel.style.display = 'none';
+  };
+
+  // Crossfade settings handlers
+  const crossfadeToggle = playerRoot.querySelector('#crossfade-toggle');
+  const crossfadeDuration = playerRoot.querySelector('#crossfade-duration');
+  const crossfadeAggressiveness = playerRoot.querySelector('#crossfade-aggressiveness');
+  const crossfadeDurationValue = playerRoot.querySelector('#crossfade-duration-value');
+  const crossfadeAggressivenessValue = playerRoot.querySelector('#crossfade-aggressiveness-value');
+
+  if (crossfadeToggle && smartCrossfade) {
+    crossfadeToggle.onchange = () => {
+      smartCrossfade.updateSettings({ enabled: crossfadeToggle.checked });
+      updateCrossfadeButtonState();
+    };
+  }
+
+  if (crossfadeDuration && smartCrossfade) {
+    crossfadeDuration.oninput = () => {
+      const value = crossfadeDuration.value;
+      if (crossfadeDurationValue) crossfadeDurationValue.textContent = value + 'с';
+      smartCrossfade.updateSettings({ duration: parseInt(value) });
+    };
+  }
+
+  if (crossfadeAggressiveness && smartCrossfade) {
+    crossfadeAggressiveness.oninput = () => {
+      const value = crossfadeAggressiveness.value;
+      if (crossfadeAggressivenessValue) crossfadeAggressivenessValue.textContent = Math.round(value * 100) + '%';
+      smartCrossfade.updateSettings({ aggressiveness: parseFloat(value) });
+    };
+  }
+
+  // Update crossfade preview with current track analysis
+  function updateCrossfadePreview() {
+    if (!smartCrossfade || !crossfadePanel) return;
+    
+    const preview = playerRoot.querySelector('#crossfade-preview');
+    if (!preview) return;
+    
+    if (trackQueue.length > 1) {
+      const currentTrack = trackQueue[queueIndex];
+      const nextTrack = trackQueue[(queueIndex + 1) % trackQueue.length];
+      
+      preview.innerHTML = `
+        <div style="margin-bottom:8px; font-weight:600;">Анализ совместимости:</div>
+        <div style="font-size:11px; color:#aaa;">
+          <div>Текущий: ${currentTrack.title || 'Неизвестно'}</div>
+          <div>Следующий: ${nextTrack.title || 'Неизвестно'}</div>
+          <div style="margin-top:8px; color:#888;">Анализ BPM и тональности...</div>
+        </div>
+      `;
+      
+      // Analyze tracks for compatibility
+      if (currentTrack.src && nextTrack.src) {
+        Promise.all([
+          smartCrossfade.analyzeTrack(currentTrack.src),
+          smartCrossfade.analyzeTrack(nextTrack.src)
+        ]).then(([currentAnalysis, nextAnalysis]) => {
+          const compatibility = smartCrossfade.calculateCompatibility(currentAnalysis, nextAnalysis);
+          const transition = smartCrossfade.findOptimalTransition(currentAnalysis, nextAnalysis);
+          
+          preview.innerHTML = `
+            <div style="margin-bottom:8px; font-weight:600;">Совместимость: ${Math.round(compatibility * 100)}%</div>
+            <div style="font-size:11px; color:#aaa;">
+              <div>BPM: ${currentAnalysis.bpm} → ${nextAnalysis.bpm}</div>
+              <div>Тональность: ${currentAnalysis.key} → ${nextAnalysis.key}</div>
+              <div>Переход: ${transition.fadeType === 'smooth' ? 'Плавный' : 'Быстрый'}</div>
+              <div style="margin-top:8px; color:#888;">Длительность: ${transition.duration.toFixed(1)}с</div>
+            </div>
+          `;
+        }).catch(e => {
+          preview.innerHTML = '<div style="color:#f44;">Ошибка анализа треков</div>';
+        });
+      }
+    } else {
+      preview.innerHTML = '<div style="color:#888;">Добавьте треки в очередь для анализа</div>';
+    }
+  }
 
   fullscreenBtn.onclick = () => {
     if (isFullscreen) {

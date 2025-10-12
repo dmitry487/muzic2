@@ -88,6 +88,7 @@
         
         // Загружаем все скрипты
         Promise.all([
+            loadScript('assets/js/crossfade.js'),
             loadScript('assets/js/app.js'),
             loadScript('assets/js/player.js')
         ]).catch(error => {
