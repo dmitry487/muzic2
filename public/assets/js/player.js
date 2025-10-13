@@ -1383,6 +1383,29 @@
             } catch(_) {}
           }
         }
+        // Keep underlay (fills sides around player) in sync on track change
+        try {
+          if (lyricsFsUnderlay) lyricsFsUnderlay.style.display = 'block';
+          if (lyricsFsUnderlayImg) {
+            lyricsFsUnderlayImg.src = bgCover;
+            lyricsFsUnderlayImg.style.display = bgCover ? 'block' : 'none';
+          }
+          if (lyricsFsUnderlayVideo) {
+            let u = '';
+            const ds2 = (playerContainer.dataset && typeof playerContainer.dataset.videoUrl !== 'undefined') ? playerContainer.dataset.videoUrl : '';
+            u = ds2 && ds2.trim() !== '' ? ds2 : (t.video_url || '');
+            if (u && !/^https?:/i.test(u) && u.indexOf('/public/src/api/video.php?f=') === -1) {
+              const j = u.indexOf('tracks/');
+              const rel2 = j !== -1 ? u.slice(j) : u.replace(/^\/+/, '');
+              u = '/muzic2/public/src/api/video.php?f=' + encodeURIComponent(rel2);
+            }
+            if (u) {
+              lyricsFsUnderlayVideo.src = u; lyricsFsUnderlayVideo.currentTime = 0; lyricsFsUnderlayVideo.play().catch(()=>{}); lyricsFsUnderlayVideo.style.display='block';
+            } else {
+              lyricsFsUnderlayVideo.pause(); lyricsFsUnderlayVideo.removeAttribute('src'); lyricsFsUnderlayVideo.load(); lyricsFsUnderlayVideo.style.display='none';
+            }
+          }
+        } catch(_) {}
         // reset video cover in karaoke panel
         if (lyricsFsVideo && !t.video_url) {
           try { lyricsFsVideo.pause(); lyricsFsVideo.removeAttribute('src'); lyricsFsVideo.load(); } catch(_) {}
@@ -1536,6 +1559,24 @@
   };
   if (lyricsFsClose) lyricsFsClose.onclick = hideKaraoke;
   document.addEventListener('keydown', (e)=>{ if (lyricsVisible && e.key==='Escape') hideKaraoke(); });
+  // Extra safety: delegate click on close inside the overlay (covers any bubbling issues)
+  if (lyricsFs) {
+    try {
+      lyricsFs.addEventListener('click', function(e) {
+        const btn = e.target && e.target.closest ? e.target.closest('#lyrics-fs-close') : null;
+        if (btn) {
+          e.preventDefault();
+          e.stopPropagation();
+          hideKaraoke();
+        }
+      });
+      // Ensure close button is always clickable above backgrounds
+      if (lyricsFsClose && !lyricsFsClose.style.zIndex) {
+        lyricsFsClose.style.zIndex = '2';
+        lyricsFsClose.style.pointerEvents = 'auto';
+      }
+    } catch(_) {}
+  }
 
   if (lyricsFsMode) {
     try { lyricsFsMode.style.display = 'none'; } catch(_) {}
