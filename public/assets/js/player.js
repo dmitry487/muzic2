@@ -793,7 +793,19 @@
     } catch (_) {}
   }
   adjustContentPadding();
-  window.addEventListener('resize', adjustContentPadding);
+  // Adjust fullscreen karaoke bottom offset to always sit above the player
+  function adjustKaraokeBottomOffset() {
+    try {
+      const h = playerContainer ? playerContainer.getBoundingClientRect().height : 110;
+      const safeGap = 14; // gap between karaoke panel and player
+      if (lyricsFs) lyricsFs.style.bottom = (h + safeGap) + 'px';
+    } catch (_) {}
+  }
+  adjustKaraokeBottomOffset();
+  window.addEventListener('resize', function onResize() {
+    adjustContentPadding();
+    adjustKaraokeBottomOffset();
+  });
 
   // Artist links helpers
   function escapeAttr(s) {
@@ -1376,6 +1388,8 @@
           try { lyricsFsVideo.pause(); lyricsFsVideo.removeAttribute('src'); lyricsFsVideo.load(); } catch(_) {}
           if (lyricsFsVideoCover) lyricsFsVideoCover.src = t.cover || '';
         }
+        // Ensure karaoke layout aligns with player after metadata update
+        try { adjustKaraokeBottomOffset && adjustKaraokeBottomOffset(); } catch(_) {}
       }
     } catch(_) {}
     // Reset scroll pause and re-anchor to first line for new track
@@ -1414,6 +1428,7 @@
       if (lyricsFs) {
         lyricsFs.style.display = lyricsVisible ? 'block' : 'none';
       }
+      try { adjustKaraokeBottomOffset && adjustKaraokeBottomOffset(); } catch(_) {}
       // Ensure player pinned and visible above underlay
       try {
         if (playerContainer) {
@@ -1489,6 +1504,7 @@
   const hideKaraoke = () => {
     lyricsVisible = false;
     if (lyricsFs) { lyricsFs.style.display = 'none'; }
+    try { adjustKaraokeBottomOffset && adjustKaraokeBottomOffset(); } catch(_) {}
     // Unpin player
     try {
       if (playerContainer) {
