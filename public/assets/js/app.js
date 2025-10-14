@@ -4,13 +4,7 @@ if (location.protocol === 'https:') {
 }
 
 // Измеряем время загрузки только для Windows
-const isWindows = navigator.userAgent.indexOf('Windows') !== -1;
 console.log('User Agent:', navigator.userAgent);
-console.log('isWindows:', isWindows);
-if (isWindows) {
-    window.startTime = Date.now();
-    console.log('Windows detected - starting load timer');
-}
 
 const mainContent = document.getElementById('main-content');
 const navHome = document.getElementById('nav-home');
@@ -181,8 +175,43 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 	}
 
 	async function renderHome() {
-		mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
+    mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
+    // Inject responsive styles for home cards (mobile)
+    const homeMobileStyles = `
+    <style id="home-mobile-styles">
+      .card-row,.tile-row{display:grid;grid-template-columns:repeat(6,1fr);gap:18px}
+      .tile{position:relative;background:#181818;border-radius:18px;overflow:hidden;padding-bottom:10px;transition:transform .15s}
+      .tile:hover{transform:translateY(-2px)}
+      .tile-cover{width:100%;aspect-ratio:1/1;object-fit:cover;display:block}
+      .tile-title{font-weight:800;color:#fff;margin:.6rem .6rem .2rem}
+      .tile-desc{color:#bdbdbd;margin:0 .6rem;font-size:.95rem}
+      .artist-row .tile-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      @media(max-width:1024px){.card-row,.tile-row{grid-template-columns:repeat(4,1fr)}}
+      @media(max-width:768px){.card-row,.tile-row{grid-template-columns:repeat(3,1fr)}.tile-title{font-size:1rem}.tile-desc{font-size:.88rem}}
+      @media(max-width:560px){.card-row,.tile-row{grid-template-columns:repeat(2,1fr);gap:14px}.tile{border-radius:16px}.tile-title{font-size:.98rem}.tile-desc{font-size:.84rem}}
+      @media(max-width:400px){.card-row,.tile-row{grid-template-columns:1fr;gap:12px}}
+    </style>`;
+    try { const old = document.getElementById('home-mobile-styles'); if (old) old.remove(); } catch(_) {}
+    try { document.head.insertAdjacentHTML('beforeend', homeMobileStyles); } catch(_) {}
 		try { ensureStyle('/muzic2/public/assets/css/home_modern.css'); } catch(_) {}
+		// Inject compact modern cards for mixes and random tracks
+		const homeCardStyles = `
+		<style id="home-cards-compact">
+		.card-row { display:grid; grid-template-columns:repeat(6,1fr); gap:16px }
+		.card { background:#181818; border-radius:18px; padding:10px 12px; display:flex; align-items:center; gap:12px; min-height:72px; position:relative; overflow:hidden }
+		.card-cover { width:56px; height:56px; border-radius:12px; object-fit:cover; flex:0 0 auto }
+		.card-info { min-width:0 }
+		.card-title { color:#fff; font-weight:800; font-size:1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+		.card-artist { color:#b3b3b3; font-size:.9rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+		.card-type { color:#22c55e; font-size:.86rem; font-weight:700; margin-top:2px }
+		.card:hover { background:#1f1f1f }
+		/* Mix pill look */
+		#mixes-row .card { border-radius:22px }
+		@media(max-width:1024px){ .card-row{grid-template-columns:repeat(4,1fr)} }
+		@media(max-width:768px){ .card-row{grid-template-columns:repeat(2,1fr)} .card{min-height:64px} .card-cover{width:52px;height:52px} }
+		@media(max-width:480px){ .card-row{grid-template-columns:1fr} .card-cover{width:48px;height:48px} }
+		</style>`;
+		try { const old = document.getElementById('home-cards-compact'); if (old) old.remove(); document.head.insertAdjacentHTML('beforeend', homeCardStyles); } catch(_) {}
 
 		function injectHero(preferredAlbumCover) {
 			try {
@@ -332,14 +361,20 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 		if (isWindows) {
 			console.log('Windows detected - using ultra-fast API');
 			try {
-				const res = await fetch('/muzic2/src/api/home_windows.php');
+                const res = await fetch('/muzic2/src/api/home_windows.php');
 				const data = await res.json();
-				mainContent.innerHTML = `
+                mainContent.innerHTML = `
 					<section class="main-filters">
 						<button class="filter-btn active">Все</button>
 						<button class="filter-btn">Музыка</button>
 						<button class="filter-btn">Артисты</button>
 					</section>
+                
+                    <section class="queue-shortcut" id="queue-shortcut" style="display:none;">
+                        <button id="open-queue" class="btn" style="display:flex;align-items:center;gap:8px;background:#1db954;color:#000;border:none;border-radius:12px;padding:8px 12px;font-weight:800;">
+                            <span style="font-size:16px;">☰</span> Очередь
+                        </button>
+                    </section>
 					<section class="main-section" id="favorites-section">
 						<h3>Любимые треки</h3>
 						<div class="card-row" id="favorites-row"></div>
@@ -352,8 +387,11 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 						<h3>Случайные альбомы</h3>
 						<div class="card-row" id="albums-row"></div>
 					</section>
-					<section class="main-section" id="tracks-section">
-						<h3>Случайные треки</h3>
+                    <section class="main-section" id="tracks-section" style="position:relative;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                            <h3 style="margin:0;">Случайные треки</h3>
+                            <button id="open-queue-inline" class="btn" style="display:none;align-items:center;gap:8px;background:#262626;color:#fff;border:1px solid #333;border-radius:10px;padding:6px 10px;font-weight:700;">☰ Очередь</button>
+                        </div>
 						<div class="card-row" id="tracks-row"></div>
 					</section>
 					<section class="main-section" id="artists-section">
@@ -361,6 +399,19 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 						<div class="card-row" id="artists-row"></div>
 					</section>
 				`;
+                // Mobile-only show queue buttons
+                try {
+                    const isMobile = window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
+                    const btn1 = document.getElementById('open-queue');
+                    const btn2 = document.getElementById('open-queue-inline');
+                    if (isMobile) {
+                        if (btn1) btn1.parentElement.style.display = 'block';
+                        if (btn2) btn2.style.display = 'inline-flex';
+                        const open = () => { try { window.toggleQueuePanel ? window.toggleQueuePanel(true) : (window.dispatchEvent(new CustomEvent('player:queue:open')), null); } catch(_) {} };
+                        if (btn1) btn1.onclick = open;
+                        if (btn2) btn2.onclick = open;
+                    }
+                } catch(_) {}
 				injectHero((data.albums && data.albums[0] && data.albums[0].cover) || '');
 				renderCards('favorites-row', data.favorites, 'track');
 				renderCards('mixes-row', data.mixes, 'track');
@@ -405,8 +456,8 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 					<h3>Случайные альбомы</h3>
 					<div class="card-row" id="albums-row"></div>
 				</section>
-				<section class="main-section" id="tracks-section">
-					<h3>Случайные треки</h3>
+                <section class="main-section" id="tracks-section" style="position:relative;">
+                    <h3 style="margin:0 0 12px 0;">Случайные треки</h3>
 					<div class="card-row" id="tracks-row"></div>
 				</section>
 				<section class="main-section" id="artists-section">
@@ -419,6 +470,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 			renderCards('albums-row', data.albums, 'album');
 			renderCards('tracks-row', data.tracks, 'track');
 			renderCards('artists-row', data.artists, 'artist');
+            // Removed extra queue buttons on home for clean UI
 			addFilterButtonHandlers();
 		} catch (e) {
 			mainContent.innerHTML = '<div class="error">Ошибка загрузки</div>';
@@ -511,12 +563,12 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 	// =====================
 	function createAlbumCard(album) {
 		return `
-			<div class="tile" onclick="navigateTo('album', { album: '${encodeURIComponent(album.title)}' })">
-				<img class="tile-cover" loading="lazy" src="/muzic2/${album.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
-				<div class="tile-title">${escapeHtml(album.title)}</div>
-				<div class="tile-desc">${escapeHtml(album.artist || '')}</div>
-				<div class="tile-play">&#9654;</div>
-			</div>
+            <div class="tile" onclick="navigateTo('album', { album: '${encodeURIComponent(album.title)}' })">
+                <img class="tile-cover" loading="lazy" src="/muzic2/${album.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
+                <div class="tile-title">${escapeHtml(album.title)}</div>
+                <div class="tile-desc">${escapeHtml(album.artist || '')}</div>
+                <div class="tile-play">&#9654;</div>
+            </div>
 		`;
 	}
 
@@ -855,6 +907,20 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
             .track-title .track-artist{color:#b3b3b3;font-size:1.01rem;font-weight:400;margin-top:0.2rem}
             .track-duration{color:#b3b3b3;font-size:1.01rem;text-align:center;width:4.5rem;vertical-align:middle}
             .exp-badge{display:inline-block;width:16px;height:16px;line-height:16px;text-align:center;margin:0 6px 0 0;border:0;border-radius:3px;font-size:10px;font-weight:800;color:#2b2b2b;background:#cfcfcf;vertical-align:middle}
+            /* Home cards base (used on main) */
+            .card-row,.tile-row{display:grid;grid-template-columns:repeat(6,1fr);gap:18px}
+            .tile{position:relative;background:#181818;border-radius:18px;overflow:hidden;padding-bottom:10px;transition:transform .15s}
+            .tile:hover{transform:translateY(-2px)}
+            .tile-cover{width:100%;aspect-ratio:1/1;object-fit:cover;display:block}
+            .tile-title{font-weight:800;color:#fff;margin:.6rem .6rem .2rem}
+            .tile-desc{color:#bdbdbd;margin:0 .6rem;font-size:.95rem}
+            /* Prevent artist names overlap */
+            .artist-row .tile-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+            /* Responsive grids */
+            @media(max-width:1024px){.card-row,.tile-row{grid-template-columns:repeat(4,1fr)}}
+            @media(max-width:768px){.card-row,.tile-row{grid-template-columns:repeat(3,1fr)}.tile-title{font-size:1rem}.tile-desc{font-size:.88rem}}
+            @media(max-width:560px){.card-row,.tile-row{grid-template-columns:repeat(2,1fr);gap:14px}.tile{border-radius:16px}.tile-title{font-size:.98rem}.tile-desc{font-size:.84rem}}
+            @media(max-width:400px){.card-row,.tile-row{grid-template-columns:1fr;gap:12px}}
             </style>`;
             mainContent.innerHTML = albumStyles + `
                 <div class="album-header">
@@ -1423,6 +1489,27 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 			.album-heart-btn{position:absolute;right:0.5rem;bottom:0.5rem;background:#222;border:1px solid #333;color:#bbb;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:14px;transition:all 0.2s}
 			.album-heart-btn.liked{background:#1db954;border-color:#1db954;color:#fff}
 			.exp-badge{display:inline-block;width:16px;height:16px;line-height:16px;text-align:center;margin:0 6px 0 0;border:0;border-radius:3px;font-size:10px;font-weight:800;color:#2b2b2b;background:#cfcfcf;vertical-align:middle}
+			/* Mobile adjustments */
+			@media (max-width: 768px){
+			  .album-header{gap:1rem;margin-top:1rem;margin-bottom:1rem;align-items:center}
+			  .album-cover{width:120px;height:120px;border-radius:14px}
+			  .album-title{font-size:2rem;line-height:1.15;margin:0}
+			  .album-artist{font-size:1rem}
+			  .album-info{font-size:0.9rem;margin-top:0.25rem}
+			  .album-controls{gap:0.8rem;margin:0.8rem 0 1rem}
+			  .album-play-btn{width:56px;height:56px;font-size:2.1rem}
+			  .album-like-btn{width:40px;height:40px}
+			  .tracks-table th,.tracks-table td{padding:0.6rem 0.7rem;font-size:0.98rem}
+			  .tracks-table td.track-title .track-artist{font-size:0.92rem}
+			}
+			@media (max-width: 480px){
+			  .album-cover{width:104px;height:104px}
+			  .album-title{font-size:1.7rem}
+			  .album-artist{font-size:0.95rem}
+			  .album-info{font-size:0.86rem}
+			  .tracks-table th:nth-child(1), .tracks-table td.track-num{width:2rem}
+			  .tracks-table th:nth-child(3), .tracks-table td.track-duration{width:3.6rem}
+			}
 			</style>`;
 			// Calculate album duration and track count
 			const trackCount = (data.tracks || []).length;
