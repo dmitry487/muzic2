@@ -1144,15 +1144,36 @@ body {
         bottom: 1.2vw;
         font-size: 0.9rem;
     }
+    /* Артисты — превращаемся в адаптивную сетку, имена переносятся в 2 строки */
+    .artist-row {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        overflow-x: visible;
+        align-items: start;
+    }
     .artist-tile {
-        min-width: 80px;
-        max-width: 100px;
-        width: 80px;
-        height: 100px;
+        min-width: 0;
+        max-width: none;
+        width: 100%;
+        height: auto;
     }
     .artist-avatar {
-        width: 56px;
-        height: 56px;
+        width: 64px;
+        height: 64px;
+    }
+    .artist-name {
+        margin-top: 6px;
+        font-size: 0.82rem;
+        line-height: 1.2;
+        line-clamp: 2;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        white-space: normal;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
     }
 }
 
@@ -1196,6 +1217,18 @@ body {
         right: 0.5vw;
         bottom: 1vw;
         font-size: 0.8rem;
+    }
+    /* Артисты — 2 колонки на очень маленьких экранах */
+    .artist-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+    .artist-avatar {
+        width: 56px;
+        height: 56px;
+    }
+    .artist-name {
+        font-size: 0.78rem;
     }
 }
 
