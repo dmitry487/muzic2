@@ -1305,11 +1305,48 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
                 <div class="card-artist">${item.explicit? '<span class="exp-badge" title="Нецензурная лексика">E</span>':''}${renderArtistInline(item.feats && String(item.feats).trim() ? `${item.artist}, ${item.feats}` : item.artist)}</div>
 						<div class="card-type">${item.album_type || ''}</div>
 					</div>
+					<button class="heart-btn" data-track-id="${item.id || idx}" title="Добавить в избранное">♡</button>
+					<button class="kebab" title="Ещё">⋮</button>
 				</div>
 			`;
 			}).join('');
 		}
 		row.innerHTML = html;
+
+		// Add See All button handlers
+		if (rowId.includes('-row')) {
+			const sectionHeader = row.previousElementSibling;
+			if (sectionHeader && sectionHeader.classList.contains('section-header')) {
+				const seeAllBtn = sectionHeader.querySelector('.see-all-btn');
+				if (seeAllBtn) {
+					seeAllBtn.onclick = () => {
+						// Navigate to full page for this section
+						const sectionName = sectionHeader.querySelector('h3').textContent;
+						if (sectionName.includes('треки') || sectionName.includes('Треки')) {
+							showPage('Поиск');
+						} else if (sectionName.includes('альбом') || sectionName.includes('Альбом')) {
+							showPage('Альбомы');
+						} else if (sectionName.includes('артист') || sectionName.includes('Артист')) {
+							showPage('Артисты');
+						} else if (sectionName.includes('микс') || sectionName.includes('Микс')) {
+							showPage('Миксы');
+						}
+					};
+				}
+			}
+		}
+
+		// Add kebab menu handlers for tracks
+		if (type === 'track') {
+			row.querySelectorAll('.kebab').forEach((kebab, idx) => {
+				kebab.onclick = (e) => {
+					e.stopPropagation();
+					// Show context menu or perform action
+					console.log('Kebab clicked for track:', items[idx]);
+					// TODO: Implement context menu
+				};
+			});
+		}
 
 		if (type === 'album') {
 			row.onclick = function(e) {

@@ -289,7 +289,7 @@ if (isset($_GET['api'])) {
 </div>
 
 <script>
-const api='index.php?api=1';
+const api='/muzic2/public/admin/index.php?api=1';
 const list=document.getElementById('list'); const statusEl=document.getElementById('status'); const search=document.getElementById('search'); const add=document.getElementById('add');
 const modal=document.getElementById('modal'); const mtitle=document.getElementById('mtitle'); const mbody=document.getElementById('mbody'); const mstatus=document.getElementById('mstatus'); const closeBtn=document.getElementById('close'); const saveBtn=document.getElementById('save');
 let tab='artists', items=[], current=null;

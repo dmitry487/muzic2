@@ -28,19 +28,31 @@
                 <div class="card-row" id="favorites-row"></div>
             </section>
             <section class="main-section" id="mixes-section">
-                <h3>Миксы дня</h3>
+                <div class="section-header">
+                    <h3>Миксы дня</h3>
+                    <button class="see-all-btn">Смотреть всё</button>
+                </div>
                 <div class="card-row" id="mixes-row"></div>
             </section>
             <section class="main-section" id="albums-section">
-                <h3>Случайные альбомы</h3>
+                <div class="section-header">
+                    <h3>Случайные альбомы</h3>
+                    <button class="see-all-btn">Смотреть всё</button>
+                </div>
                 <div class="card-row" id="albums-row"></div>
             </section>
             <section class="main-section" id="tracks-section">
-                <h3>Случайные треки</h3>
+                <div class="section-header">
+                    <h3>Случайные треки</h3>
+                    <button class="see-all-btn">Смотреть всё</button>
+                </div>
                 <div class="card-row" id="tracks-row"></div>
             </section>
             <section class="main-section" id="artists-section">
-                <h3>Артисты</h3>
+                <div class="section-header">
+                    <h3>Артисты</h3>
+                    <button class="see-all-btn">Смотреть всё</button>
+                </div>
                 <div class="card-row" id="artists-row"></div>
             </section>
         </main>
