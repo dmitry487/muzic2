@@ -24,7 +24,10 @@
                 <button class="filter-btn">Артисты</button>
             </section>
             <section class="main-section" id="favorites-section">
-                <h3>Любимые треки</h3>
+                <div class="section-header">
+                    <h3>Любимые треки</h3>
+                    <button class="see-all-btn">Смотреть всё</button>
+                </div>
                 <div class="card-row" id="favorites-row"></div>
             </section>
             <section class="main-section" id="mixes-section">

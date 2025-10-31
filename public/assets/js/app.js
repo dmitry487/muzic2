@@ -439,7 +439,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 		
 		// Mac path
 		try {
-			const res = await fetch('/muzic2/public/src/api/home.php?limit_tracks=8&limit_albums=6&limit_artists=6&limit_mixes=6&limit_favorites=6');
+			const res = await fetch('/muzic2/public/src/api/home.php?limit_tracks=8&limit_albums=6&limit_artists=10&limit_mixes=6&limit_favorites=6');
 			const data = await res.json();
 			try { const likesRes = await fetch(getLikesAPI(), { credentials: 'include' }); const likes = await likesRes.json(); window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id)); } catch(e){ window.__likedSet = new Set(); }
 			mainContent.innerHTML = `
@@ -1313,41 +1313,6 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 		}
 		row.innerHTML = html;
 
-		// Add See All button handlers
-		if (rowId.includes('-row')) {
-			const sectionHeader = row.previousElementSibling;
-			if (sectionHeader && sectionHeader.classList.contains('section-header')) {
-				const seeAllBtn = sectionHeader.querySelector('.see-all-btn');
-				if (seeAllBtn) {
-					seeAllBtn.onclick = () => {
-						// Navigate to full page for this section
-						const sectionName = sectionHeader.querySelector('h3').textContent;
-						if (sectionName.includes('треки') || sectionName.includes('Треки')) {
-							showPage('Поиск');
-						} else if (sectionName.includes('альбом') || sectionName.includes('Альбом')) {
-							showPage('Альбомы');
-						} else if (sectionName.includes('артист') || sectionName.includes('Артист')) {
-							showPage('Артисты');
-						} else if (sectionName.includes('микс') || sectionName.includes('Микс')) {
-							showPage('Миксы');
-						}
-					};
-				}
-			}
-		}
-
-		// Add kebab menu handlers for tracks
-		if (type === 'track') {
-			row.querySelectorAll('.kebab').forEach((kebab, idx) => {
-				kebab.onclick = (e) => {
-					e.stopPropagation();
-					// Show context menu or perform action
-					console.log('Kebab clicked for track:', items[idx]);
-					// TODO: Implement context menu
-				};
-			});
-		}
-
 		if (type === 'album') {
 			row.onclick = function(e) {
 				let el = e.target;
@@ -1387,6 +1352,16 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 					});
 				}
 			};
+		}
+
+		// Add kebab menu handlers for tracks
+		if (type === 'track') {
+			row.querySelectorAll('.kebab').forEach((kebab, idx) => {
+				kebab.onclick = (e) => {
+					e.stopPropagation();
+					showContextMenu(e, items[idx], idx);
+				};
+			});
 		}
 	}
 
@@ -2397,5 +2372,98 @@ function upgradeRowsToHScroll() {
 			navRight.onclick=()=>{ row.scrollBy({ left: Math.max(300, row.clientWidth*0.6), behavior: 'smooth' }); };
 		});
 	} catch(_) {}
+}
+
+// Context menu for kebab button - works on all devices
+function showContextMenu(event, track, trackIndex) {
+	// Remove existing context menu
+	const existingMenu = document.querySelector('.context-menu');
+	if (existingMenu) {
+		existingMenu.remove();
+	}
+	
+	// Create context menu
+	const menu = document.createElement('div');
+	menu.className = 'context-menu show';
+	
+	// Get track data
+	const trackTitle = track.title || '';
+	const trackArtist = track.artist || '';
+	const trackAlbum = track.album || '';
+	
+	// Create menu items
+	const addToFavorites = document.createElement('button');
+	addToFavorites.className = 'context-menu-item';
+	addToFavorites.textContent = 'Добавить в избранное';
+	addToFavorites.onclick = () => {
+		toggleLike(track.id || trackIndex);
+		menu.remove();
+	};
+	
+	const goToArtist = document.createElement('button');
+	goToArtist.className = 'context-menu-item';
+	goToArtist.textContent = 'Перейти к артисту';
+	goToArtist.onclick = () => {
+		if (trackArtist) {
+			navigateTo('artist', { artist: trackArtist });
+		}
+		menu.remove();
+	};
+	
+	const goToAlbum = document.createElement('button');
+	goToAlbum.className = 'context-menu-item';
+	goToAlbum.textContent = 'Перейти к альбому';
+	goToAlbum.onclick = () => {
+		if (trackAlbum) {
+			navigateTo('album', { album: trackAlbum });
+		}
+		menu.remove();
+	};
+	
+	// Add items to menu
+	menu.appendChild(addToFavorites);
+	if (trackArtist) menu.appendChild(goToArtist);
+	if (trackAlbum) menu.appendChild(goToAlbum);
+	
+	// Position menu - fixed positioning relative to button
+	const rect = event.target.getBoundingClientRect();
+	const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+	const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+	const menuWidth = 180;
+	
+	// Calculate absolute position (including scroll)
+	const absoluteLeft = rect.left + scrollX;
+	const absoluteTop = rect.bottom + scrollY;
+	
+	// Calculate horizontal position
+	let left = absoluteLeft - menuWidth + rect.width; // Align right edge of menu with right edge of button
+	if (left < 10) {
+		left = absoluteLeft; // Show to the right if not enough space on left
+	}
+	
+	// Position menu directly below the button
+	menu.style.position = 'absolute';
+	menu.style.left = left + 'px';
+	menu.style.top = (absoluteTop + 5) + 'px';
+	
+	// Debug positioning
+	console.log('Button rect:', rect);
+	console.log('Scroll:', { scrollX, scrollY });
+	console.log('Menu position:', { left: left + 'px', top: (absoluteTop + 5) + 'px' });
+	
+	// Add to document
+	document.body.appendChild(menu);
+	
+	// Close menu when clicking outside
+	const closeMenu = (e) => {
+		if (!menu.contains(e.target)) {
+			menu.remove();
+			document.removeEventListener('click', closeMenu);
+		}
+	};
+	
+	setTimeout(() => {
+		document.addEventListener('click', closeMenu);
+	}, 100);
 }
 
