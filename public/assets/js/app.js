@@ -40,7 +40,12 @@ const isWindows = navigator.platform.toUpperCase().indexOf('WIN') >= 0;
 // API endpoints based on OS
 const getAuthAPI = () => isWindows ? '/muzic2/src/api/windows_auth.php' : '/muzic2/src/api/login.php';
 const getUserAPI = () => isWindows ? '/muzic2/src/api/windows_auth.php' : '/muzic2/src/api/user.php';
-const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/muzic2/src/api/likes.php';
+const API_ORIGIN = (window.location && window.location.protocol && window.location.protocol.startsWith('http'))
+    ? window.location.origin
+    : (window.API_ORIGIN || 'http://localhost:8888');
+const api = (path) => (String(path).startsWith('http') ? path : API_ORIGIN + path);
+const getLikesAPI = () => api(isWindows ? '/muzic2/src/api/windows_likes.php' : '/muzic2/src/api/likes.php');
+window.API_ORIGIN = API_ORIGIN;
 
 	// Ensure auth modals exist globally
 	ensureAuthModals();
@@ -71,7 +76,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
                 }
             } catch(_) {}
 			try {
-				const res = await fetch('/muzic2/src/api/user_windows.php', { credentials: 'include' });
+				const res = await fetch(api('/muzic2/src/api/user_windows.php'), { credentials: 'include' });
 				const data = await res.json();
 				currentUser = data.authenticated ? data.user : null;
 				renderAuthHeader();
@@ -142,7 +147,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 				btn.onclick = (e) => { e.stopPropagation(); pop.style.display = pop.style.display==='none'?'block':'none'; };
 				document.addEventListener('click', (e)=>{ if(pop.style.display==='block' && !e.target.closest('#user-menu-popover') && e.target!==btn){ pop.style.display='none'; } });
 				const logoutBtn = document.getElementById('logout-btn');
-                if (logoutBtn){ logoutBtn.onclick = async ()=>{ try{ await fetch('/muzic2/src/api/logout.php',{ method:'POST', credentials:'include' }); }catch(_){} try{ localStorage.removeItem('currentUser'); }catch(_){} location.reload(); } }
+                if (logoutBtn){ logoutBtn.onclick = async ()=>{ try{ await fetch(api('/muzic2/src/api/logout.php'),{ method:'POST', credentials:'include' }); }catch(_){} try{ localStorage.removeItem('currentUser'); }catch(_){} location.reload(); } }
 			}
 		} else {
 			panel.innerHTML = `
@@ -273,10 +278,10 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 				const likedSet = (window.__likedSet instanceof Set) ? window.__likedSet : new Set();
 				let candidates = [];
 				if (isWindows) {
-					const r = await fetch('/muzic2/src/api/home_windows.php'); const d = await r.json();
+					const r = await fetch(api('/muzic2/src/api/home_windows.php')); const d = await r.json();
 					candidates = (d.tracks||[]).concat(d.mixes||[]).filter(Boolean);
 				} else {
-					const r = await fetch('/muzic2/public/src/api/home.php?limit_tracks=60&limit_mixes=60'); const d = await r.json();
+					const r = await fetch(api('/muzic2/public/src/api/home.php?limit_tracks=60&limit_mixes=60')); const d = await r.json();
 					candidates = (d.tracks||[]).concat(d.mixes||[]).filter(Boolean);
 				}
 			const scored = candidates.map(t => {
@@ -361,7 +366,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 		if (isWindows) {
 			console.log('Windows detected - using ultra-fast API');
 			try {
-                const res = await fetch('/muzic2/src/api/home_windows.php');
+                const res = await fetch(api('/muzic2/src/api/home_windows.php'));
 				const data = await res.json();
                 mainContent.innerHTML = `
 					<section class="main-filters">
@@ -425,8 +430,14 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 						const likes = await likesRes.json();
 						window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
 						window.__likedAlbums = new Set((likes.albums||[]).map(a=>a.album_title || a.title));
-						document.querySelectorAll('.heart-btn[data-track-id]').forEach(btn => { const id = Number(btn.getAttribute('data-track-id')); if (window.__likedSet.has(id)) btn.classList.add('liked'); });
-						document.querySelectorAll('.album-heart-btn[data-album-title]').forEach(btn => { const title = btn.getAttribute('data-album-title'); if (window.__likedAlbums.has(title)) btn.classList.add('liked'); });
+						document.querySelectorAll('.heart-btn[data-track-id]').forEach(btn => {
+							const id = Number(btn.getAttribute('data-track-id'));
+							applyHeartState(btn, window.__likedSet.has(id));
+						});
+						document.querySelectorAll('.album-heart-btn[data-album-title]').forEach(btn => {
+							const title = btn.getAttribute('data-album-title');
+							if (window.__likedAlbums.has(title)) btn.classList.add('liked');
+						});
 					} catch(_) {}
 				}, 0);
 				return;
@@ -439,7 +450,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 		
 		// Mac path
 		try {
-			const res = await fetch('/muzic2/public/src/api/home.php?limit_tracks=8&limit_albums=6&limit_artists=10&limit_mixes=6&limit_favorites=6');
+			const res = await fetch(api('/muzic2/public/src/api/home.php?limit_tracks=8&limit_albums=6&limit_artists=10&limit_mixes=6&limit_favorites=6'));
 			const data = await res.json();
 			try { const likesRes = await fetch(getLikesAPI(), { credentials: 'include' }); const likes = await likesRes.json(); window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id)); } catch(e){ window.__likedSet = new Set(); }
 			mainContent.innerHTML = `
@@ -598,7 +609,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 			// Плейлисты — в фоне
 			(void async function(){
 				try {
-					const listsRes = await fetch('/muzic2/src/api/playlists_windows.php', { credentials: 'include' });
+					const listsRes = await fetch(api('/muzic2/src/api/playlists_windows.php'), { credentials: 'include' });
 					const playlistsData = await listsRes.json();
 					const playlists = playlistsData.playlists || [];
 					const grid = document.getElementById('playlists-grid');
@@ -661,7 +672,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 		injectMyMusicStyles();
 
 		try {
-			const listsRes = await fetch('/muzic2/src/api/playlists.php', { credentials: 'include' });
+			const listsRes = await fetch(api('/muzic2/src/api/playlists.php'), { credentials: 'include' });
 			const playlistsData = await listsRes.json();
 			const playlists = playlistsData.playlists || [];
 
@@ -675,7 +686,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 			if (likedAlbums.length > 0) {
 				try {
 					// Get all albums from dedicated API
-					const allAlbumsRes = await fetch('/muzic2/src/api/all_albums.php');
+					const allAlbumsRes = await fetch(api('/muzic2/src/api/all_albums.php'));
 					const allAlbumsData = await allAlbumsRes.json();
 					const allAlbums = allAlbumsData.albums || [];
 					
@@ -782,13 +793,56 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 		}
 	}
 
-	// Capture-phase guard: prevent autoplay when clicking artist names or hearts
+	// Capture-phase guard: prevent autoplay when clicking artist names
 	document.addEventListener('click', (e)=>{
 		const artistLink = e.target && e.target.closest ? e.target.closest('.artist-link') : null;
 		if (artistLink) { e.preventDefault(); e.stopPropagation(); const name = artistLink.getAttribute('data-artist')||''; try { navigateTo('artist', { artist: name }); } catch(_){} return; }
-		const heart = e.target && e.target.closest ? e.target.closest('.heart-btn, .album-like-btn') : null;
-		if (heart) { e.stopPropagation(); }
+		// For heart clicks we do NOT stop propagation; bubbling handler needs them
+		// const heart = e.target && e.target.closest ? e.target.closest('.heart-btn, .album-like-btn') : null;
+		// if (heart) { /* allow to bubble */ }
 	}, true);
+
+function applyHeartState(btn, liked) {
+	if (!btn) return;
+	const state = !!liked;
+	btn.classList.toggle('liked', state);
+	btn.setAttribute('aria-pressed', String(state));
+	btn.setAttribute('title', state ? 'Убрать из избранного' : 'Добавить в избранное');
+	btn.setAttribute('aria-label', state ? 'Убрать из избранного' : 'Добавить в избранное');
+	try { btn.textContent = state ? '♥' : '♡'; } catch(_){}
+}
+
+// Direct like toggle function (reliable, used by inline onclick)
+async function toggleTrackLike(trackId, buttonEl) {
+    try {
+        if (!currentUser) {
+            try{ attachAuthModalTriggers(); const open = id => { document.querySelector('#auth-modals .modal-overlay').style.display='block'; const m=document.getElementById(id); if (m) m.style.display='block'; }; open('login-modal'); }catch(_){ }
+            return;
+        }
+        const btn = buttonEl || document.querySelector(`.heart-btn[data-track-id="${trackId}"]`);
+        if (!btn) return;
+        const wasLiked = btn.classList.contains('liked');
+        applyHeartState(btn, !wasLiked);
+        try { btn.classList.add('pulse'); setTimeout(()=>btn.classList.remove('pulse'), 180); } catch(_){ }
+        if (!window.__likedSet) window.__likedSet = new Set();
+        if (wasLiked) window.__likedSet.delete(Number(trackId)); else window.__likedSet.add(Number(trackId));
+        const method = wasLiked ? 'DELETE' : 'POST';
+        const res = await fetch(getLikesAPI(), { method, credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: Number(trackId) })});
+        if (!res.ok) throw new Error('Like request failed: ' + res.status);
+        try{ document.dispatchEvent(new CustomEvent('likes:updated', { detail:{ trackId:Number(trackId), liked: !wasLiked } })); }catch(_){ }
+    } catch (err) {
+        // Soft fail: revert UI
+        try {
+            const btn = buttonEl || document.querySelector(`.heart-btn[data-track-id="${trackId}"]`);
+            if (!btn) return;
+            applyHeartState(btn, wasLiked);
+        } catch(_){ }
+        try { if (wasLiked) { window.__likedSet.add(Number(trackId)); } else { window.__likedSet.delete(Number(trackId)); } } catch(_){ }
+        console.error('toggleTrackLike failed', err);
+    }
+}
+
+window.toggleTrackLike = toggleTrackLike;
 
 	// Global delegation for heart toggle and artist links (bubbling phase business logic)
 		document.addEventListener('click', async (e) => {
@@ -802,25 +856,28 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 			return;
 		}
 		
-		const btn = e.target.closest('.heart-btn, .album-like-btn');
+		const btn = (e.target && typeof e.target.closest === 'function')
+			? e.target.closest('.heart-btn, .album-like-btn')
+			: null;
 		if (!btn) return;
-		if (!currentUser) { attachAuthModalTriggers(); const open = id => { document.querySelector('#auth-modals .modal-overlay').style.display='block'; document.getElementById(id).style.display='block'; }; open('login-modal'); return; }
+		// Consume the event so other click handlers (e.g., play on card) don't interfere
+		e.preventDefault();
+		e.stopPropagation();
+
+		// Keyboard support: activate on Enter/Space
+		if (e.type === 'keydown') {
+			const key = e.key || '';
+			if (key !== 'Enter' && key !== ' ') return;
+		}
+		// Require auth for any like actions (tracks or albums)
+		if (!currentUser) {
+			try{ attachAuthModalTriggers(); const open = id => { document.querySelector('#auth-modals .modal-overlay').style.display='block'; const m=document.getElementById(id); if (m) m.style.display='block'; }; open('login-modal'); }catch(_){ }
+			return;
+		}
 		
-		// Handle track likes
-		const trackId = Number(btn.getAttribute('data-track-id'));
-		if (trackId) {
-			if (btn.classList.contains('liked')) {
-				await fetch(getLikesAPI(), { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: trackId })});
-				btn.classList.remove('liked');
-				window.__likedSet && window.__likedSet.delete(trackId);
-				try{ document.dispatchEvent(new CustomEvent('likes:updated', { detail:{ trackId, liked:false } })); }catch(_){ }
-			} else {
-				await fetch(getLikesAPI(), { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: trackId })});
-				btn.classList.add('liked');
-				if (!window.__likedSet) window.__likedSet = new Set();
-				window.__likedSet.add(trackId);
-				try{ document.dispatchEvent(new CustomEvent('likes:updated', { detail:{ trackId, liked:true } })); }catch(_){ }
-			}
+		// Handle track likes (delegated to helper)
+		if (btn.hasAttribute('data-track-id')) {
+			await toggleTrackLike(btn.getAttribute('data-track-id'), btn);
 			return;
 		}
 		
@@ -878,7 +935,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
     async function openPlaylist(playlistId, playlistName, coverOverride) {
         // Render playlist as album-like page (full-page), even if empty
 		try {
-			const res = await fetch(`/muzic2/src/api/playlists.php?playlist_id=${playlistId}`, { credentials: 'include' });
+			const res = await fetch(api(`/muzic2/src/api/playlists.php?playlist_id=${playlistId}`), { credentials: 'include' });
 			const data = await res.json();
             const tracks = Array.isArray(data.tracks) ? data.tracks : [];
             // Determine cover: prefer cover passed from tile, else special for favorites or first track
@@ -980,7 +1037,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 	async function openCreatePlaylistDialog() {
 		const name = prompt('Название плейлиста');
 		if (!name) return;
-		await fetch('/muzic2/src/api/playlists.php', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+	await fetch(api('/muzic2/src/api/playlists.php'), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
 		renderMyMusic();
 	}
 
@@ -1305,7 +1362,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
                 <div class="card-artist">${item.explicit? '<span class="exp-badge" title="Нецензурная лексика">E</span>':''}${renderArtistInline(item.feats && String(item.feats).trim() ? `${item.artist}, ${item.feats}` : item.artist)}</div>
 						<div class="card-type">${item.album_type || ''}</div>
 					</div>
-					<button class="heart-btn" data-track-id="${item.id || idx}" title="Добавить в избранное">♡</button>
+					<button type="button" class="heart-btn" data-track-id="${item.id || idx}" title="Добавить в избранное" aria-label="Добавить в избранное" aria-pressed="false" tabindex="0">♡</button>
 					<button class="kebab" title="Ещё">⋮</button>
 				</div>
 			`;
@@ -1953,7 +2010,7 @@ const getLikesAPI = () => isWindows ? '/muzic2/src/api/windows_likes.php' : '/mu
 			}
 			
 			// Get all albums from dedicated API
-			const allAlbumsRes = await fetch('/muzic2/src/api/all_albums.php');
+			const allAlbumsRes = await fetch(api('/muzic2/src/api/all_albums.php'));
 			const allAlbumsData = await allAlbumsRes.json();
 			const allAlbums = allAlbumsData.albums || [];
 			

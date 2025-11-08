@@ -1,7 +1,12 @@
 // Redesigned player: start-from-beginning on play, persistent state, full controls, queue panel
 (function () {
-  const playerRoot = document.getElementById('player-root');
-  if (!playerRoot) return;
+  function initPlayer() {
+    const playerRoot = document.getElementById('player-root');
+    if (!playerRoot) {
+      // Если элемент еще не создан, попробуем еще раз через небольшую задержку
+      setTimeout(initPlayer, 100);
+      return;
+    }
 
   playerRoot.innerHTML = `
     <style>
@@ -22,10 +27,62 @@
       #seek-bar { width: 100%; }
       .player-right { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
       /* Lyrics */
-      #lyrics-container { display: none; position: fixed; left: 50%; transform: translateX(-50%); bottom: 76px; width: min(820px, 92vw); max-height: 42vh; overflow: hidden; padding: 18px 14px; background: rgba(0,0,0,0.7); backdrop-filter: blur(6px); border: 1px solid #242424; border-radius: 14px; box-shadow: 0 12px 30px rgba(0,0,0,.55); z-index: 9500; }
-      #lyrics-list { display: flex; flex-direction: column; align-items: center; gap: 8px; will-change: transform; }
-      #lyrics-container .lyric-line { color: #b3b3b3; opacity: .35; text-align: center; font-size: 1.1rem; line-height: 1.6; }
-      #lyrics-container .lyric-line.active { opacity: 1; color: #fff; font-weight: 700; font-size: 1.6rem; }
+      #lyrics-container { display: none; position: fixed; left: 50%; transform: translateX(-50%); bottom: 76px; width: min(1200px, 95vw); max-height: 42vh; overflow: hidden; padding: 18px 14px; background: rgba(0,0,0,0.7); backdrop-filter: blur(6px); border: 1px solid #242424; border-radius: 14px; box-shadow: 0 12px 30px rgba(0,0,0,.55); z-index: 9500; }
+      #lyrics-list { display: flex; flex-direction: column; align-items: center; gap: 8px; will-change: transform; transform: translateZ(0); }
+      #lyrics-container .lyric-line { 
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transform: translateZ(0);
+        contain: strict;
+        box-sizing: border-box;
+        will-change: opacity;
+        transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        backface-visibility: hidden;
+      }
+      #lyrics-container .lyric-text-inner {
+        color: #b3b3b3; 
+        opacity: .35; 
+        text-align: center; 
+        font-size: 1.6rem !important; 
+        line-height: 1.6 !important;
+        font-weight: 400 !important;
+        transform: translateZ(0);
+        display: block;
+        box-sizing: border-box;
+        will-change: color, opacity;
+        transition: color 0.4s cubic-bezier(0.4, 0, 0.2, 1), 
+                    opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        -webkit-font-smoothing: antialiased;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        white-space: normal;
+      }
+      #lyrics-container .lyric-line.active { 
+        opacity: 1;
+      }
+      #lyrics-container .lyric-line.active .lyric-text-inner {
+        color: #fff !important; 
+        opacity: 1 !important;
+        font-size: 1.6rem !important;
+        line-height: 1.6 !important;
+        font-weight: 400 !important;
+      }
+      #lyrics-container .lyric-word,
+      #lyrics-fs-inner .lyric-word { 
+        display: inline-block; 
+        transition: color 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.4s ease, text-shadow 0.5s ease;
+        opacity: 0.6;
+        text-shadow: none;
+      }
+      #lyrics-container .lyric-word.active-word,
+      #lyrics-fs-inner .lyric-word.active-word { 
+        color: #1ed760; 
+        transform: scale(1.12);
+        opacity: 1;
+            text-shadow: 0 0 7px rgba(30, 215, 96, 0.5), 0 0 10px rgba(30, 215, 96, 0.3);
+        transition: color 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.4s ease, text-shadow 0.5s ease;
+      }
       /* Уничтожаем фантомные строчки в inline лирике */
       #lyrics-container .lyric-line.past { display: none !important; opacity: 0 !important; visibility: hidden !important; }
 
@@ -48,20 +105,56 @@
       #lyrics-fs-video-cover { width:100%; height:100%; object-fit:cover; display:none; background:#000; }
       #lyrics-fs-title { color: #fff; font-size: 30px; font-weight: 800; }
       #lyrics-fs-artist { color: #bdbdbd; font-size: 18px; }
-      #lyrics-fs-panel { position: relative; width: 100%; margin: 0 auto; overflow: hidden; }
+      #lyrics-fs-panel { position: relative; width: 100%; margin: 0 auto; overflow: visible; }
       #lyrics-fs-inner { position: relative; height: calc(100vh - 80px - 120px); max-height: 70vh; display: block; overflow: auto; scroll-behavior: auto; scrollbar-width: none; }
       #lyrics-fs-inner::-webkit-scrollbar { width: 0; height: 0; }
       #lyrics-fs.static #lyrics-fs-inner { overflow: auto; align-items: flex-start; justify-content: center; }
       #lyrics-fs.static #lyrics-fs-list { transform: none; padding: 24px 16px 24px; }
       #lyrics-fs.static .lyric-line { opacity: .6; }
       #lyrics-fs.static .lyric-line.active { opacity: 1; }
-      #lyrics-fs-list { display: flex; flex-direction: column; align-items: center; gap: 20px; will-change: transform; padding: 0 16px; }
-      #lyrics-fs-inner .lyric-line { color: #7e7e7e; opacity: .26; text-align: center; font-weight: 700; letter-spacing: 0.1px; font-size: clamp(18px, 2.1vw, 28px); line-height: 1.6; max-width: 980px; }
-      /* Плавные переключения между активными строками, но без выплывания */
-      #lyrics-fs-inner .lyric-line.active { transition: opacity 0.3s ease, color 0.3s ease; }
+      #lyrics-fs-list { display: flex; flex-direction: column; align-items: center; gap: 20px; will-change: transform; padding: 0 16px; width: 100%; max-width: 1250px; box-sizing: border-box; }
+      #lyrics-fs-inner .lyric-line { 
+        color: #7e7e7e; 
+        opacity: .26; 
+        text-align: center; 
+        font-weight: 700; 
+        letter-spacing: 0.1px; 
+        font-size: clamp(22px, 1.90vw, 25px) !important; 
+        line-height: 1.6; 
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        white-space: normal;
+        padding: 0 20px;
+        transform: translateY(10px);
+        transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), 
+                    color 0.8s cubic-bezier(0.4, 0, 0.2, 1), 
+                    font-weight 0.8s cubic-bezier(0.4, 0, 0.2, 1), 
+                    text-shadow 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+                    transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        will-change: opacity, color, font-weight, text-shadow, transform;
+      }
+      /* Плавные переключения между активными строками */
+      #lyrics-fs-inner .lyric-line.active { 
+        opacity: 1 !important; 
+        color: #ffffff !important; 
+        font-weight: 800 !important; 
+        font-size: clamp(22px, 1.9vw, 24px) !important; 
+        text-shadow: 0 0 7px rgba(30, 215, 96, 0.5), 0 0 10px rgba(30, 215, 96, 0.3);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        transform: translateY(0);
+        transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), 
+                    color 0.8s cubic-bezier(0.4, 0, 0.2, 1), 
+                    font-weight 0.8s cubic-bezier(0.4, 0, 0.2, 1), 
+                    text-shadow 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+                    transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+      }
       /* Уничтожаем фантомные строчки раз и навсегда */
       #lyrics-fs-inner .lyric-line.past { display: none !important; opacity: 0 !important; visibility: hidden !important; }
-      #lyrics-fs-inner .lyric-line.active { opacity: 1; color: #ffffff; font-weight: 800; font-size: clamp(24px, 3.2vw, 48px); text-shadow: 0 2px 18px rgba(0,0,0,0.4); }
       .lyrics-fs-fade { display: none; position: absolute; left: 0; right: 0; z-index: 2; pointer-events: none; }
       .lyrics-fs-fade.top { top: 0; height: 56px; background: linear-gradient(to bottom, rgba(15,15,15,1), rgba(15,15,15,0)); }
       .lyrics-fs-fade.bottom { bottom: 0; height: 56px; background: linear-gradient(to top, rgba(15,15,15,1), rgba(15,15,15,0)); }
@@ -336,6 +429,15 @@
   
   // Global back button removed per design (caused overlap). Use SPA navigation instead.
   
+  const API_ORIGIN = (window.location && window.location.protocol && window.location.protocol.startsWith('http'))
+    ? window.location.origin
+    : (window.API_ORIGIN || 'http://localhost:8888');
+  const api = (path) => (String(path).startsWith('http') ? path : API_ORIGIN + path);
+  const getLikesAPI = () => {
+    const isWin = navigator.platform.toUpperCase().indexOf('WIN') >= 0;
+    return api(isWin ? '/muzic2/src/api/windows_likes.php' : '/muzic2/src/api/likes.php');
+  };
+  
   // Elements (scoped to player container to avoid ID conflicts on page)
   const playerContainer = playerRoot.querySelector('#player');
   const audio = playerRoot.querySelector('#audio');
@@ -578,6 +680,7 @@
   // Lyrics state
   let lyricsLines = []; // [{time:number, text:string}]
   let lyricsVisible = false;
+  let lyricsRenderingLock = false; // Флаг для блокировки updateLyricsHighlight во время рендеринга
   // Top guard so lyrics can't overlap artist/cover block in fullscreen
   function getLyricsTopGuardPx() {
     try {
@@ -761,24 +864,67 @@
   function parseLRC(lrcText) {
     const lines = [];
     if (!lrcText) return lines;
-    const tagRe = /\[(\d{1,2})[:.](\d{2})(?:[.:](\d{1,2}))?\]/g; // supports mm:ss.xx and mm.ss.cc
+    const lineTagRe = /\[(\d{1,2})[:.](\d{2})(?:[.:](\d{1,2}))?\]/g; // supports mm:ss.xx and mm.ss.cc
+    const wordTagRe = /<(\d{1,2})[:.](\d{2})(?:[.:](\d{1,2}))?>\s*([^<]*)/g;
+    const cleanupWordTagRe = /<(\d{1,2})[:.](\d{2})(?:[.:](\d{1,2}))?>/g;
+
     lrcText.split(/\r?\n/).forEach(raw => {
       if (!raw) return;
-      const times = [];
+      const lineTimes = [];
       let m;
-      while ((m = tagRe.exec(raw)) !== null) {
+      lineTagRe.lastIndex = 0;
+      while ((m = lineTagRe.exec(raw)) !== null) {
         const min = parseInt(m[1], 10) || 0;
         const sec = parseInt(m[2], 10) || 0;
         const cs = parseInt(m[3] || '0', 10) || 0;
         const t = min * 60 + sec + (cs / 100);
-        times.push(t);
+        lineTimes.push(t);
       }
-      const text = raw.replace(tagRe, '').trim();
-      if (times.length && text) {
-        times.forEach(t => lines.push({ time: t, text }));
+
+      // Remove line-level tags for further processing
+      const withoutLineTags = raw.replace(lineTagRe, '').trim();
+      if (!withoutLineTags) return;
+
+      // Parse word-level timings, if present
+      const words = [];
+      wordTagRe.lastIndex = 0;
+      while ((m = wordTagRe.exec(withoutLineTags)) !== null) {
+        const min = parseInt(m[1], 10) || 0;
+        const sec = parseInt(m[2], 10) || 0;
+        const cs = parseInt(m[3] || '0', 10) || 0;
+        const t = min * 60 + sec + (cs / 100);
+        const rawSegment = (m[4] || '').replace(/\s+/g, ' ').trim();
+        if (rawSegment)
+          words.push({ time: t, text: rawSegment });
       }
+
+      // Build display text by stripping word timing tags
+      let displayText = withoutLineTags.replace(cleanupWordTagRe, ' ').replace(/\s+/g, ' ').trim();
+      if (!displayText && words.length) {
+        displayText = words.map(w => w.text).join(' ');
+      }
+      if (!displayText) return;
+
+      // If no explicit line timestamp but words exist, anchor to first word time
+      if (!lineTimes.length && words.length) {
+        lineTimes.push(words[0].time);
+      }
+
+      if (!lineTimes.length) return;
+
+      const sortedWords = words.slice().sort((a, b) => a.time - b.time);
+
+      lineTimes.forEach(t => {
+        lines.push({
+          time: t,
+          text: displayText,
+          words: sortedWords.map(w => ({ ...w })),
+          activeWord: -1
+        });
+      });
     });
-    return lines.sort((a,b)=>a.time-b.time);
+
+    return lines.sort((a, b) => a.time - b.time);
   }
 
   async function loadLyricsForTrack(trackId) {
@@ -805,9 +951,9 @@
         if (rawLines.length > 0) {
           const total = (isFinite(audio && audio.duration) && audio.duration>0) ? audio.duration : (rawLines.length * 3);
           const step = Math.max(1, total / (rawLines.length + 1));
-          lyricsLines = rawLines.map((txt, i) => ({ time: (i+1)*step, text: txt }));
+          lyricsLines = rawLines.map((txt, i) => ({ time: (i+1)*step, text: txt, words: [], activeWord: -1 }));
         } else {
-          lyricsLines = [{ time: 0, text: lrcText }];
+          lyricsLines = [{ time: 0, text: lrcText, words: [], activeWord: -1 }];
         }
       }
       renderLyrics();
@@ -825,50 +971,190 @@
       const params = new URLSearchParams();
       if (lastTrackTitle) params.set('title', lastTrackTitle);
       if (lastTrackArtist) params.set('artist', lastTrackArtist);
-      let res = await fetch('/muzic2/src/api/lyrics.php?' + params.toString());
+      let res = await fetch(api('/muzic2/src/api/lyrics.php?' + params.toString()));
       let data = null; try { data = await res.json(); } catch(_) { data = null; }
       let lrcText = data && typeof data.lrc === 'string' ? data.lrc : '';
       if (!lrcText && currentTrackId) {
         // fallback to id
-        res = await fetch('/muzic2/src/api/lyrics.php?track_id=' + encodeURIComponent(currentTrackId));
+        res = await fetch(api('/muzic2/src/api/lyrics.php?track_id=' + encodeURIComponent(currentTrackId)));
         try { data = await res.json(); } catch(_) { data = null; }
         lrcText = data && typeof data.lrc === 'string' ? data.lrc : '';
       }
       lyricsLines = parseLRC(lrcText);
       if (!lyricsLines.length && lrcText.trim()) {
-        lyricsLines = [{ time: 0, text: lrcText }];
+        lyricsLines = [{ time: 0, text: lrcText, words: [], activeWord: -1 }];
       }
       renderLyrics();
-      updateLyricsHighlight(audio.currentTime || 0);
+      // НЕ вызываем updateLyricsHighlight сразу - строка уже рендерится с правильным классом
+      // Обновление произойдет автоматически при следующем timeupdate
     } catch(_) {
       lyricsContainer.innerHTML = '<div class="lyric-line">Нет текста</div>';
     }
   }
 
+  function buildLyricLineHTML(line, idx, isActive = false) {
+    const safeIdx = Number(idx);
+    const activeClass = isActive ? ' active' : '';
+    const baseAttrs = `data-idx="${safeIdx}" data-time="${line.time}"`;
+    if (Array.isArray(line.words) && line.words.length) {
+      const punctuationRe = /^[,.;:!?…\-—)]+$/;
+      let html = '';
+      let renderedWordIndex = 0; // Индекс для отрендеренных слов
+      line.words.forEach((word, wi) => {
+        if (!word || typeof word.text !== 'string') return;
+        const wordText = word.text.trim();
+        if (!wordText) return;
+        const needsSpace = renderedWordIndex > 0 && !punctuationRe.test(wordText);
+        // Используем реальный индекс слова в массиве words, а не индекс отрендеренных слов
+        html += (needsSpace ? ' ' : '') + `<span class="lyric-word" data-word-idx="${wi}" data-time="${word.time}">${escapeHtml(wordText)}</span>`;
+        renderedWordIndex++;
+      });
+      if (!html) html = escapeHtml(line.text || '');
+      return `<div class="lyric-line${activeClass}" ${baseAttrs}><span class="lyric-text-inner">${html}</span></div>`;
+    }
+    return `<div class="lyric-line${activeClass}" ${baseAttrs}><span class="lyric-text-inner">${escapeHtml(line.text || '')}</span></div>`;
+  }
+
   function renderLyrics() {
     if (!lyricsContainer) return;
-    if (!lyricsLines.length) { lyricsContainer.innerHTML = '<div id="lyrics-list"><div class="lyric-line">Нет текста</div></div>'; if (lyricsFsList) lyricsFsList.innerHTML = '<div class="lyric-line">Нет текста</div>'; return; }
+    if (!lyricsLines.length) { 
+      lyricsContainer.innerHTML = '<div id="lyrics-list"><div class="lyric-line">Нет текста</div></div>'; 
+      if (lyricsFsList) lyricsFsList.innerHTML = '<div class="lyric-line">Нет текста</div>'; 
+      return; 
+    }
     
-    // Исправлено: агрессивно очищаем ВСЕ фантомные строки перед рендерингом
+    lyricsLines.forEach(line => {
+      if (!Array.isArray(line.words)) line.words = [];
+      if (typeof line.activeWord !== 'number') line.activeWord = -1;
+    });
+    
+    // Определяем активную строку
+    let initialActiveIdx = -1;
     try {
-      if (lyricsFsList) {
-        const allLines = lyricsFsList.querySelectorAll('.lyric-line');
-        allLines.forEach(line => {
-          line.classList.remove('active', 'past');
-          line.style.display = '';
-          line.style.opacity = '';
-          line.style.visibility = '';
-          line.style.transform = '';
-        });
+      const currentTime = audio && audio.currentTime ? audio.currentTime : 0;
+      let idx = -1;
+      while ((idx + 1) < lyricsLines.length && lyricsLines[idx + 1].time <= currentTime + 0.05) {
+        idx++;
       }
+      initialActiveIdx = idx;
     } catch(_) {}
     
-    const listHtml = lyricsLines.map((l, i) => `<div class=\"lyric-line\" data-idx=\"${i}\" data-time=\"${l.time}\">${escapeHtml(l.text||'')}</div>`).join('');
-    lyricsContainer.innerHTML = `<div id="lyrics-list">${listHtml}</div>`;
+    // Блокируем updateLyricsHighlight во время рендеринга
+    lyricsRenderingLock = true;
+    
+    // Рендерим строки БЕЗ класса .active
+    const listHtml = lyricsLines.map((l, i) => buildLyricLineHTML(l, i, false)).join('');
+    
+    // Устанавливаем currentLyricsIndex ПЕРЕД рендерингом
+    currentLyricsIndex = initialActiveIdx;
+    
+    // Рендерим строки полностью скрытыми
+    lyricsContainer.innerHTML = `<div id="lyrics-list" style="opacity: 0; visibility: hidden;">${listHtml}</div>`;
     if (lyricsFsList) {
       lyricsFsList.innerHTML = listHtml;
-      // Убираем анимации появления
     }
+    
+    // Получаем все строки
+    const allLines = lyricsContainer.querySelectorAll('.lyric-line');
+    const fsAllLines = lyricsFsList ? lyricsFsList.querySelectorAll('.lyric-line') : [];
+    const listEl = lyricsContainer.querySelector('#lyrics-list');
+    
+    // Подход Яндекса: ВСЕ строки одного размера, при активации только меняется цвет и opacity
+    // Все строки уже имеют font-size: 1.6rem - переносы одинаковые автоматически
+    // Сначала устанавливаем начальное состояние (opacity: 0) для плавного появления
+    allLines.forEach((line, idx) => {
+      const textInner = line.querySelector('.lyric-text-inner') || line;
+      // Начальное состояние - все строки скрыты
+      if (textInner) {
+        textInner.style.transition = 'none';
+        textInner.style.opacity = '0';
+      }
+      line.style.transition = 'none';
+      line.style.opacity = '0';
+    });
+    
+    // Для fullscreen строк тоже устанавливаем начальное состояние
+    fsAllLines.forEach((line) => {
+      line.style.transition = 'none';
+      line.style.opacity = '0';
+    });
+    
+    // Принудительно триггерим reflow
+    void listEl?.offsetHeight;
+    
+    // Теперь устанавливаем финальные состояния и включаем transition для плавного появления
+    allLines.forEach((line, idx) => {
+      const textInner = line.querySelector('.lyric-text-inner') || line;
+      if (idx !== initialActiveIdx) {
+        // Неактивная строка - серый цвет, низкая opacity
+        if (textInner) {
+          textInner.style.transition = '';
+          textInner.style.color = '#b3b3b3';
+          textInner.style.opacity = '0.35';
+        }
+        line.style.transition = '';
+        line.style.opacity = '0.26';
+        line.classList.remove('active');
+        line.classList.add('past');
+      } else {
+        // Активная строка - белый цвет, полная opacity
+        if (textInner) {
+          textInner.style.transition = '';
+          textInner.style.color = '#fff';
+          textInner.style.opacity = '1';
+        }
+        line.style.transition = '';
+        line.style.opacity = '1';
+        line.classList.add('active');
+        line.classList.remove('past');
+      }
+    });
+    
+    // Для активной строки в fullscreen
+    if (initialActiveIdx >= 0 && fsAllLines[initialActiveIdx]) {
+      const activeLine = fsAllLines[initialActiveIdx];
+      activeLine.style.transition = '';
+      activeLine.style.opacity = '1';
+      activeLine.classList.add('active');
+    }
+    
+    // Плавно показываем остальные fullscreen строки
+    fsAllLines.forEach((line, idx) => {
+      if (idx !== initialActiveIdx) {
+        line.style.transition = '';
+        line.style.opacity = '0.26';
+      }
+    });
+    
+    // ШАГ 5: Показываем строки плавно
+    if (listEl) {
+      listEl.style.visibility = 'visible';
+      // Используем requestAnimationFrame для синхронизации с кадром браузера
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          listEl.style.opacity = '1';
+          listEl.style.transition = 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+        });
+      });
+    }
+    
+    // Обновляем подсветку слов для активной строки
+    if (initialActiveIdx >= 0 && Array.isArray(lyricsLines[initialActiveIdx].words) && lyricsLines[initialActiveIdx].words.length) {
+      const words = lyricsLines[initialActiveIdx].words;
+      const currentTime = audio && audio.currentTime ? audio.currentTime : 0;
+      let wordIdx = -1;
+      for (let i = 0; i < words.length; i++) {
+        if (words[i] && typeof words[i].time === 'number' && words[i].time <= currentTime + 0.02) {
+          wordIdx = i;
+        } else {
+          break;
+        }
+      }
+      setActiveWord(initialActiveIdx, wordIdx);
+    }
+    
+    // Разблокируем updateLyricsHighlight
+    lyricsRenderingLock = false;
     // Bind click handlers (event delegation) once per render
     try {
       const inlineList = lyricsContainer.querySelector('#lyrics-list');
@@ -883,15 +1169,13 @@
         lyricsFsInner.addEventListener('click', handleLyricClick);
       }
     } catch(_) {}
-    currentLyricsIndex = -1;
     // Center from the start
     const list = lyricsContainer.querySelector('#lyrics-list');
     // Убираем анимации появления
     // No forced highlight; render neutral until timeupdate
     if (lyricsFsList && lyricsFsInner) {
       try {
-        // do nothing; let timeupdate add .active when time reaches first tag
-        currentLyricsIndex = -1; // позволим timeupdate выбрать корректный индекс
+        // НЕ сбрасываем currentLyricsIndex - он уже установлен правильно при рендеринге
         // Show preroll dots initially if there is a gap before first line
         if (lyricsFsDots) {
           // remove dots feature per user request
@@ -909,52 +1193,190 @@
     }
   }
 
+  function setActiveWord(lineIndex, wordIndex) {
+    if (lineIndex == null || lineIndex < 0) return;
+    const line = lyricsLines[lineIndex];
+    if (!line || !Array.isArray(line.words) || !line.words.length) {
+      // Если нет слов, убираем подсветку со всех слов в строке
+      const inlineLine = lyricsContainer ? lyricsContainer.querySelector(`.lyric-line[data-idx="${lineIndex}"]`) : null;
+      const fsLine = lyricsFsList ? lyricsFsList.querySelector(`.lyric-line[data-idx="${lineIndex}"]`) : null;
+      if (inlineLine) {
+        inlineLine.querySelectorAll('.lyric-word').forEach(el => el.classList.remove('active-word'));
+      }
+      if (fsLine) {
+        fsLine.querySelectorAll('.lyric-word').forEach(el => el.classList.remove('active-word'));
+      }
+      return;
+    }
+    const apply = (root, idx) => {
+      if (!root) return;
+      const wordEls = root.querySelectorAll('.lyric-word');
+      if (wordEls.length === 0) return;
+      wordEls.forEach((el) => {
+        const wordIdxAttr = el.getAttribute('data-word-idx');
+        if (wordIdxAttr === null) return;
+        const wordIdx = parseInt(wordIdxAttr, 10);
+        if (isNaN(wordIdx)) return;
+        if (wordIdx === idx && idx >= 0) {
+          el.classList.add('active-word');
+        } else {
+          el.classList.remove('active-word');
+        }
+      });
+    };
+    const inlineLine = lyricsContainer ? lyricsContainer.querySelector(`.lyric-line[data-idx="${lineIndex}"]`) : null;
+    const fsLine = lyricsFsList ? lyricsFsList.querySelector(`.lyric-line[data-idx="${lineIndex}"]`) : null;
+    apply(inlineLine, wordIndex);
+    apply(fsLine, wordIndex);
+    if (line) line.activeWord = wordIndex;
+  }
+
   function updateLyricsHighlight(currentSec) {
     if (!lyricsVisible || !lyricsLines.length) return;
-    // Recompute from scratch so seeking backward/forward updates correctly
+    
+    // Блокируем updateLyricsHighlight во время рендеринга
+    if (lyricsRenderingLock) {
+      return;
+    }
+    
+    // Проверяем, не скрыт ли список - если да, не меняем классы
+    const listEl = lyricsContainer ? lyricsContainer.querySelector('#lyrics-list') : null;
+    if (listEl && listEl.style.opacity === '0') {
+      return; // Список еще скрыт, не меняем классы
+    }
+    
+    // Определяем активную строку
     let idx = -1;
-    const linesRef = lyricsLines;
-    // Linear scan is fine for typical lyric counts; replace with binary search if needed
-    while ((idx + 1) < linesRef.length && linesRef[idx + 1].time <= currentSec + 0.05) idx++;
-    // Do not force first line until timestamp; idx stays -1 before first tag
+    while ((idx + 1) < lyricsLines.length && lyricsLines[idx + 1].time <= currentSec + 0.05) {
+      idx++;
+    }
 
-    // Dots removed
-    if (idx !== currentLyricsIndex) {
+    // Меняем активную строку только если она изменилась
       const prev = currentLyricsIndex;
+    if (idx !== currentLyricsIndex) {
+      if (prev >= 0) setActiveWord(prev, -1);
       currentLyricsIndex = idx;
-      const list = lyricsContainer.querySelector('#lyrics-list');
+      
       const lines = lyricsContainer.querySelectorAll('.lyric-line');
       const fsLines = lyricsFsList ? lyricsFsList.querySelectorAll('.lyric-line') : [];
+      
+      // Обновляем классы для inline lyrics (подход Яндекса)
+      // Все строки одного размера - при активации только меняется цвет и opacity
       if (lines.length) {
-        if (prev >= 0 && lines[prev]) { lines[prev].classList.remove('active'); lines[prev].classList.add('past'); }
-        if (idx >= 0 && lines[idx]) { lines[idx].classList.add('active'); lines[idx].classList.remove('past'); }
-        const active = lines[idx];
-        if (!lyricsSyncLocked && active && typeof active.offsetTop === 'number' && list) {
-          const containerH = lyricsContainer.clientHeight || 0;
-          const target = (containerH / 2) - (active.offsetTop + active.clientHeight / 2);
-          // Убираем анимации появления
-        }
-      }
-      if (fsLines && fsLines.length) {
-        if (prev >= 0 && fsLines[prev]) { 
-          fsLines[prev].classList.remove('active'); 
-          fsLines[prev].classList.add('past'); 
-        }
-        if (idx >= 0 && fsLines[idx]) { 
-          fsLines[idx].classList.add('active'); 
-          fsLines[idx].classList.remove('past'); 
-          
-          // Синхронизируем прокрутку с активацией строчки
-          if (lyricsFsInner && !userScrolling) {
-            const isSmall = window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
-            const isMobile = window.matchMedia && window.matchMedia('(max-width: 960px)').matches;
-            const anchor = Math.round((lyricsFsInner.clientHeight) * (isSmall ? 0.05 : (isMobile ? 0.05 : 0.32)));
-            const guard = getLyricsTopGuardPx();
-            const targetTop = fsLines[idx].offsetTop - anchor;
-            lyricsFsInner.scrollTo({ top: Math.max(guard, targetTop), behavior: 'smooth' });
+        // Сначала устанавливаем начальное состояние для всех строк (для плавного перемещения)
+        lines.forEach((line) => {
+          line.style.transition = 'none';
+          if (!line.classList.contains('active')) {
+            line.style.transform = 'translateY(10px)';
           }
+        });
+        
+        // Принудительно триггерим reflow
+        void lines[0]?.offsetHeight;
+        
+        // Теперь включаем transition для всех строк и устанавливаем финальные состояния
+        requestAnimationFrame(() => {
+          lines.forEach((line, lineIdx) => {
+            line.style.transition = '';
+            
+            if (prev >= 0 && lineIdx === prev) {
+              // Предыдущая активная строка - возвращаем в неактивное состояние
+              const prevTextInner = line.querySelector('.lyric-text-inner') || line;
+              if (prevTextInner) {
+                prevTextInner.style.color = '#b3b3b3';
+                prevTextInner.style.opacity = '0.35';
+              }
+              line.style.transform = 'translateY(10px)';
+              line.style.opacity = '0.26';
+              line.classList.remove('active');
+              line.classList.add('past');
+            } else if (idx >= 0 && lineIdx === idx) {
+              // Новая активная строка - плавное выплывание
+              const newTextInner = line.querySelector('.lyric-text-inner') || line;
+              if (newTextInner) {
+                newTextInner.style.color = '#fff';
+                newTextInner.style.opacity = '1';
+              }
+              line.style.transform = 'translateY(0)';
+              line.style.opacity = '1';
+              line.classList.add('active');
+              line.classList.remove('past');
+            } else {
+              // Остальные неактивные строки - плавно перемещаются на свои места
+              line.style.transform = 'translateY(10px)';
+              line.style.opacity = '0.26';
+            }
+          });
+        });
+      }
+      
+      // Обновляем классы для fullscreen lyrics с плавным выплыванием
+      if (fsLines.length) {
+        // Сначала устанавливаем начальное состояние для всех fullscreen строк
+        fsLines.forEach((line) => {
+          line.style.transition = 'none';
+          if (!line.classList.contains('active')) {
+            line.style.transform = 'translateY(10px)';
+          }
+        });
+        
+        // Принудительно триггерим reflow
+        void fsLines[0]?.offsetHeight;
+        
+        // Теперь включаем transition для всех строк и устанавливаем финальные состояния
+        requestAnimationFrame(() => {
+          fsLines.forEach((line, lineIdx) => {
+            line.style.transition = '';
+            
+            if (prev >= 0 && lineIdx === prev) {
+              // Предыдущая активная строка - возвращаем в неактивное состояние
+              line.style.transform = 'translateY(10px)';
+              line.style.opacity = '0.26';
+              line.classList.remove('active'); 
+              line.classList.add('past');
+            } else if (idx >= 0 && lineIdx === idx) {
+              // Новая активная строка - плавное выплывание
+              const newActiveFsLine = line;
+              newActiveFsLine.style.transform = 'translateY(0)';
+              newActiveFsLine.style.opacity = '1';
+              newActiveFsLine.classList.add('active'); 
+              newActiveFsLine.classList.remove('past');
+              
+              // Синхронизируем прокрутку
+              if (lyricsFsInner && !userScrolling) {
+                const isSmall = window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
+                const isMobile = window.matchMedia && window.matchMedia('(max-width: 960px)').matches;
+                const anchor = Math.round((lyricsFsInner.clientHeight) * (isSmall ? 0.05 : (isMobile ? 0.05 : 0.32)));
+                const guard = getLyricsTopGuardPx();
+                const targetTop = newActiveFsLine.offsetTop - anchor;
+                lyricsFsInner.scrollTo({ top: Math.max(guard, targetTop), behavior: 'smooth' });
+              }
+            } else {
+              // Остальные неактивные строки - плавно перемещаются на свои места
+              line.style.transform = 'translateY(10px)';
+              line.style.opacity = '0.26';
+            }
+          });
+        });
+      }
+    }
+
+    // ВСЕГДА обновляем подсветку слов для активной строки
+    if (idx >= 0 && Array.isArray(lyricsLines[idx].words) && lyricsLines[idx].words.length) {
+      const words = lyricsLines[idx].words;
+      let wordIdx = -1;
+      // Находим последнее слово, которое должно быть активным
+      for (let i = 0; i < words.length; i++) {
+        if (words[i] && typeof words[i].time === 'number' && words[i].time <= currentSec + 0.02) {
+          wordIdx = i;
+        } else {
+          break;
         }
       }
+      // Обновляем подсветку всегда для активной строки
+      setActiveWord(idx, wordIdx);
+    } else if (idx >= 0) {
+      setActiveWord(idx, -1);
     }
   }
 
@@ -1181,7 +1603,7 @@
   async function loadRandomTracks(count = 20) {
     try {
       console.log('Loading random tracks for autoplay, count:', count);
-      const response = await fetch(`/muzic2/public/src/api/random_tracks.php?limit=${count}`, {
+      const response = await fetch(api(`/muzic2/public/src/api/random_tracks.php?limit=${count}`), {
         credentials: 'include'
       });
       const data = await response.json();
@@ -1234,7 +1656,7 @@
   // Likes helpers
   async function loadLikes() {
     try {
-      const r = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
+      const r = await fetch(getLikesAPI(), { credentials: 'include' });
       const j = await r.json();
       likedSet = new Set((j.tracks||[]).map(t=>t.id));
     } catch (e) { likedSet = new Set(); }
@@ -1253,7 +1675,7 @@
   });
   async function loadLikes() {
     try {
-      const r = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
+      const r = await fetch(getLikesAPI(), { credentials: 'include' });
       const j = await r.json();
       likedSet = new Set((j.tracks||[]).map(t=>t.id));
     } catch (e) { likedSet = new Set(); }
@@ -1267,7 +1689,7 @@
 
   async function loadLikes() {
     try {
-      const r = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
+      const r = await fetch(getLikesAPI(), { credentials: 'include' });
       const j = await r.json();
       likedSet = new Set((j.tracks||[]).map(t=>t.id));
     } catch (e) { likedSet = new Set(); }
@@ -2977,10 +3399,10 @@
       if (!likedSet || typeof likedSet.has !== 'function') likedSet = new Set();
       
       if (likedSet.has(currentTrackId)) {
-        await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: currentTrackId })});
+        await fetch(getLikesAPI(), { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: currentTrackId })});
         likedSet.delete(currentTrackId);
       } else {
-        await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: currentTrackId })});
+        await fetch(getLikesAPI(), { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: currentTrackId })});
         likedSet.add(currentTrackId);
       }
       updatePlayerLikeUI();
@@ -3500,5 +3922,14 @@
       if (duration - currentTime < 2) { entry.currentTime = 0; }
       upsertRecent(entry);
     } catch(_) {}
+  }
+  
+  } // Конец функции initPlayer
+  
+  // Инициализируем плеер при загрузке DOM
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPlayer);
+  } else {
+    initPlayer();
   }
 })();
