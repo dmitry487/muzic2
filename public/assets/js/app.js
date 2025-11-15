@@ -2155,6 +2155,23 @@ window.toggleTrackLike = toggleTrackLike;
 			.search-loading { text-align: center; padding: 2rem; color: #666; }
 			.search-error { text-align: center; padding: 2rem; color: #ff6b6b; }
 			.no-results { text-align: center; padding: 2rem; color: #666; }
+			.search-tracks-list { display: flex; flex-direction: column; gap: 0.75rem; }
+			.search-track-card { position: relative; display: flex; align-items: center; gap: 1rem; padding: 0.9rem 1.1rem; border-radius: 18px; background: rgba(22, 22, 22, 0.92); border: 1px solid rgba(255, 255, 255, 0.04); transition: transform 0.25s ease, background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease; }
+			.search-track-card:hover { transform: translateY(-2px); background: rgba(30, 30, 30, 0.95); border-color: rgba(29, 185, 84, 0.35); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35); }
+			.search-track-cover-wrap { width: 68px; height: 68px; border-radius: 16px; overflow: hidden; flex-shrink: 0; cursor: pointer; position: relative; }
+			.search-track-cover { width: 100%; height: 100%; object-fit: cover; display: block; }
+			.search-track-meta { flex: 1; display: flex; flex-direction: column; gap: 0.25rem; cursor: pointer; }
+			.search-track-title { display: flex; align-items: center; gap: 0.4rem; font-size: 1.05rem; font-weight: 600; color: #fff; }
+			.search-track-title .exp-badge { position: relative; top: -1px; }
+			.search-track-artist { color: #b3b3b3; font-size: 0.9rem; }
+			.search-track-album { color: #6f6f6f; font-size: 0.82rem; }
+			.search-track-actions { display: flex; align-items: center; gap: 0.6rem; margin-left: 1rem; }
+			.search-track-play { width: 44px; height: 44px; border-radius: 50%; border: none; background: #1db954; color: #000; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+			.search-track-play:hover { transform: scale(1.05); box-shadow: 0 8px 20px rgba(29, 185, 84, 0.35); }
+			.search-track-card .heart-btn { position: static !important; width: 44px; height: 44px; border-radius: 50%; background: #202020; border: 1px solid #2d2d2d; color: #b5b5b5; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.25s ease; }
+			.search-track-card .heart-btn:hover { color: #ffffff; border-color: #3a3a3a; }
+			.search-track-card .heart-btn.liked { background: #1db954; border-color: #1db954; color: #000; }
+			.search-track-card .heart-btn.liked:hover { color: #000; }
 		`;
 		document.head.appendChild(searchStyles);
 
@@ -2243,7 +2260,7 @@ window.toggleTrackLike = toggleTrackLike;
 			if (currentType === 'all') {
 				// Show all results grouped by type
 				if (data.tracks.length > 0) {
-					html += '<div class="search-section"><h4>Треки</h4><div class="card-row search-tracks-row">';
+					html += '<div class="search-section"><h4>Треки</h4><div class="search-tracks-list">';
 					html += data.tracks.map(track => createTrackCard(track)).join('');
 					html += '</div></div>';
 				}
@@ -2264,7 +2281,7 @@ window.toggleTrackLike = toggleTrackLike;
 				const results = data[currentType] || [];
 				if (results.length > 0) {
 					if (currentType === 'tracks') {
-						html = '<div class="card-row search-tracks-row">' + results.map(item => createTrackCard(item)).join('') + '</div>';
+						html = '<div class="search-tracks-list">' + results.map(item => createTrackCard(item)).join('') + '</div>';
 					} else if (currentType === 'artists') {
 						html = '<div class="artist-row search-artists-row">' + results.map(item => createArtistCard(item)).join('') + '</div>';
 					} else if (currentType === 'albums') {
@@ -2282,20 +2299,32 @@ window.toggleTrackLike = toggleTrackLike;
 
 		function createTrackCard(track) {
 			const likedClass = window.__likedSet && window.__likedSet.has(track.id) ? 'liked' : '';
-			// Do not URL-encode values here; player will normalize paths. Escape single quotes for inline handler safety.
-			const esc = v => String(v==null?'':v).replace(/'/g, "\\'");
-			const play = `(()=>{ try{ let s='${esc(track.src||track.file_path||'')}'.trim(); if(!/^https?:/i.test(s)) s = (s.indexOf('tracks/')!==-1? '/muzic2/'+s.slice(s.indexOf('tracks/')) : '/muzic2/'+s.replace(/^\\/+/, '')); playTrack({ src: encodeURI(s), title: '${esc(track.title)}', artist: '${esc(track.artist)}', cover: '/muzic2/${esc(track.cover||'tracks/covers/placeholder.jpg')}', id: ${track.id||0}, video_url: '${esc(track.video_url||'')}', explicit: ${track.explicit?1:0} }); }catch(e){ console.error('search play error', e); } })()`;
-		return `
-			<div class="card">
-				<img class="card-cover" src="/muzic2/${track.cover || 'tracks/covers/placeholder.jpg'}" alt="cover" onclick="${play}">
-				<div class="card-info" onclick="${play}">
-					<div class="card-title">${escapeHtml(track.title)}${track.explicit? ' <span class="exp-badge" title="Нецензурная лексика">E</span>':''}</div>
-				<div class="card-artist">${renderArtistInline(track.feats && String(track.feats).trim() ? `${track.artist}, ${track.feats}` : track.artist)}</div>
-					<div class="card-type">${escapeHtml(track.album || '')}</div>
+			const esc = v => String(v == null ? '' : v).replace(/'/g, "\\'");
+			const coverPath = '/muzic2/' + String(track.cover || 'tracks/covers/placeholder.jpg').replace(/^\/+/, '');
+			const play = `(()=>{ try{ let s='${esc(track.src||track.file_path||'')}'.trim(); if(!/^https?:/i.test(s)) s = (s.indexOf('tracks/')!==-1? '/muzic2/'+s.slice(s.indexOf('tracks/')) : '/muzic2/'+s.replace(/^\\/+/, '')); playTrack({ src: encodeURI(s), title: '${esc(track.title)}', artist: '${esc(track.artist)}', cover: '${esc(coverPath)}', id: ${track.id||0}, video_url: '${esc(track.video_url||'')}', explicit: ${track.explicit?1:0} }); }catch(e){ console.error('search play error', e); } })()`;
+			const artistLine = track.feats && String(track.feats).trim()
+				? `${track.artist}, ${track.feats}`
+				: track.artist;
+			const albumLine = track.album ? `<div class="search-track-album">${escapeHtml(track.album)}</div>` : '';
+			return `
+				<div class="search-track-card">
+					<div class="search-track-cover-wrap" onclick="${play}">
+						<img class="search-track-cover" loading="lazy" decoding="async" src="${escapeHtml(coverPath)}" alt="${escapeHtml(track.title || 'cover')}" onerror="this.onerror=null;this.src='/muzic2/tracks/covers/placeholder.jpg'">
+					</div>
+					<div class="search-track-meta" onclick="${play}">
+						<div class="search-track-title">
+							${escapeHtml(track.title)}
+							${track.explicit ? ' <span class="exp-badge" title="Нецензурная лексика">E</span>' : ''}
+						</div>
+						<div class="search-track-artist">${renderArtistInline(artistLine)}</div>
+						${albumLine}
+					</div>
+					<div class="search-track-actions">
+						<button type="button" class="search-track-play" onclick="${play}" aria-label="Слушать трек">&#9654;</button>
+						<button type="button" class="heart-btn ${likedClass}" data-track-id="${track.id}" title="В избранное">❤</button>
+					</div>
 				</div>
-				<button class="heart-btn ${likedClass}" data-track-id="${track.id}" title="В избранное">❤</button>
-			</div>
-		`;
+			`;
 		}
 
 		function createArtistCard(artist) {

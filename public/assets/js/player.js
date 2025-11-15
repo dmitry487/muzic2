@@ -80,7 +80,7 @@
         color: #1ed760; 
         transform: scale(1.12);
         opacity: 1;
-            text-shadow: 0 0 7px rgba(30, 215, 96, 0.5), 0 0 10px rgba(30, 215, 96, 0.3);
+        text-shadow: 0 0 7px rgba(30, 215, 96, 0.5), 0 0 10px rgba(30, 215, 96, 0.3);
         transition: color 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.4s ease, text-shadow 0.5s ease;
       }
       /* Уничтожаем фантомные строчки в inline лирике */
