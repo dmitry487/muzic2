@@ -573,12 +573,15 @@ window.API_ORIGIN = API_ORIGIN;
 	// Helper Functions
 	// =====================
 	function createAlbumCard(album) {
+		const esc = v => String(v == null ? '' : v).replace(/'/g, "\\'");
+		const albumTitle = esc(album.title);
+		const playAlbum = `(async ()=>{ try{ const res = await fetch('/muzic2/src/api/album.php?album=' + encodeURIComponent('${albumTitle}')); const data = await res.json(); if(data.tracks && data.tracks.length){ const q = data.tracks.map(tt=>{ const s = tt.src || tt.file_path || ''; if(!s) return null; const src = /^https?:/i.test(s) ? s : (s.indexOf('tracks/') !== -1 ? '/muzic2/' + s.slice(s.indexOf('tracks/')) : '/muzic2/' + s.replace(/^\\/+/, '')); return { id: tt.id || 0, src: encodeURI(src), title: tt.title, artist: tt.artist, cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg'), video_url: tt.video_url || '' }; }).filter(t => t !== null); if(q.length && window.playTrack){ window.playTrack({ ...q[0], queue: q, queueStartIndex: 0 }); } } }catch(e){ console.error('album play error', e); } })()`;
 		return `
-            <div class="tile" onclick="navigateTo('album', { album: '${encodeURIComponent(album.title)}' })">
-                <img class="tile-cover" loading="lazy" src="/muzic2/${album.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
-                <div class="tile-title">${escapeHtml(album.title)}</div>
-                <div class="tile-desc">${escapeHtml(album.artist || '')}</div>
-                <div class="tile-play">&#9654;</div>
+            <div class="tile" data-album-title="${escapeHtml(album.title)}">
+                <img class="tile-cover" loading="lazy" src="/muzic2/${album.cover || 'tracks/covers/placeholder.jpg'}" alt="cover" onclick="navigateTo('album', { album: '${encodeURIComponent(album.title)}' })">
+                <div class="tile-title" onclick="navigateTo('album', { album: '${encodeURIComponent(album.title)}' })">${escapeHtml(album.title)}</div>
+                <div class="tile-desc" onclick="navigateTo('album', { album: '${encodeURIComponent(album.title)}' })">${escapeHtml(album.artist || '')}</div>
+                <div class="tile-play" onclick="event.stopPropagation(); ${playAlbum}">&#9654;</div>
             </div>
 		`;
 	}
@@ -1539,8 +1542,9 @@ window.toggleTrackLike = toggleTrackLike;
 			.tracks-table th{color:#b3b3b3;font-weight:600;font-size:1.02rem;border-bottom:1px solid #232323}
 			.tracks-table tr{transition:background 0.15s;cursor:pointer;position:relative}
 			.tracks-table tr:hover{background:#232323}
-			.track-play-btn{display:none;position:absolute;left:1.1rem;top:50%;transform:translateY(-50%);background:#1db954;color:#fff;border:none;border-radius:50%;width:32px;height:32px;font-size:1.3rem;align-items:center;justify-content:center;cursor:pointer;z-index:10;box-shadow:0 2px 8px rgba(30,185,84,0.10);transition:background 0.18s,transform 0.18s}
+			.track-play-btn{display:none;position:absolute;left:1.1rem;top:50%;transform:translateY(-50%);background:#1db954 !important;color:#000 !important;border:none;border-radius:50%;width:32px;height:32px;font-size:1.3rem;align-items:center;justify-content:center;cursor:pointer;z-index:10;box-shadow:0 2px 8px rgba(30,185,84,0.10);transition:background 0.18s,transform 0.18s}
 			.tracks-table tr:hover .track-play-btn{display:flex}
+			.track-play-btn.playing{background:#1db954 !important;color:#000 !important;}
 			.tracks-table tr:hover .track-num{visibility:hidden}
 			.tracks-table td.track-num{color:#b3b3b3;width:2.5rem;font-size:1.02rem}
 			.tracks-table td.track-title{font-weight:700;color:#fff}
@@ -1646,16 +1650,25 @@ window.toggleTrackLike = toggleTrackLike;
 						try { navigateTo('artist', { artist: name }); } catch(_) {}
 					}
 				});
-                const playBtn=document.createElement('button'); playBtn.className='track-play-btn'; playBtn.innerHTML='&#9654;'; playBtn.onclick=(e)=>{ 
+                const trackId = t.id || 0;
+				const isPlaying = window.isTrackPlaying && window.isTrackPlaying(trackId);
+				const playBtn=document.createElement('button'); 
+				playBtn.className='track-play-btn' + (isPlaying ? ' playing' : ''); 
+				playBtn.innerHTML=isPlaying ? '&#10074;&#10074;' : '&#9654;'; 
+				playBtn.setAttribute('data-track-id', trackId);
+				playBtn.setAttribute('data-track-index', i);
+				const queueData = (data.tracks||[]).map(tt=>{
+					const s = tt.src || tt.file_path || '';
+					if(!s) return null;
+					const src = /^https?:/i.test(s) ? s : (s.indexOf('tracks/') !== -1 ? '/muzic2/' + s.slice(s.indexOf('tracks/')) : '/muzic2/' + s.replace(/^\/+/, ''));
+					return { id: tt.id || 0, src: encodeURI(src), title: tt.title, artist: tt.artist, cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg'), video_url: tt.video_url || '' };
+				}).filter(t => t !== null);
+				playBtn.onclick=(e)=>{ 
 					e.stopPropagation(); 
-					const q=(data.tracks||[]).map(tt=>{
-						const s = tt.src || tt.file_path || '';
-						if(!s) return null;
-						const src = /^https?:/i.test(s) ? s : (s.indexOf('tracks/') !== -1 ? '/muzic2/' + s.slice(s.indexOf('tracks/')) : '/muzic2/' + s.replace(/^\/+/, ''));
-						return { src: encodeURI(src), title: tt.title, artist: tt.artist, cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg'), video_url: tt.video_url || '' };
-					}).filter(t => t !== null);
-					if(q.length){ 
-						window.setQueue && window.setQueue(q, i); 
+					if (isPlaying && window.pauseCurrentTrack) {
+						window.pauseCurrentTrack();
+					} else if(queueData.length){ 
+						window.setQueue && window.setQueue(queueData, i); 
 						window.playFromQueue && window.playFromQueue(i); 
 					} 
 				};
@@ -1693,6 +1706,44 @@ window.toggleTrackLike = toggleTrackLike;
 			setTimeout(() => {
 				loadAlbumLikes();
 			}, 100);
+			
+			// Update play buttons when track changes
+			const updateAlbumTrackButtons = () => {
+				if (!window.isTrackPlaying) return;
+				document.querySelectorAll('.track-play-btn[data-track-id]').forEach(btn => {
+					const trackId = parseInt(btn.getAttribute('data-track-id') || '0', 10);
+					const isPlaying = window.isTrackPlaying(trackId);
+					if (isPlaying) {
+						btn.classList.add('playing');
+						btn.innerHTML = '&#10074;&#10074;';
+						btn.onclick = (e) => {
+							e.stopPropagation();
+							if (window.pauseCurrentTrack) window.pauseCurrentTrack();
+						};
+					} else {
+						btn.classList.remove('playing');
+						btn.innerHTML = '&#9654;';
+						const trackIndex = parseInt(btn.getAttribute('data-track-index') || '0', 10);
+						const queueData = (data.tracks||[]).map(tt=>{
+							const s = tt.src || tt.file_path || '';
+							if(!s) return null;
+							const src = /^https?:/i.test(s) ? s : (s.indexOf('tracks/') !== -1 ? '/muzic2/' + s.slice(s.indexOf('tracks/')) : '/muzic2/' + s.replace(/^\/+/, ''));
+							return { id: tt.id || 0, src: encodeURI(src), title: tt.title, artist: tt.artist, cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg'), video_url: tt.video_url || '' };
+						}).filter(t => t !== null);
+						btn.onclick = (e) => {
+							e.stopPropagation();
+							if(queueData.length){ 
+								window.setQueue && window.setQueue(queueData, trackIndex); 
+								window.playFromQueue && window.playFromQueue(trackIndex); 
+							}
+						};
+					}
+				});
+			};
+			
+			document.addEventListener('track:play', () => setTimeout(updateAlbumTrackButtons, 100));
+			document.addEventListener('track:pause', () => setTimeout(updateAlbumTrackButtons, 100));
+			document.addEventListener('track:change', () => setTimeout(updateAlbumTrackButtons, 100));
 		} catch (e) {
 			mainContent.innerHTML = '<div class="error">Ошибка загрузки альбома</div>';
 		}
@@ -2166,8 +2217,10 @@ window.toggleTrackLike = toggleTrackLike;
 			.search-track-artist { color: #b3b3b3; font-size: 0.9rem; }
 			.search-track-album { color: #6f6f6f; font-size: 0.82rem; }
 			.search-track-actions { display: flex; align-items: center; gap: 0.6rem; margin-left: 1rem; }
-			.search-track-play { width: 44px; height: 44px; border-radius: 50%; border: none; background: #1db954; color: #000; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+			.search-track-play { width: 44px; height: 44px; border-radius: 50%; border: none; background: #1db954; color: #000; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.2s ease, box-shadow 0.2s ease; font-size: 16px; }
 			.search-track-play:hover { transform: scale(1.05); box-shadow: 0 8px 20px rgba(29, 185, 84, 0.35); }
+			.search-track-play.playing { background: #1db954; }
+			.search-track-play.playing:hover { background: #1ed760; }
 			.search-track-card .heart-btn { position: static !important; width: 44px; height: 44px; border-radius: 50%; background: #202020; border: 1px solid #2d2d2d; color: #b5b5b5; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.25s ease; }
 			.search-track-card .heart-btn:hover { color: #ffffff; border-color: #3a3a3a; }
 			.search-track-card .heart-btn.liked { background: #1db954; border-color: #1db954; color: #000; }
@@ -2180,6 +2233,17 @@ window.toggleTrackLike = toggleTrackLike;
 		const searchBtn = document.getElementById('search-btn');
 		const searchResults = document.getElementById('search-results');
 		const filterBtns = document.querySelectorAll('.search-filter-btn');
+		
+		// Listen for track play/pause/change events to update buttons
+		document.addEventListener('track:play', () => {
+			setTimeout(updateSearchTrackButtons, 100);
+		});
+		document.addEventListener('track:pause', () => {
+			setTimeout(updateSearchTrackButtons, 100);
+		});
+		document.addEventListener('track:change', () => {
+			setTimeout(updateSearchTrackButtons, 100);
+		});
 
 		let currentType = 'all';
 		let searchTimeout;
@@ -2295,23 +2359,82 @@ window.toggleTrackLike = toggleTrackLike;
 			}
 			
 			searchResults.innerHTML = html;
+			
+			// Update play buttons after rendering
+			updateSearchTrackButtons();
+		}
+
+		// Function to update play/pause buttons on search track cards
+		function updateSearchTrackButtons() {
+			if (!window.isTrackPlaying) return;
+			const cards = document.querySelectorAll('.search-track-card');
+			cards.forEach(card => {
+				const trackId = parseInt(card.getAttribute('data-track-id') || '0', 10);
+				const playBtn = card.querySelector('.search-track-play');
+				if (!playBtn) return;
+				
+				const isPlaying = window.isTrackPlaying(trackId);
+				
+				if (isPlaying) {
+					playBtn.classList.add('playing');
+					playBtn.innerHTML = '&#10074;&#10074;';
+					playBtn.setAttribute('aria-label', 'Остановить трек');
+					playBtn.onclick = () => {
+						try { if(window.pauseCurrentTrack) window.pauseCurrentTrack(); } catch(e){ console.error('pause error', e); }
+					};
+				} else {
+					playBtn.classList.remove('playing');
+					playBtn.innerHTML = '&#9654;';
+					playBtn.setAttribute('aria-label', 'Слушать трек');
+					// Restore original play action from data attribute
+					const playAction = playBtn.getAttribute('data-play-action');
+					if (playAction) {
+						try {
+							// Безопасное выполнение функции
+							const func = new Function('return ' + playAction)();
+							playBtn.onclick = func;
+						} catch(e) {
+							console.error('Error restoring play action:', e);
+						}
+					}
+				}
+			});
 		}
 
 		function createTrackCard(track) {
 			const likedClass = window.__likedSet && window.__likedSet.has(track.id) ? 'liked' : '';
-			const esc = v => String(v == null ? '' : v).replace(/'/g, "\\'");
 			const coverPath = '/muzic2/' + String(track.cover || 'tracks/covers/placeholder.jpg').replace(/^\/+/, '');
-			const play = `(()=>{ try{ let s='${esc(track.src||track.file_path||'')}'.trim(); if(!/^https?:/i.test(s)) s = (s.indexOf('tracks/')!==-1? '/muzic2/'+s.slice(s.indexOf('tracks/')) : '/muzic2/'+s.replace(/^\\/+/, '')); playTrack({ src: encodeURI(s), title: '${esc(track.title)}', artist: '${esc(track.artist)}', cover: '${esc(coverPath)}', id: ${track.id||0}, video_url: '${esc(track.video_url||'')}', explicit: ${track.explicit?1:0} }); }catch(e){ console.error('search play error', e); } })()`;
+			const trackId = track.id || 0;
+			const isPlaying = window.isTrackPlaying && window.isTrackPlaying(trackId);
+			
+			// Безопасное создание playAction с использованием JSON.stringify
+			const trackData = {
+				src: track.src || track.file_path || '',
+				title: track.title || '',
+				artist: track.artist || '',
+				cover: coverPath,
+				id: trackId,
+				video_url: track.video_url || '',
+				explicit: track.explicit ? 1 : 0
+			};
+			const playActionData = JSON.stringify(trackData);
+			const playAction = `(()=>{ try{ const d=${playActionData}; if(window.playTrack) window.playTrack(d); }catch(e){ console.error('search play error', e); } })()`;
+			const playPauseAction = isPlaying 
+				? `(()=>{ try{ if(window.pauseCurrentTrack) window.pauseCurrentTrack(); }catch(e){ console.error('pause error', e); } })()`
+				: playAction;
+			const playIcon = isPlaying ? '&#10074;&#10074;' : '&#9654;';
+			const playClass = isPlaying ? 'search-track-play playing' : 'search-track-play';
 			const artistLine = track.feats && String(track.feats).trim()
 				? `${track.artist}, ${track.feats}`
 				: track.artist;
 			const albumLine = track.album ? `<div class="search-track-album">${escapeHtml(track.album)}</div>` : '';
+			const escapedPlayPauseAction = playPauseAction.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 			return `
-				<div class="search-track-card">
-					<div class="search-track-cover-wrap" onclick="${play}">
+				<div class="search-track-card" data-track-id="${trackId}">
+					<div class="search-track-cover-wrap" onclick="${escapedPlayPauseAction}">
 						<img class="search-track-cover" loading="lazy" decoding="async" src="${escapeHtml(coverPath)}" alt="${escapeHtml(track.title || 'cover')}" onerror="this.onerror=null;this.src='/muzic2/tracks/covers/placeholder.jpg'">
 					</div>
-					<div class="search-track-meta" onclick="${play}">
+					<div class="search-track-meta" onclick="${escapedPlayPauseAction}">
 						<div class="search-track-title">
 							${escapeHtml(track.title)}
 							${track.explicit ? ' <span class="exp-badge" title="Нецензурная лексика">E</span>' : ''}
@@ -2320,7 +2443,7 @@ window.toggleTrackLike = toggleTrackLike;
 						${albumLine}
 					</div>
 					<div class="search-track-actions">
-						<button type="button" class="search-track-play" onclick="${play}" aria-label="Слушать трек">&#9654;</button>
+						<button type="button" class="${playClass}" onclick="${escapedPlayPauseAction}" data-play-action="${playAction.replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" aria-label="${isPlaying ? 'Остановить трек' : 'Слушать трек'}">${playIcon}</button>
 						<button type="button" class="heart-btn ${likedClass}" data-track-id="${track.id}" title="В избранное">❤</button>
 					</div>
 				</div>
@@ -2551,5 +2674,96 @@ function showContextMenu(event, track, trackIndex) {
 	setTimeout(() => {
 		document.addEventListener('click', closeMenu);
 	}, 100);
+}
+
+// =====================
+// PWA Service Worker Registration
+// =====================
+if ('serviceWorker' in navigator) {
+	window.addEventListener('load', () => {
+		navigator.serviceWorker.register('/muzic2/public/service-worker.js')
+			.then((registration) => {
+				console.log('[PWA] Service Worker registered successfully:', registration.scope);
+				
+				// Проверка обновлений каждые 60 секунд
+				setInterval(() => {
+					registration.update();
+				}, 60000);
+				
+				// Обработка обновлений Service Worker
+				registration.addEventListener('updatefound', () => {
+					const newWorker = registration.installing;
+					newWorker.addEventListener('statechange', () => {
+						if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+							// Новый Service Worker доступен, можно показать уведомление
+							console.log('[PWA] New Service Worker available. Refresh to update.');
+							// Можно показать уведомление пользователю
+							if (confirm('Доступна новая версия приложения. Обновить?')) {
+								newWorker.postMessage({ type: 'SKIP_WAITING' });
+								window.location.reload();
+							}
+						}
+					});
+				});
+			})
+			.catch((error) => {
+				console.error('[PWA] Service Worker registration failed:', error);
+			});
+		
+		// Обработка сообщений от Service Worker
+		navigator.serviceWorker.addEventListener('message', (event) => {
+			console.log('[PWA] Message from Service Worker:', event.data);
+		});
+		
+		// Обработка контроллера Service Worker
+		let refreshing = false;
+		navigator.serviceWorker.addEventListener('controllerchange', () => {
+			if (!refreshing) {
+				refreshing = true;
+				window.location.reload();
+			}
+		});
+	});
+}
+
+// =====================
+// PWA Install Prompt
+// =====================
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+	// Предотвращаем автоматическое отображение подсказки
+	e.preventDefault();
+	deferredPrompt = e;
+	
+	// Можно показать свою кнопку установки
+	console.log('[PWA] Install prompt available');
+	
+	// Добавляем функцию для программной установки
+	window.showInstallPrompt = () => {
+		if (deferredPrompt) {
+			deferredPrompt.prompt();
+			deferredPrompt.userChoice.then((choiceResult) => {
+				if (choiceResult.outcome === 'accepted') {
+					console.log('[PWA] User accepted the install prompt');
+				} else {
+					console.log('[PWA] User dismissed the install prompt');
+				}
+				deferredPrompt = null;
+			});
+		}
+	};
+});
+
+// Обработка успешной установки
+window.addEventListener('appinstalled', () => {
+	console.log('[PWA] App installed successfully');
+	deferredPrompt = null;
+});
+
+// Проверка, установлено ли приложение
+if (window.matchMedia('(display-mode: standalone)').matches || 
+	window.navigator.standalone === true) {
+	console.log('[PWA] Running as installed app');
+	document.body.classList.add('pwa-installed');
 }
 

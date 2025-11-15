@@ -1,7 +1,7 @@
 // Redesigned player: start-from-beginning on play, persistent state, full controls, queue panel
 (function () {
   function initPlayer() {
-    const playerRoot = document.getElementById('player-root');
+  const playerRoot = document.getElementById('player-root');
     if (!playerRoot) {
       // Если элемент еще не создан, попробуем еще раз через небольшую задержку
       setTimeout(initPlayer, 100);
@@ -94,8 +94,8 @@
       #lyrics-fs-bg { position: absolute; inset: 0; overflow: hidden; z-index: 0; }
       #lyrics-fs-bg img, #lyrics-fs-bg video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(16px) brightness(0.45) saturate(1.05); transform: scale(1.06); }
       #lyrics-fs-bg video { opacity: 0.85; }
-      #lyrics-fs-close { position: absolute; top: 20px; right: 24px; width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.08); color: #fff; border: 1px solid #2a2a2a; cursor: pointer; font-size: 24px; line-height: 44px; text-align: center; }
-      #lyrics-fs-mode { position: absolute; top: 20px; right: 78px; width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.08); color: #fff; border: 1px solid #2a2a2a; cursor: pointer; font-size: 18px; line-height: 44px; text-align: center; }
+      #lyrics-fs-close { position: absolute; top: 20px; right: 24px; width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.08); color: #fff; border: 1px solid #2a2a2a; cursor: pointer; font-size: 24px; line-height: 44px; text-align: center; z-index: 2; }
+      #lyrics-fs-mode { position: absolute; top: 20px; right: 78px; width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.08); color: #fff; border: 1px solid #2a2a2a; cursor: pointer; font-size: 18px; line-height: 44px; text-align: center; z-index: 2; }
       #lyrics-fs-grid { position: absolute; inset: 0; display: grid; grid-template-columns: 520px 1fr; gap: 48px; align-items: center; padding: 80px 72px 120px; z-index: 1; }
       #lyrics-fs-meta { display: flex; flex-direction: column; gap: 18px; justify-content: center; }
       #lyrics-fs-cover { width: 260px; height: 260px; border-radius: 18px; object-fit: cover; background: #111; box-shadow: 0 24px 70px rgba(0,0,0,.55); }
@@ -176,6 +176,8 @@
         #lyrics-fs-inner { max-height: calc(100vh - 610px); }
         #lyrics-fs-inner .lyric-line { font-size: clamp(16px, 4.8vw, 22px); }
         #lyrics-fs-inner .lyric-line.active { font-size: clamp(20px, 7vw, 34px); }
+        #lyrics-fs-close { top: 10px !important; right: 10px !important; width: 36px !important; height: 36px !important; font-size: 20px !important; line-height: 36px !important; }
+        #lyrics-fs-mode { top: 10px !important; right: 56px !important; width: 36px !important; height: 36px !important; font-size: 14px !important; line-height: 36px !important; }
         #queue-panel { right: 8px; left: 8px; width: auto; }
         #video-panel { right: 8px !important; left: 8px; width: auto !important; }
         #lyrics-fs-list { transition: none; padding-top: 360px;}
@@ -1343,14 +1345,14 @@
               newActiveFsLine.classList.remove('past');
               
               // Синхронизируем прокрутку
-              if (lyricsFsInner && !userScrolling) {
-                const isSmall = window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
-                const isMobile = window.matchMedia && window.matchMedia('(max-width: 960px)').matches;
-                const anchor = Math.round((lyricsFsInner.clientHeight) * (isSmall ? 0.05 : (isMobile ? 0.05 : 0.32)));
-                const guard = getLyricsTopGuardPx();
+          if (lyricsFsInner && !userScrolling) {
+            const isSmall = window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
+            const isMobile = window.matchMedia && window.matchMedia('(max-width: 960px)').matches;
+            const anchor = Math.round((lyricsFsInner.clientHeight) * (isSmall ? 0.05 : (isMobile ? 0.05 : 0.32)));
+            const guard = getLyricsTopGuardPx();
                 const targetTop = newActiveFsLine.offsetTop - anchor;
-                lyricsFsInner.scrollTo({ top: Math.max(guard, targetTop), behavior: 'smooth' });
-              }
+            lyricsFsInner.scrollTo({ top: Math.max(guard, targetTop), behavior: 'smooth' });
+          }
             } else {
               // Остальные неактивные строки - плавно перемещаются на свои места
               line.style.transform = 'translateY(10px)';
@@ -1977,6 +1979,44 @@
   }
 
   // Core playback
+  // Функция для нормализации src перед использованием
+  function ensureAudioProxy(src) {
+    if (!src) return src;
+    if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:')) return src;
+    if (src.includes('/public/src/api/audio.php')) return src; // Уже через прокси
+    
+    // Нормализуем путь
+    let path = src;
+    if (path.startsWith('/muzic2/')) {
+      path = path.substring('/muzic2/'.length);
+    } else if (path.startsWith('/')) {
+      path = path.substring(1);
+    }
+    
+    // Декодируем если нужно
+    try {
+      if (path.includes('%')) {
+        path = decodeURIComponent(path);
+      }
+    } catch(e) {}
+    
+    // Если путь содержит tracks/music/, используем прокси
+    const i = path.indexOf('tracks/music/');
+    if (i !== -1) {
+      const tracksPath = path.substring(i);
+      return '/muzic2/public/src/api/audio.php?f=' + encodeURIComponent(tracksPath);
+    }
+    
+    // Если путь содержит tracks/, используем прокси
+    const j = path.indexOf('tracks/');
+    if (j !== -1) {
+      const tracksPath = path.substring(j);
+      return '/muzic2/public/src/api/audio.php?f=' + encodeURIComponent(tracksPath);
+    }
+    
+    return src;
+  }
+  
   function setNowPlaying(t) {
     trackTitle.textContent = t.title || '';
     // Render E badge before artist name (consistent with cards)
@@ -1997,6 +2037,11 @@
     if (window.updateMediaSessionMetadata) {
       window.updateMediaSessionMetadata(t);
     }
+    
+    // Dispatch custom event for track change
+    try {
+      document.dispatchEvent(new CustomEvent('track:change', { detail: { trackId: currentTrackId } }));
+    } catch(_) {}
     
     // Update karaoke meta immediately on track change when overlay is visible
     try {
@@ -2285,6 +2330,7 @@
     };
   }
 
+
   // Update lyrics on timeupdate
   audio.addEventListener('timeupdate', () => {
     if (!lyricsVisible) return;
@@ -2352,6 +2398,11 @@
       console.log('WARNING: Track src contains URL page, replacing with file_path');
       t.src = t.file_path || '';
       console.log('Replaced src with file_path:', t.src);
+    }
+    
+    // Нормализуем src через прокси перед использованием
+    if (t.src) {
+      t.src = ensureAudioProxy(t.src);
     }
     
     setNowPlaying(t);
@@ -2635,6 +2686,12 @@
     if (window.updateMediaSessionPlaybackState) {
       window.updateMediaSessionPlaybackState();
     }
+    
+    // Dispatch custom event for track play
+    try {
+      document.dispatchEvent(new CustomEvent('track:play', { detail: { trackId: currentTrackId } }));
+    } catch(_) {}
+    
     // If video panel is open, let video take over sound and sync time
     if (videoPanel && videoPanel.style.display === 'block' && inlineVideo) {
       try { inlineVideo.currentTime = isNaN(audio.currentTime) ? (inlineVideo.currentTime||0) : (audio.currentTime||0); } catch(_) {}
@@ -2663,6 +2720,11 @@
     if (window.updateMediaSessionPlaybackState) {
       window.updateMediaSessionPlaybackState();
     }
+    
+    // Dispatch custom event for track pause
+    try {
+      document.dispatchEvent(new CustomEvent('track:pause', { detail: { trackId: currentTrackId } }));
+    } catch(_) {}
     
     // Pause any active videos when audio is paused to keep them in sync
     if (suppressVideoPauseOnce) {
@@ -3580,41 +3642,114 @@
     function normalizeSrc(u){
       if (!u) return '';
       if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('data:')) return u;
-      if (u.startsWith('/')) return u;
-      const i = u.indexOf('tracks/');
-      if (i !== -1) return '/muzic2/' + u.slice(i);
-      return '/muzic2/' + u.replace(/^\/+/, '');
+      
+      // Нормализуем путь: убираем /muzic2/ если есть, затем добавляем обратно
+      let path = u;
+      
+      // Убираем /muzic2/ если есть
+      if (path.startsWith('/muzic2/')) {
+        path = path.substring('/muzic2/'.length);
+      } else if (path.startsWith('/')) {
+        path = path.substring(1);
+      }
+      
+      // Декодируем путь если он уже закодирован, чтобы избежать двойного кодирования
+      try {
+        if (path.includes('%')) {
+          path = decodeURIComponent(path);
+        }
+      } catch(e) {
+        // Если декодирование не удалось, используем исходный путь
+      }
+      
+      // Ищем tracks/ в пути
+      const i = path.indexOf('tracks/');
+      if (i !== -1) {
+        // Используем PHP прокси для аудио файлов
+        const tracksPath = path.substring(i);
+        return '/muzic2/public/src/api/audio.php?f=' + encodeURIComponent(tracksPath);
+      }
+      
+      // Если tracks/ не найден, предполагаем что это имя файла в tracks/music/
+      if (path && !path.includes('/')) {
+        return '/muzic2/public/src/api/audio.php?f=' + encodeURIComponent('tracks/music/' + path);
+      }
+      
+      // Иначе просто добавляем /muzic2/
+      return '/muzic2/' + path.replace(/^\/+/, '');
     }
     function normalizeCover(u){
       if (!u) return '';
-      if (u.startsWith('http') || u.startsWith('data:') || u.startsWith('/')) return u;
-      const i = u.indexOf('tracks/');
-      if (i !== -1) return '/muzic2/' + u.slice(i);
-      return '/muzic2/' + u.replace(/^\/+/, '');
+      if (u.startsWith('http') || u.startsWith('data:')) return u;
+      
+      // Нормализуем путь: убираем /muzic2/ если есть, затем добавляем обратно
+      let path = u;
+      
+      // Убираем /muzic2/ если есть
+      if (path.startsWith('/muzic2/')) {
+        path = path.substring('/muzic2/'.length);
+      } else if (path.startsWith('/')) {
+        path = path.substring(1);
+      }
+      
+      // Ищем tracks/ в пути
+      const i = path.indexOf('tracks/');
+      if (i !== -1) {
+        return '/muzic2/' + path.substring(i);
+      }
+      
+      // Если tracks/ не найден, предполагаем что это имя файла в tracks/covers/
+      if (path && !path.includes('/')) {
+        return '/muzic2/tracks/covers/' + path;
+      }
+      
+      return '/muzic2/' + path.replace(/^\/+/, '');
     }
     function normalizeVideo(u){
       if (!u) return '';
       if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('data:')) return u;
-      if (u.startsWith('/')) return u;
-      const i = u.indexOf('tracks/');
-      if (i !== -1) return '/muzic2/' + u.slice(i);
-      return '/muzic2/' + u.replace(/^\/+/, '');
+      
+      // Нормализуем путь: убираем /muzic2/ если есть, затем добавляем обратно
+      let path = u;
+      
+      // Убираем /muzic2/ если есть
+      if (path.startsWith('/muzic2/')) {
+        path = path.substring('/muzic2/'.length);
+      } else if (path.startsWith('/')) {
+        path = path.substring(1);
+      }
+      
+      // Ищем tracks/ в пути
+      const i = path.indexOf('tracks/');
+      if (i !== -1) {
+        return '/muzic2/' + path.substring(i);
+      }
+      
+      // Если tracks/ не найден, предполагаем что это имя файла в tracks/video/
+      if (path && !path.includes('/')) {
+        return '/muzic2/tracks/video/' + path;
+      }
+      
+      return '/muzic2/' + path.replace(/^\/+/, '');
     }
     if (queue && Array.isArray(queue) && queue.length > 0) {
       console.log('Using provided queue with', queue.length, 'tracks');
       // Ensure ordered playback when album queue starts
       shuffleEnabled = false;
       updateShuffleUI();
-      trackQueue = queue.map(q => ({
-        src: normalizeSrc(q.src || q.file_path || q.url || ''),
-        title: q.title || '',
-        artist: q.artist || '',
-        feats: q.feats || '',
-        cover: normalizeCover(q.cover || coverUrl || ''),
-        duration: q.duration || 0,
-        id: q.id || q.track_id || undefined,
-        video_url: normalizeVideo(q.video_url || '')
-      }));
+      trackQueue = queue.map(q => {
+        const normalizedSrc = normalizeSrc(q.src || q.file_path || q.url || '');
+        return {
+          src: normalizedSrc,
+          title: q.title || '',
+          artist: q.artist || '',
+          feats: q.feats || '',
+          cover: normalizeCover(q.cover || coverUrl || ''),
+          duration: q.duration || 0,
+          id: q.id || q.track_id || undefined,
+          video_url: normalizeVideo(q.video_url || '')
+        };
+      });
       originalQueue = trackQueue.slice();
       queueIndex = Math.max(0, Math.min(queueStartIndex, trackQueue.length - 1));
       saveQueue();
@@ -3637,17 +3772,68 @@
     function normalizeSrc(u){
       if (!u) return '';
       if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('data:')) return u;
-      if (u.startsWith('/')) return u;
-      const i = u.indexOf('tracks/');
-      if (i !== -1) return '/muzic2/' + u.slice(i);
-      return '/muzic2/' + u.replace(/^\/+/, '');
+      
+      // Нормализуем путь: убираем /muzic2/ если есть, затем добавляем обратно
+      let path = u;
+      
+      // Убираем /muzic2/ если есть
+      if (path.startsWith('/muzic2/')) {
+        path = path.substring('/muzic2/'.length);
+      } else if (path.startsWith('/')) {
+        path = path.substring(1);
+      }
+      
+      // Декодируем путь если он уже закодирован, чтобы избежать двойного кодирования
+      try {
+        if (path.includes('%')) {
+          path = decodeURIComponent(path);
+        }
+      } catch(e) {
+        // Если декодирование не удалось, используем исходный путь
+      }
+      
+      // Ищем tracks/ в пути
+      const i = path.indexOf('tracks/');
+      if (i !== -1) {
+        // Используем PHP прокси для аудио файлов
+        const tracksPath = path.substring(i);
+        return '/muzic2/public/src/api/audio.php?f=' + encodeURIComponent(tracksPath);
+      }
+      
+      // Если tracks/ не найден, предполагаем что это имя файла в tracks/music/
+      if (path && !path.includes('/')) {
+        return '/muzic2/public/src/api/audio.php?f=' + encodeURIComponent('tracks/music/' + path);
+      }
+      
+      // Иначе просто добавляем /muzic2/
+      return '/muzic2/' + path.replace(/^\/+/, '');
     }
     function normalizeCover(u){
       if (!u) return '';
-      if (u.startsWith('http') || u.startsWith('data:') || u.startsWith('/')) return u;
-      const i = u.indexOf('tracks/');
-      if (i !== -1) return '/muzic2/' + u.slice(i);
-      return '/muzic2/' + u.replace(/^\/+/, '');
+      if (u.startsWith('http') || u.startsWith('data:')) return u;
+      
+      // Нормализуем путь: убираем /muzic2/ если есть, затем добавляем обратно
+      let path = u;
+      
+      // Убираем /muzic2/ если есть
+      if (path.startsWith('/muzic2/')) {
+        path = path.substring('/muzic2/'.length);
+      } else if (path.startsWith('/')) {
+        path = path.substring(1);
+      }
+      
+      // Ищем tracks/ в пути
+      const i = path.indexOf('tracks/');
+      if (i !== -1) {
+        return '/muzic2/' + path.substring(i);
+      }
+      
+      // Если tracks/ не найден, предполагаем что это имя файла в tracks/covers/
+      if (path && !path.includes('/')) {
+        return '/muzic2/tracks/covers/' + path;
+      }
+      
+      return '/muzic2/' + path.replace(/^\/+/, '');
     }
     const t = {
       src: normalizeSrc(track.file_path || ''),
@@ -3665,6 +3851,37 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m];
     });
   }
+
+  // Global function to check if a track is currently playing
+  window.isTrackPlaying = function(trackId) {
+    if (!trackId) return false;
+    try {
+      const playerRoot = document.getElementById('player-root');
+      if (!playerRoot) return false;
+      const audio = playerRoot.querySelector('#audio');
+      if (!audio) return false;
+      // Check if this track is the current track and is playing
+      return currentTrackId === trackId && !audio.paused;
+    } catch(_) {
+      return false;
+    }
+  };
+
+  // Global function to pause current track
+  window.pauseCurrentTrack = function() {
+    try {
+      const playerRoot = document.getElementById('player-root');
+      if (!playerRoot) return;
+      const audio = playerRoot.querySelector('#audio');
+      if (audio && !audio.paused) {
+        audio.pause();
+      }
+      // Also pause popup if active
+      if (popupActive && window.postToPopup) {
+        postToPopup({ cmd: 'pause' });
+      }
+    } catch(_) {}
+  };
 
   // Set queue function for external use
   window.setQueue = function(queue, startIndex = 0) {

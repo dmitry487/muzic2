@@ -1,20 +1,6 @@
-# OS / IDE
+tracks/*.mp3
+tracks/*.m4a
+tracks/*.wav
+.db
 .DS_Store
-.idea/
-.vscode/
 node_modules/
-
-# Local exports
-muzic2_export_*.json
-data/exports/
-
-# Logs
-*.log
-public/admin/admin_api.log
-
-# Setup files (local only)
-public/setup.php
-public/setup_api.php
-
-public/setup_api.php
-src/config/db.php

@@ -2,9 +2,14 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <meta name="theme-color" content="#1db954">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Альбом</title>
   <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="manifest" href="/muzic2/public/manifest.json">
+  <link rel="apple-touch-icon" href="/muzic2/public/assets/img/icon-192x192.png">
   <style>
     .album-header {
       display: flex;
@@ -358,26 +363,34 @@
           <td class="track-duration">${t.duration ? formatTime(t.duration) : '—'}</td>
         `;
         // Кнопка Play
+        const trackId = t.id || 0;
+        const isPlaying = window.isTrackPlaying && window.isTrackPlaying(trackId);
         const playBtn = document.createElement('button');
-        playBtn.className = 'track-play-btn';
-        playBtn.innerHTML = '&#9654;';
+        playBtn.className = 'track-play-btn' + (isPlaying ? ' playing' : '');
+        playBtn.innerHTML = isPlaying ? '&#10074;&#10074;' : '&#9654;';
+        playBtn.setAttribute('data-track-id', trackId);
+        playBtn.setAttribute('data-track-index', i);
+        const queueRaw = data.tracks.map(tt => ({
+          id: tt.id,
+          src: (function(){ const s = tt.file_path||''; if (/^https?:/i.test(s)) return s; const idx=s.indexOf('tracks/'); return idx!==-1?('/muzic2/'+s.slice(idx)):'/muzic2/'+s.replace(/^\/?/,''); })(),
+          title: tt.title,
+          artist: tt.artist,
+          cover: (function(){ const c = tt.cover||data.cover||'tracks/covers/placeholder.jpg'; if (/^https?:|^data:/i.test(c)) return c; const idx=c.indexOf('tracks/'); return idx!==-1?('/muzic2/'+c.slice(idx)):'/muzic2/'+c.replace(/^\/?/,''); })(),
+          duration: tt.duration||0,
+          video_url: tt.video_url || ''
+        }));
+        const queue = queueRaw.map(ti => ({ ...ti, src: encodeURI(ti.src) }));
         playBtn.onclick = (e) => {
           e.stopPropagation();
-          const queueRaw = data.tracks.map(tt => ({
-            id: tt.id,
-            src: (function(){ const s = tt.file_path||''; if (/^https?:/i.test(s)) return s; const idx=s.indexOf('tracks/'); return idx!==-1?('/muzic2/'+s.slice(idx)):'/muzic2/'+s.replace(/^\/?/,''); })(),
-            title: tt.title,
-            artist: tt.artist,
-            cover: (function(){ const c = tt.cover||data.cover||'tracks/covers/placeholder.jpg'; if (/^https?:|^data:/i.test(c)) return c; const idx=c.indexOf('tracks/'); return idx!==-1?('/muzic2/'+c.slice(idx)):'/muzic2/'+c.replace(/^\/?/,''); })(),
-            duration: tt.duration||0,
-            video_url: tt.video_url || ''
-          }));
-          const queue = queueRaw.map(ti => ({ ...ti, src: encodeURI(ti.src) }));
-          window.playTrack && window.playTrack({
-            ...queue[i],
-            queue,
-            queueStartIndex: i
-          });
+          if (isPlaying && window.pauseCurrentTrack) {
+            window.pauseCurrentTrack();
+          } else {
+            window.playTrack && window.playTrack({
+              ...queue[i],
+              queue,
+              queueStartIndex: i
+            });
+          }
         };
         tr.children[0].style.position = 'relative';
         tr.children[0].appendChild(playBtn);
@@ -441,6 +454,49 @@
         duration: t.duration || 0,
         video_url: t.video_url || ''
       }));
+      // Update play buttons when track changes
+      const updateAlbumTrackButtons = () => {
+        if (!window.isTrackPlaying) return;
+        document.querySelectorAll('.track-play-btn[data-track-id]').forEach(btn => {
+          const trackId = parseInt(btn.getAttribute('data-track-id') || '0', 10);
+          const isPlaying = window.isTrackPlaying(trackId);
+          if (isPlaying) {
+            btn.classList.add('playing');
+            btn.innerHTML = '&#10074;&#10074;';
+            btn.onclick = (e) => {
+              e.stopPropagation();
+              if (window.pauseCurrentTrack) window.pauseCurrentTrack();
+            };
+          } else {
+            btn.classList.remove('playing');
+            btn.innerHTML = '&#9654;';
+            const trackIndex = parseInt(btn.getAttribute('data-track-index') || '0', 10);
+            const queueRaw = data.tracks.map(tt => ({
+              id: tt.id,
+              src: (function(){ const s = tt.file_path||''; if (/^https?:/i.test(s)) return s; const idx=s.indexOf('tracks/'); return idx!==-1?('/muzic2/'+s.slice(idx)):'/muzic2/'+s.replace(/^\/?/,''); })(),
+              title: tt.title,
+              artist: tt.artist,
+              cover: (function(){ const c = tt.cover||data.cover||'tracks/covers/placeholder.jpg'; if (/^https?:|^data:/i.test(c)) return c; const idx=c.indexOf('tracks/'); return idx!==-1?('/muzic2/'+c.slice(idx)):'/muzic2/'+c.replace(/^\/?/,''); })(),
+              duration: tt.duration||0,
+              video_url: tt.video_url || ''
+            }));
+            const queue = queueRaw.map(ti => ({ ...ti, src: encodeURI(ti.src) }));
+            btn.onclick = (e) => {
+              e.stopPropagation();
+              window.playTrack && window.playTrack({
+                ...queue[trackIndex],
+                queue,
+                queueStartIndex: trackIndex
+              });
+            };
+          }
+        });
+      };
+      
+      document.addEventListener('track:play', () => setTimeout(updateAlbumTrackButtons, 100));
+      document.addEventListener('track:pause', () => setTimeout(updateAlbumTrackButtons, 100));
+      document.addEventListener('track:change', () => setTimeout(updateAlbumTrackButtons, 100));
+      
       // Кнопка Play
       document.getElementById('album-play-btn').onclick = () => {
         const queue = (window.albumQueue || []).map(t => ({ ...t, src: encodeURI(t.src) }));

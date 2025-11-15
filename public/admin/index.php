@@ -165,6 +165,52 @@ if (isset($_GET['api'])) {
         $title=trim((string)($body['title']??'')); $artist=trim((string)($body['artist']??'')); $album=trim((string)($body['album']??'')); $file=trim((string)($body['file_path']??''));
         $cover=trim((string)($body['cover']??'')); $type=in_array(($body['album_type']??'album'),['album','ep','single'])?$body['album_type']:'album'; $dur=intval($body['duration']??0); $video_url=trim((string)($body['video_url']??'')); $explicit=!empty($body['explicit'])?1:0;
         if ($title===''||$artist===''||$album===''||$file==='') throw new Exception('Заполните обязательные поля');
+        
+        // Нормализуем путь к файлу
+        function normalizeFilePath($path) {
+            if (empty($path)) return '';
+            $path = str_replace('\\', '/', $path);
+            $path = preg_replace('#^/+muzic2/+#', '', $path);
+            $path = ltrim($path, '/');
+            if (strpos($path, 'tracks/') === 0) return $path;
+            $root = realpath(__DIR__ . '/../../');
+            if ($root && (strpos($path, '/') === 0 || strpos($path, $root) === 0)) {
+                $fullPath = realpath($path);
+                if ($fullPath && strpos($fullPath, $root) === 0) {
+                    $path = substr($fullPath, strlen($root) + 1);
+                    if (strpos($path, 'tracks/') === 0) return $path;
+                }
+            }
+            $idx = strpos($path, 'tracks/');
+            if ($idx !== false) return substr($path, $idx);
+            return 'tracks/music/' . basename($path);
+        }
+        $file = normalizeFilePath($file);
+        
+        // Проверяем и копируем файл в tracks/music/ если нужно
+        $root = realpath(__DIR__ . '/../../');
+        $targetPath = $root . '/' . $file;
+        $targetDir = dirname($targetPath);
+        
+        // Если файл не находится в tracks/music/, копируем его туда
+        if (strpos($file, 'tracks/music/') === 0) {
+            // Путь уже правильный, проверяем существует ли файл
+            if (!file_exists($targetPath)) {
+                // Пробуем найти исходный файл по оригинальному пути
+                $originalPath = trim((string)($body['file_path'] ?? ''));
+                if ($originalPath && file_exists($originalPath)) {
+                    // Создаем директорию если нужно
+                    if (!is_dir($targetDir)) {
+                        mkdir($targetDir, 0755, true);
+                    }
+                    // Копируем файл
+                    if (!copy($originalPath, $targetPath)) {
+                        throw new Exception('Не удалось скопировать файл');
+                    }
+                }
+            }
+        }
+        
         $st=$db->prepare('INSERT INTO tracks (title,artist,album,album_type,duration,file_path,cover,video_url,explicit) VALUES (?,?,?,?,?,?,?,?,?)');
         $st->execute([$title,$artist,$album,$type,$dur,$file,$cover,$video_url,$explicit]);
         $newId = (int)$db->lastInsertId();

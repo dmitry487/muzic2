@@ -7,6 +7,45 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
+// Нормализуем путь к файлу - должен быть в формате tracks/music/filename.mp3
+function normalizeFilePath($path) {
+    if (empty($path)) return '';
+    
+    // Нормализуем разделители
+    $path = str_replace('\\', '/', $path);
+    
+    // Убираем ведущие слэши и /muzic2/
+    $path = preg_replace('#^/+muzic2/+#', '', $path);
+    $path = ltrim($path, '/');
+    
+    // Если путь уже начинается с tracks/, возвращаем как есть
+    if (strpos($path, 'tracks/') === 0) {
+        return $path;
+    }
+    
+    // Если это абсолютный путь, извлекаем относительный
+    $root = realpath(__DIR__ . '/../../');
+    if ($root && (strpos($path, '/') === 0 || strpos($path, $root) === 0)) {
+        $fullPath = realpath($path);
+        if ($fullPath && strpos($fullPath, $root) === 0) {
+            $path = substr($fullPath, strlen($root) + 1);
+            // Если получили путь с tracks/, возвращаем
+            if (strpos($path, 'tracks/') === 0) {
+                return $path;
+            }
+        }
+    }
+    
+    // Пробуем найти tracks/ в пути
+    $idx = strpos($path, 'tracks/');
+    if ($idx !== false) {
+        return substr($path, $idx);
+    }
+    
+    // Если ничего не помогло, предполагаем что это имя файла в tracks/music/
+    return 'tracks/music/' . basename($path);
+}
+
 // Handle preflight requests
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -85,6 +124,38 @@ if ($method === 'POST') {
             http_response_code(400);
             echo json_encode(['error' => 'Название, артист и файл аудио обязательны']);
             exit;
+        }
+        
+        $filePath = normalizeFilePath($filePath);
+        
+        // Проверяем и копируем файл в tracks/music/ если нужно
+        $root = realpath(__DIR__ . '/../../');
+        $targetPath = $root . '/' . $filePath;
+        $targetDir = dirname($targetPath);
+        
+        // Если файл не находится в tracks/music/, копируем его туда
+        if (strpos($filePath, 'tracks/music/') === 0) {
+            // Путь уже правильный, проверяем существует ли файл
+            if (!file_exists($targetPath)) {
+                // Пробуем найти исходный файл
+                $originalPath = trim($data['file_path'] ?? ($data['audio'] ?? ''));
+                if ($originalPath && file_exists($originalPath)) {
+                    // Создаем директорию если нужно
+                    if (!is_dir($targetDir)) {
+                        mkdir($targetDir, 0755, true);
+                    }
+                    // Копируем файл
+                    if (copy($originalPath, $targetPath)) {
+                        // Файл скопирован
+                    } else {
+                        http_response_code(500);
+                        echo json_encode(['error' => 'Не удалось скопировать файл']);
+                        exit;
+                    }
+                } else {
+                    // Файл не найден, но продолжаем (может быть это URL)
+                }
+            }
         }
         
         try {
@@ -169,7 +240,7 @@ if ($method === 'POST') {
                 'Сборник',
                 'album',
                 180,
-                '/muzic2/public/assets/audio/placeholder.mp3',
+                normalizeFilePath('tracks/music/placeholder.mp3'),
                 $avatar
             ]);
             echo json_encode(['success' => true]);
@@ -195,7 +266,8 @@ if ($method === 'POST') {
         foreach ($tracks as $track) {
             try {
                 $albumType = in_array(($track['album_type'] ?? 'album'), ['album','ep','single']) ? $track['album_type'] : 'album';
-                $filePath = $track['file_path'] ?? ($track['audio'] ?? '/muzic2/public/assets/audio/placeholder.mp3');
+                $filePath = $track['file_path'] ?? ($track['audio'] ?? 'tracks/music/placeholder.mp3');
+                $filePath = normalizeFilePath($filePath);
                 $stmt = $db->prepare('
                     INSERT INTO tracks (title, artist, album, album_type, duration, file_path, cover, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, NOW())

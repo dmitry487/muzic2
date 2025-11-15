@@ -74,6 +74,72 @@ try {
         $type = in_array(($body['album_type'] ?? 'album'), ['album','ep','single']) ? $body['album_type'] : 'album';
         $dur = (int)($body['duration'] ?? 0);
         if ($title==='' || $artist==='' || $album==='' || $file==='') throw new Exception('Заполните обязательные поля');
+        
+        // Нормализуем путь к файлу - должен быть в формате tracks/music/filename.mp3
+        function normalizeFilePath($path) {
+            if (empty($path)) return '';
+            
+            // Нормализуем разделители
+            $path = str_replace('\\', '/', $path);
+            
+            // Убираем ведущие слэши и /muzic2/
+            $path = preg_replace('#^/+muzic2/+#', '', $path);
+            $path = ltrim($path, '/');
+            
+            // Если путь уже начинается с tracks/, возвращаем как есть
+            if (strpos($path, 'tracks/') === 0) {
+                return $path;
+            }
+            
+            // Если это абсолютный путь, извлекаем относительный
+            $root = realpath(__DIR__ . '/../../../../');
+            if ($root && (strpos($path, '/') === 0 || strpos($path, $root) === 0)) {
+                $fullPath = realpath($path);
+                if ($fullPath && strpos($fullPath, $root) === 0) {
+                    $path = substr($fullPath, strlen($root) + 1);
+                    // Если получили путь с tracks/, возвращаем
+                    if (strpos($path, 'tracks/') === 0) {
+                        return $path;
+                    }
+                }
+            }
+            
+            // Пробуем найти tracks/ в пути
+            $idx = strpos($path, 'tracks/');
+            if ($idx !== false) {
+                return substr($path, $idx);
+            }
+            
+            // Если ничего не помогло, предполагаем что это имя файла в tracks/music/
+            return 'tracks/music/' . basename($path);
+        }
+        
+        $file = normalizeFilePath($file);
+        
+        // Проверяем и копируем файл в tracks/music/ если нужно
+        $root = realpath(__DIR__ . '/../../../../');
+        $targetPath = $root . '/' . $file;
+        $targetDir = dirname($targetPath);
+        
+        // Если файл не находится в tracks/music/, копируем его туда
+        if (strpos($file, 'tracks/music/') === 0) {
+            // Путь уже правильный, проверяем существует ли файл
+            if (!file_exists($targetPath)) {
+                // Пробуем найти исходный файл по оригинальному пути
+                $originalPath = trim((string)($body['file_path'] ?? ''));
+                if ($originalPath && file_exists($originalPath)) {
+                    // Создаем директорию если нужно
+                    if (!is_dir($targetDir)) {
+                        mkdir($targetDir, 0755, true);
+                    }
+                    // Копируем файл
+                    if (!copy($originalPath, $targetPath)) {
+                        throw new Exception('Не удалось скопировать файл');
+                    }
+                }
+            }
+        }
+        
         $st = $db->prepare('INSERT INTO tracks (title, artist, album, album_type, duration, file_path, cover, video_url, explicit) VALUES (?,?,?,?,?,?,?,?,?)');
         $st->execute([$title,$artist,$album,$type,$dur,$file,$cover,$video_url,$explicit]);
         $newId = (int)$db->lastInsertId();

@@ -2,10 +2,18 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="description" content="Современный музыкальный сервис с караоке режимом">
+    <meta name="theme-color" content="#1db954">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Muzic2">
+    <meta name="mobile-web-app-capable" content="yes">
     <title>Muzic2 — Музыкальный сервис</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="icon" href="../favicon.ico" type="image/x-icon">
+    <link rel="manifest" href="/muzic2/public/manifest.json">
+    <link rel="apple-touch-icon" href="/muzic2/public/assets/img/icon-192x192.png">
 </head>
 <body>
     <div id="app">
