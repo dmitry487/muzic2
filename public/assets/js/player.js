@@ -165,32 +165,41 @@
       .lyrics-fs-fade { display: none; position: absolute; left: 0; right: 0; z-index: 2; pointer-events: none; }
       .lyrics-fs-fade.top { top: 0; height: 56px; background: linear-gradient(to bottom, rgba(15,15,15,1), rgba(15,15,15,0)); }
       .lyrics-fs-fade.bottom { bottom: 0; height: 56px; background: linear-gradient(to top, rgba(15,15,15,1), rgba(15,15,15,0)); }
+      /* Tablet: промежуточные размеры */
+      @media (max-width: 1200px) {
+        #lyrics-fs-grid { grid-template-columns: 400px 1fr; gap: 32px; padding: 60px 48px 100px; }
+        #lyrics-fs-cover { width: 200px; height: 200px; }
+        #lyrics-fs-title { font-size: 26px; }
+        #lyrics-fs-artist { font-size: 16px; }
+      }
       /* Mobile: keep lyrics away from title/artist area and auto-hide past lines */
       @media (max-width: 960px) {
-        #lyrics-fs-grid { padding-top: 96px; }
-        #lyrics-fs-meta { margin-top: -8px; }
+        #lyrics-fs-grid { grid-template-columns: 1fr; gap: 12px; padding: 0px 12px 0px; max-width: 100% !important; box-sizing: border-box !important; padding-top: 96px; }
+        #lyrics-fs-meta { align-items: center; text-align: center; gap: 8px; margin-top: -8px; }
+        #lyrics-fs-cover { width: 120px; height: 120px; }
+        #lyrics-fs-title { font-size: 18px !important; }
+        #lyrics-fs-artist { font-size: 14px !important; }
         #lyrics-fs-panel { margin-top: 0 !important; }
-        #lyrics-fs-inner { padding-top: 0px; }
+        #lyrics-fs-inner { max-height: calc(100vh - 280px); padding: 0px 0 8px 0; box-sizing: border-box; padding-top: 0px; }
+        #lyrics-fs-inner .lyric-line { font-size: clamp(14px, 4vw, 18px) !important; line-height: 1.4 !important; padding: 4px 4px !important; word-break: break-word !important; overflow-wrap: break-word !important; word-wrap: break-word !important; white-space: normal !important; max-width: 100% !important; width: 100% !important; box-sizing: border-box !important; }
+        #lyrics-fs-inner .lyric-line.active { font-size: clamp(18px, 5.5vw, 24px) !important; line-height: 1.5 !important; white-space: normal !important; text-overflow: clip !important; overflow: visible !important; max-width: 100% !important; width: 100% !important; box-sizing: border-box !important; }
+        #lyrics-fs-list { gap: 8px !important; padding: 0 4px !important; margin-top: 0 !important; max-width: 100% !important; width: 100% !important; box-sizing: border-box !important; transition: none; padding-top: 0 !important; }
+        #lyrics-fs-close { top: 8px !important; right: 8px !important; width: 32px !important; height: 32px !important; font-size: 18px !important; line-height: 32px !important; }
+        #lyrics-fs-mode { top: 8px !important; right: 48px !important; width: 32px !important; height: 32px !important; font-size: 12px !important; line-height: 32px !important; }
+        #queue-panel { right: 8px; left: 8px; width: auto; }
+        #video-panel { right: 8px !important; left: 8px; width: auto !important; }
         .lyrics-fs-fade { display: none; }
         /* Исправлено: принудительно скрываем фантомные строки на мобильных устройствах */
         #lyrics-fs-inner .lyric-line.past { display: none !important; opacity: 0 !important; }
         #lyrics-fs.reviewing #lyrics-fs-inner .lyric-line.past { display: block; opacity: .6; }
       }
-      @media (max-width: 960px) {
-        #lyrics-fs-grid { grid-template-columns: 1fr; gap: 12px; padding: 0px 12px 0px; max-width: 100% !important; box-sizing: border-box !important; }
-        #lyrics-fs-meta { align-items: center; text-align: center; gap: 8px; }
-        #lyrics-fs-cover { width: 120px; height: 120px; }
-        #lyrics-fs-title { font-size: 18px !important; }
-        #lyrics-fs-artist { font-size: 14px !important; }
-        #lyrics-fs-inner { max-height: calc(100vh - 280px); padding: 0px 0 8px 0; box-sizing: border-box; }
-        #lyrics-fs-inner .lyric-line { font-size: clamp(14px, 4vw, 18px) !important; line-height: 1.4 !important; padding: 4px 4px !important; word-break: break-word !important; overflow-wrap: break-word !important; word-wrap: break-word !important; white-space: normal !important; max-width: 100% !important; width: 100% !important; box-sizing: border-box !important; }
-        #lyrics-fs-inner .lyric-line.active { font-size: clamp(18px, 5.5vw, 24px) !important; line-height: 1.5 !important; white-space: normal !important; text-overflow: clip !important; overflow: visible !important; max-width: 100% !important; width: 100% !important; box-sizing: border-box !important; }
-        #lyrics-fs-list { gap: 8px !important; padding: 0 4px !important; margin-top: 0 !important; max-width: 100% !important; width: 100% !important; box-sizing: border-box !important; }
-        #lyrics-fs-close { top: 8px !important; right: 8px !important; width: 32px !important; height: 32px !important; font-size: 18px !important; line-height: 32px !important; }
-        #lyrics-fs-mode { top: 8px !important; right: 48px !important; width: 32px !important; height: 32px !important; font-size: 12px !important; line-height: 32px !important; }
-        #queue-panel { right: 8px; left: 8px; width: auto; }
-        #video-panel { right: 8px !important; left: 8px; width: auto !important; }
-        #lyrics-fs-list { transition: none; padding-top: 0 !important; }
+      /* Small tablets */
+      @media (max-width: 768px) {
+        #lyrics-fs-grid { padding-top: 60px; }
+        #lyrics-fs-cover { width: 140px; height: 140px; }
+        #lyrics-fs-title { font-size: 20px !important; }
+        #lyrics-fs-artist { font-size: 15px !important; }
+        #lyrics-fs-inner { max-height: calc(100vh - 260px); }
       }
       @media (max-width: 600px) {
         #player { grid-template-columns: 1fr; padding: 6px calc(8px + env(safe-area-inset-right)); padding-left: calc(8px + env(safe-area-inset-left)); justify-items: center; }

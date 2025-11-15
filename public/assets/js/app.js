@@ -2209,9 +2209,9 @@ window.toggleTrackLike = toggleTrackLike;
 			.search-tracks-list { display: flex; flex-direction: column; gap: 0.75rem; }
 			.search-track-card { position: relative; display: flex; align-items: center; gap: 1rem; padding: 0.9rem 1.1rem; border-radius: 18px; background: rgba(22, 22, 22, 0.92); border: 1px solid rgba(255, 255, 255, 0.04); transition: transform 0.25s ease, background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease; }
 			.search-track-card:hover { transform: translateY(-2px); background: rgba(30, 30, 30, 0.95); border-color: rgba(29, 185, 84, 0.35); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35); }
-			.search-track-cover-wrap { width: 68px; height: 68px; border-radius: 16px; overflow: hidden; flex-shrink: 0; cursor: pointer; position: relative; }
+			.search-track-cover-wrap { width: 68px; height: 68px; border-radius: 16px; overflow: hidden; flex-shrink: 0; cursor: default; position: relative; }
 			.search-track-cover { width: 100%; height: 100%; object-fit: cover; display: block; }
-			.search-track-meta { flex: 1; display: flex; flex-direction: column; gap: 0.25rem; cursor: pointer; }
+			.search-track-meta { flex: 1; display: flex; flex-direction: column; gap: 0.25rem; cursor: default; }
 			.search-track-title { display: flex; align-items: center; gap: 0.4rem; font-size: 1.05rem; font-weight: 600; color: #fff; }
 			.search-track-title .exp-badge { position: relative; top: -1px; }
 			.search-track-artist { color: #b3b3b3; font-size: 0.9rem; }
@@ -2235,8 +2235,10 @@ window.toggleTrackLike = toggleTrackLike;
 		const filterBtns = document.querySelectorAll('.search-filter-btn');
 		
 		// Listen for track play/pause/change events to update buttons
+		let updateButtonsTimeout = null;
 		document.addEventListener('track:play', () => {
-			setTimeout(updateSearchTrackButtons, 100);
+			if (updateButtonsTimeout) clearTimeout(updateButtonsTimeout);
+			updateButtonsTimeout = setTimeout(updateSearchTrackButtons, 100);
 		});
 		document.addEventListener('track:pause', () => {
 			setTimeout(updateSearchTrackButtons, 100);
@@ -2379,8 +2381,10 @@ window.toggleTrackLike = toggleTrackLike;
 					playBtn.classList.add('playing');
 					playBtn.innerHTML = '&#10074;&#10074;';
 					playBtn.setAttribute('aria-label', 'Остановить трек');
-					playBtn.onclick = () => {
-						try { if(window.pauseCurrentTrack) window.pauseCurrentTrack(); } catch(e){ console.error('pause error', e); }
+					playBtn.onclick = (e) => {
+						e.stopPropagation();
+						e.preventDefault();
+						try { if(window.pauseCurrentTrack) window.pauseCurrentTrack(); } catch(err){ console.error('pause error', err); }
 					};
 				} else {
 					playBtn.classList.remove('playing');
@@ -2390,9 +2394,19 @@ window.toggleTrackLike = toggleTrackLike;
 					const playAction = playBtn.getAttribute('data-play-action');
 					if (playAction) {
 						try {
-							// Безопасное выполнение функции
-							const func = new Function('return ' + playAction)();
-							playBtn.onclick = func;
+							// Безопасное выполнение функции - оборачиваем в функцию, которая не выполняется сразу
+							playBtn.onclick = (e) => {
+								e.stopPropagation();
+								e.preventDefault();
+								try {
+									const func = new Function('return ' + playAction)();
+									if (typeof func === 'function') {
+										func();
+									}
+								} catch(err) {
+									console.error('Error executing play action:', err);
+								}
+							};
 						} catch(e) {
 							console.error('Error restoring play action:', e);
 						}
@@ -2430,11 +2444,11 @@ window.toggleTrackLike = toggleTrackLike;
 			const albumLine = track.album ? `<div class="search-track-album">${escapeHtml(track.album)}</div>` : '';
 			const escapedPlayPauseAction = playPauseAction.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 			return `
-				<div class="search-track-card" data-track-id="${trackId}">
-					<div class="search-track-cover-wrap" onclick="${escapedPlayPauseAction}">
+				<div class="search-track-card" data-track-id="${trackId}" onclick="event.stopPropagation();">
+					<div class="search-track-cover-wrap" onclick="event.stopPropagation();">
 						<img class="search-track-cover" loading="lazy" decoding="async" src="${escapeHtml(coverPath)}" alt="${escapeHtml(track.title || 'cover')}" onerror="this.onerror=null;this.src='/muzic2/tracks/covers/placeholder.jpg'">
 					</div>
-					<div class="search-track-meta" onclick="${escapedPlayPauseAction}">
+					<div class="search-track-meta" onclick="event.stopPropagation();">
 						<div class="search-track-title">
 							${escapeHtml(track.title)}
 							${track.explicit ? ' <span class="exp-badge" title="Нецензурная лексика">E</span>' : ''}
@@ -2442,9 +2456,9 @@ window.toggleTrackLike = toggleTrackLike;
 						<div class="search-track-artist">${renderArtistInline(artistLine)}</div>
 						${albumLine}
 					</div>
-					<div class="search-track-actions">
-						<button type="button" class="${playClass}" onclick="${escapedPlayPauseAction}" data-play-action="${playAction.replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" aria-label="${isPlaying ? 'Остановить трек' : 'Слушать трек'}">${playIcon}</button>
-						<button type="button" class="heart-btn ${likedClass}" data-track-id="${track.id}" title="В избранное">❤</button>
+					<div class="search-track-actions" onclick="event.stopPropagation();">
+						<button type="button" class="${playClass}" onclick="event.stopPropagation(); event.preventDefault(); ${escapedPlayPauseAction}" data-play-action="${playAction.replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" aria-label="${isPlaying ? 'Остановить трек' : 'Слушать трек'}">${playIcon}</button>
+						<button type="button" class="heart-btn ${likedClass}" data-track-id="${track.id}" title="В избранное" onclick="event.stopPropagation();">❤</button>
 					</div>
 				</div>
 			`;
