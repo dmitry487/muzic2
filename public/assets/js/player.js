@@ -96,7 +96,7 @@
       #lyrics-fs-bg video { opacity: 0.85; }
       #lyrics-fs-close { position: absolute; top: 20px; right: 24px; width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.08); color: #fff; border: 1px solid #2a2a2a; cursor: pointer; font-size: 24px; line-height: 44px; text-align: center; z-index: 2; }
       #lyrics-fs-mode { position: absolute; top: 20px; right: 78px; width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.08); color: #fff; border: 1px solid #2a2a2a; cursor: pointer; font-size: 18px; line-height: 44px; text-align: center; z-index: 2; }
-      #lyrics-fs-grid { position: absolute; inset: 0; display: grid; grid-template-columns: 520px 1fr; gap: 48px; align-items: center; padding: 80px 72px 120px; z-index: 1; }
+      #lyrics-fs-grid { position: absolute; inset: 0; display: grid; grid-template-columns: 520px 1fr; gap: 48px; align-items: center; padding: 80px 72px 120px; z-index: 1; box-sizing: border-box; max-width: 100%; }
       #lyrics-fs-meta { display: flex; flex-direction: column; gap: 18px; justify-content: center; }
       #lyrics-fs-cover { width: 260px; height: 260px; border-radius: 18px; object-fit: cover; background: #111; box-shadow: 0 24px 70px rgba(0,0,0,.55); }
       #lyrics-fs-video-wrap { width: 100%; max-width: 100%; aspect-ratio: 16/9; background:#000; border-radius:18px; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.45); display:none; }
@@ -106,13 +106,14 @@
       #lyrics-fs-title { color: #fff; font-size: 30px; font-weight: 800; }
       #lyrics-fs-artist { color: #bdbdbd; font-size: 18px; }
       #lyrics-fs-panel { position: relative; width: 100%; margin: 0 auto; overflow: visible; }
-      #lyrics-fs-inner { position: relative; height: calc(100vh - 80px - 120px); max-height: 70vh; display: block; overflow: auto; scroll-behavior: auto; scrollbar-width: none; }
+      #lyrics-fs-inner { position: relative; height: calc(100vh - 80px - 120px); max-height: 70vh; display: block; overflow: auto; scroll-behavior: auto; scrollbar-width: none; box-sizing: border-box; max-width: 100%; padding-top: 300px !important; }
       #lyrics-fs-inner::-webkit-scrollbar { width: 0; height: 0; }
       #lyrics-fs.static #lyrics-fs-inner { overflow: auto; align-items: flex-start; justify-content: center; }
       #lyrics-fs.static #lyrics-fs-list { transform: none; padding: 24px 16px 24px; }
       #lyrics-fs.static .lyric-line { opacity: .6; }
       #lyrics-fs.static .lyric-line.active { opacity: 1; }
       #lyrics-fs-list { display: flex; flex-direction: column; align-items: center; gap: 20px; will-change: transform; padding: 0 16px; width: 100%; max-width: 1250px; box-sizing: border-box; }
+      #lyrics-fs-list { box-sizing: border-box; }
       #lyrics-fs-inner .lyric-line { 
         color: #7e7e7e; 
         opacity: .26; 
@@ -126,6 +127,7 @@
         box-sizing: border-box;
         word-wrap: break-word;
         overflow-wrap: break-word;
+        word-break: break-word;
         white-space: normal;
         padding: 0 20px;
         transform: translateY(10px);
@@ -135,6 +137,8 @@
                     text-shadow 0.8s cubic-bezier(0.4, 0, 0.2, 1),
                     transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
         will-change: opacity, color, font-weight, text-shadow, transform;
+        hyphens: auto;
+        -webkit-hyphens: auto;
       }
       /* Плавные переключения между активными строками */
       #lyrics-fs-inner .lyric-line.active { 
@@ -143,15 +147,18 @@
         font-weight: 800 !important; 
         font-size: clamp(22px, 1.9vw, 24px) !important; 
         text-shadow: 0 0 7px rgba(30, 215, 96, 0.5), 0 0 10px rgba(30, 215, 96, 0.3);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
         transform: translateY(0);
         transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), 
                     color 0.8s cubic-bezier(0.4, 0, 0.2, 1), 
                     font-weight 0.8s cubic-bezier(0.4, 0, 0.2, 1), 
                     text-shadow 0.8s cubic-bezier(0.4, 0, 0.2, 1),
                     transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        word-break: break-word;
       }
       /* Уничтожаем фантомные строчки раз и навсегда */
       #lyrics-fs-inner .lyric-line.past { display: none !important; opacity: 0 !important; visibility: hidden !important; }
@@ -162,35 +169,44 @@
       @media (max-width: 960px) {
         #lyrics-fs-grid { padding-top: 96px; }
         #lyrics-fs-meta { margin-top: -8px; }
-        #lyrics-fs-panel { margin-top: 0; }
-        #lyrics-fs-inner { padding-top: 20px; }
+        #lyrics-fs-panel { margin-top: 0 !important; }
+        #lyrics-fs-inner { padding-top: 0px; }
         .lyrics-fs-fade { display: none; }
         /* Исправлено: принудительно скрываем фантомные строки на мобильных устройствах */
         #lyrics-fs-inner .lyric-line.past { display: none !important; opacity: 0 !important; }
         #lyrics-fs.reviewing #lyrics-fs-inner .lyric-line.past { display: block; opacity: .6; }
       }
       @media (max-width: 960px) {
-        #lyrics-fs-grid { grid-template-columns: 1fr; gap: 16px; padding: 0px 20px 0px; }
-        #lyrics-fs-meta { align-items: center; text-align: center; }
-        #lyrics-fs-cover { width: 160px; height: 160px; }
-        #lyrics-fs-inner { max-height: calc(100vh - 610px); }
-        #lyrics-fs-inner .lyric-line { font-size: clamp(16px, 4.8vw, 22px); }
-        #lyrics-fs-inner .lyric-line.active { font-size: clamp(20px, 7vw, 34px); }
-        #lyrics-fs-close { top: 10px !important; right: 10px !important; width: 36px !important; height: 36px !important; font-size: 20px !important; line-height: 36px !important; }
-        #lyrics-fs-mode { top: 10px !important; right: 56px !important; width: 36px !important; height: 36px !important; font-size: 14px !important; line-height: 36px !important; }
+        #lyrics-fs-grid { grid-template-columns: 1fr; gap: 12px; padding: 0px 12px 0px; max-width: 100% !important; box-sizing: border-box !important; }
+        #lyrics-fs-meta { align-items: center; text-align: center; gap: 8px; }
+        #lyrics-fs-cover { width: 120px; height: 120px; }
+        #lyrics-fs-title { font-size: 18px !important; }
+        #lyrics-fs-artist { font-size: 14px !important; }
+        #lyrics-fs-inner { max-height: calc(100vh - 280px); padding: 0px 0 8px 0; box-sizing: border-box; }
+        #lyrics-fs-inner .lyric-line { font-size: clamp(14px, 4vw, 18px) !important; line-height: 1.4 !important; padding: 4px 4px !important; word-break: break-word !important; overflow-wrap: break-word !important; word-wrap: break-word !important; white-space: normal !important; max-width: 100% !important; width: 100% !important; box-sizing: border-box !important; }
+        #lyrics-fs-inner .lyric-line.active { font-size: clamp(18px, 5.5vw, 24px) !important; line-height: 1.5 !important; white-space: normal !important; text-overflow: clip !important; overflow: visible !important; max-width: 100% !important; width: 100% !important; box-sizing: border-box !important; }
+        #lyrics-fs-list { gap: 8px !important; padding: 0 4px !important; margin-top: 0 !important; max-width: 100% !important; width: 100% !important; box-sizing: border-box !important; }
+        #lyrics-fs-close { top: 8px !important; right: 8px !important; width: 32px !important; height: 32px !important; font-size: 18px !important; line-height: 32px !important; }
+        #lyrics-fs-mode { top: 8px !important; right: 48px !important; width: 32px !important; height: 32px !important; font-size: 12px !important; line-height: 32px !important; }
         #queue-panel { right: 8px; left: 8px; width: auto; }
         #video-panel { right: 8px !important; left: 8px; width: auto !important; }
-        #lyrics-fs-list { transition: none; padding-top: 360px;}
+        #lyrics-fs-list { transition: none; padding-top: 0 !important; }
       }
       @media (max-width: 600px) {
         #player { grid-template-columns: 1fr; padding: 6px calc(8px + env(safe-area-inset-right)); padding-left: calc(8px + env(safe-area-inset-left)); justify-items: center; }
         #queue-panel { bottom: 120px; max-height: 40vh; }
         #lyrics-fs { bottom: 120px; }
         /* give extra headroom for title/artist on very small screens */
-        #lyrics-fs-grid { padding-top: 96px; }
-        #lyrics-fs-meta { margin-top: -12px; }
-        #lyrics-fs-panel { margin-top: 0; }
-        #lyrics-fs-inner { padding-top: 18px; }
+        #lyrics-fs-grid { padding-top: 40px; padding-left: 8px; padding-right: 8px; gap: 8px; max-width: 100% !important; box-sizing: border-box !important; }
+        #lyrics-fs-meta { margin-top: 0; gap: 6px; }
+        #lyrics-fs-cover { width: 100px !important; height: 100px !important; }
+        #lyrics-fs-title { font-size: 16px !important; line-height: 1.2 !important; }
+        #lyrics-fs-artist { font-size: 12px !important; line-height: 1.2 !important; }
+        #lyrics-fs-panel { margin-top: 0 !important; }
+        #lyrics-fs-inner { padding-top: 0px !important; max-height: calc(100vh - 240px) !important; box-sizing: border-box !important; }
+        #lyrics-fs-inner .lyric-line { font-size: clamp(13px, 3.5vw, 16px) !important; line-height: 1.3 !important; padding: 3px 4px !important; word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; white-space: normal !important; max-width: 100% !important; width: 100% !important; box-sizing: border-box !important; }
+        #lyrics-fs-inner .lyric-line.active { font-size: clamp(16px, 5vw, 20px) !important; line-height: 1.4 !important; white-space: normal !important; text-overflow: clip !important; overflow: visible !important; max-width: 100% !important; width: 100% !important; box-sizing: border-box !important; }
+        #lyrics-fs-list { gap: 6px !important; padding: 0 2px !important; margin-top: 230px !important; max-width: 100% !important; width: 100% !important; box-sizing: border-box !important; }
         .lyrics-fs-fade { display: none; }
         /* Исправлено: принудительно скрываем фантомные строки на маленьких экранах */
         #lyrics-fs-inner .lyric-line.past { display: none !important; opacity: 0 !important; }
@@ -696,7 +712,8 @@
       }
       const isSmall = window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
       const isMobile = window.matchMedia && window.matchMedia('(max-width: 960px)').matches;
-      return isSmall ? 160 : (isMobile ? 132 : 110);
+      // На мобильных минимальный guard чтобы видеть первые строки
+      return isSmall ? 100 : (isMobile ? 90 : 110);
     } catch(_) { return 132; }
   }
   // Ensure karaoke panel sits flush against the player (no gap)
@@ -805,8 +822,16 @@
     if (!el) return;
     const isSmall = window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
     const isMobile = window.matchMedia && window.matchMedia('(max-width: 960px)').matches;
-    // Raise anchor further so lines sit higher; prevent overlap with meta by clamping minimum top
-    const anchor = Math.round(lyricsFsInner.clientHeight * (isSmall ? 0.05 : (isMobile ? 0.05 : 0.32)));
+    // На мобильных просто позиционируем активную строку в верхней части видимой области
+    if (isSmall || isMobile) {
+      // На мобильных: активная строка на 25% от верха видимой области
+      const anchor = Math.round(lyricsFsInner.clientHeight * 0.25);
+      const top = Math.max(0, el.offsetTop - anchor);
+      try { lyricsFsInner.scrollTo({ top, behavior: 'smooth' }); } catch(_) {}
+      return;
+    }
+    // На десктопе используем обычную логику
+    const anchor = Math.round(lyricsFsInner.clientHeight * 0.32);
     const guard = getLyricsTopGuardPx();
     const top = Math.max(guard, el.offsetTop - anchor);
     try { lyricsFsInner.scrollTo({ top, behavior: 'smooth' }); } catch(_) {}
@@ -827,13 +852,21 @@
       if (lyricsFsInner && lyricsFsList && isFinite(targetIdx) && targetIdx >= 0) {
         const isSmall = window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
         const isMobile = window.matchMedia && window.matchMedia('(max-width: 960px)').matches;
-        const anchor = Math.round((lyricsFsInner.clientHeight) * (isSmall ? 0.05 : (isMobile ? 0.05 : 0.32)));
-        const guard = getLyricsTopGuardPx();
         const fsLines = lyricsFsList.querySelectorAll('.lyric-line');
         const el = fsLines && fsLines[targetIdx] ? fsLines[targetIdx] : null;
         if (el) {
-          const top = Math.max(guard, el.offsetTop - anchor);
-          lyricsFsInner.scrollTo({ top, behavior: 'auto' });
+          if (isSmall || isMobile) {
+            // На мобильных: активная строка на 25% от верха
+            const anchor = Math.round(lyricsFsInner.clientHeight * 0.25);
+            const top = Math.max(0, el.offsetTop - anchor);
+            lyricsFsInner.scrollTo({ top, behavior: 'auto' });
+          } else {
+            // На десктопе обычная логика
+            const anchor = Math.round((lyricsFsInner.clientHeight) * 0.32);
+            const guard = getLyricsTopGuardPx();
+            const top = Math.max(guard, el.offsetTop - anchor);
+            lyricsFsInner.scrollTo({ top, behavior: 'auto' });
+          }
         }
       }
     } catch(_) {}
@@ -2140,8 +2173,19 @@
     lyricsLines = [];
     if (lyricsVisible) {
       fetchAndRenderLyricsDirect();
-      // Ensure initial anchor after render
-      setTimeout(() => { scrollLyricsToAnchorForIndex(0); }, 50);
+      // Ensure initial anchor after render - на мобильных просто скроллим вверх
+      setTimeout(() => {
+        const isSmall = window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
+        const isMobile = window.matchMedia && window.matchMedia('(max-width: 960px)').matches;
+        if (isSmall || isMobile) {
+          // На мобильных просто скроллим в самый верх
+          if (lyricsFsInner) {
+            lyricsFsInner.scrollTo({ top: 0, behavior: 'auto' });
+          }
+        } else {
+          scrollLyricsToAnchorForIndex(0);
+        }
+      }, 50);
     } else if (currentTrackId) {
       // Preload silently in background if hidden
       loadLyricsForTrack(currentTrackId);
