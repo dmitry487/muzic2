@@ -1,9 +1,17 @@
 <?php
+session_start();
 require_once __DIR__ . '/../config/db.php';
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
+
+// Проверка авторизации
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Требуется авторизация']);
+    exit;
+}
 
 $db = get_db_connection();
 

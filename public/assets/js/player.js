@@ -106,14 +106,13 @@
       #lyrics-fs-title { color: #fff; font-size: 30px; font-weight: 800; }
       #lyrics-fs-artist { color: #bdbdbd; font-size: 18px; }
       #lyrics-fs-panel { position: relative; width: 100%; margin: 0 auto; overflow: visible; }
-      #lyrics-fs-inner { position: relative; height: calc(100vh - 80px - 120px); max-height: 70vh; display: block; overflow: auto; scroll-behavior: auto; scrollbar-width: none; box-sizing: border-box; max-width: 100%; padding-top: 300px !important; }
+      #lyrics-fs-inner { position: relative; height: calc(100vh - 80px - 120px); max-height: 70vh; display: block; overflow: auto; scroll-behavior: auto; scrollbar-width: none; box-sizing: border-box; max-width: 100%; }
       #lyrics-fs-inner::-webkit-scrollbar { width: 0; height: 0; }
       #lyrics-fs.static #lyrics-fs-inner { overflow: auto; align-items: flex-start; justify-content: center; }
       #lyrics-fs.static #lyrics-fs-list { transform: none; padding: 24px 16px 24px; }
       #lyrics-fs.static .lyric-line { opacity: .6; }
       #lyrics-fs.static .lyric-line.active { opacity: 1; }
-      #lyrics-fs-list { display: flex; flex-direction: column; align-items: center; gap: 20px; will-change: transform; padding: 0 16px; width: 100%; max-width: 1250px; box-sizing: border-box; }
-      #lyrics-fs-list { box-sizing: border-box; }
+      #lyrics-fs-list { display: flex; flex-direction: column; align-items: center; gap: 20px; will-change: transform; padding: 0 16px; width: 100%; max-width: 1250px; box-sizing: border-box; margin-top: 0; }
       #lyrics-fs-inner .lyric-line { 
         color: #7e7e7e; 
         opacity: .26; 
@@ -243,20 +242,23 @@
         #queue-mini { display: inline-flex; align-items: center; justify-content: center; padding: 4px; }
         #queue-mini svg { width: 22px; height: 22px; }
       }
-      #queue-panel { position: fixed; right: 12px; bottom: 76px; width: 360px; max-height: 55vh; overflow: auto; background: #0f0f0f; color: #fff; border: 1px solid #242424; border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,.5); display: none; z-index: 10000; }
-      #queue-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #1f1f1f; position: sticky; top: 0; background: #0f0f0f; z-index: 1; }
-      #queue-title { font-weight: 600; }
-      #queue-close { background: transparent; border: none; color: #b3b3b3; cursor: pointer; }
-      #queue-list { list-style: none; margin: 0; padding: 8px; }
-      .queue-item { display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; align-items: center; padding: 8px; border-radius: 8px; cursor: pointer; }
-      .queue-item:hover { background: #1a1a1a; }
-      .queue-idx { color: #777; text-align: right; }
-      .queue-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .queue-artist { color: #9aa0a6; font-size: 0.86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .queue-artist .artist-link { color: inherit; cursor: pointer; text-decoration: none; }
-      .queue-artist .artist-link:hover { text-decoration: underline; }
-      .queue-meta { color: #666; font-size: 0.8rem; }
-      .queue-current { background: #1a1f1a; }
+      #queue-panel { position: fixed; right: 12px; bottom: 76px; width: 320px; max-height: 50vh; overflow: hidden; background: rgba(40, 40, 40, 0.98); color: #fff; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05) inset; display: none; z-index: 10000; backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); }
+      #queue-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); position: sticky; top: 0; background: rgba(40, 40, 40, 0.95); z-index: 1; backdrop-filter: blur(10px); }
+      #queue-title { font-weight: 700; font-size: 0.95rem; letter-spacing: -0.2px; }
+      #queue-close { background: transparent; border: none; color: #b3b3b3; cursor: pointer; font-size: 1rem; padding: 4px 6px; border-radius: 6px; transition: all 0.2s ease; }
+      #queue-close:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+      #queue-list { list-style: none; margin: 0; padding: 6px; overflow-y: auto; max-height: calc(50vh - 50px); }
+      .queue-item { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; cursor: pointer; transition: all 0.15s ease; margin: 1px 0; }
+      .queue-item:hover { background: rgba(255, 255, 255, 0.08); transform: translateX(2px); }
+      .queue-idx { color: #777; text-align: right; font-size: 0.85rem; font-weight: 500; }
+      .queue-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; font-size: 0.9rem; }
+      .queue-artist { color: #9aa0a6; font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+      .queue-artist .artist-link { color: inherit; cursor: pointer; text-decoration: none; transition: color 0.2s; }
+      .queue-artist .artist-link:hover { color: #1ed760; text-decoration: underline; }
+      .queue-meta { color: #666; font-size: 0.75rem; font-weight: 500; }
+      .queue-current { background: rgba(30, 215, 96, 0.15); border: 1px solid rgba(30, 215, 96, 0.2); }
+      .queue-current .queue-idx { color: #1ed760; font-weight: 700; }
+      .queue-current .queue-title { color: #fff; font-weight: 600; }
 
       /* Fullscreen mode */
       #fullscreen-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 9999; display: none; }
@@ -419,35 +421,36 @@
           <img id="inline-cover" alt="cover" style="display:none; width:100%; height:auto; max-height:55vh; object-fit:cover; background:#000;" />
         </div>
       </div>
-      <div id="crossfade-panel" style="display:none; position: fixed; right: 12px; bottom: 76px; width: 360px; max-height: 55vh; background: #0f0f0f; color: #fff; border: 1px solid #242424; border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,.5); overflow: hidden; z-index: 10000;">
-        <button id="crossfade-close" title="Закрыть" style="position:absolute; top:8px; right:8px; width:28px; height:28px; border:none; border-radius:50%; background:#2a2a2a; color:#b3b3b3; cursor:pointer; display:grid; place-items:center; z-index:2;">×</button>
-        <div style="padding:16px;">
-          <h3 style="margin:0 0 16px 0; font-size:16px; font-weight:600;">Умный кроссфейд</h3>
-          <div style="margin-bottom:16px;">
-            <label style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-              <input type="checkbox" id="crossfade-toggle" style="margin:0;">
-              <span style="font-size:14px;">Включить кроссфейд</span>
+      <div id="crossfade-panel" style="display:none; position: fixed; right: 12px; bottom: 76px; width: 380px; max-height: 60vh; background: rgba(40, 40, 40, 0.98); color: #fff; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05) inset; overflow: hidden; z-index: 10000; backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%);">
+        <button id="crossfade-close" title="Закрыть" style="position:absolute; top:12px; right:12px; width:32px; height:32px; border:none; border-radius:50%; background:rgba(255,255,255,0.1); color:#b3b3b3; cursor:pointer; display:grid; place-items:center; z-index:2; font-size:1.2rem; transition:all 0.2s ease;">×</button>
+        <div style="padding:20px;">
+          <h3 style="margin:0 0 20px 0; font-size:1.2rem; font-weight:700; letter-spacing:-0.3px;">Умный кроссфейд</h3>
+          <div style="margin-bottom:20px;">
+            <label style="display:flex; align-items:center; gap:12px; margin-bottom:0; cursor:pointer; padding:10px; border-radius:10px; transition:background 0.2s ease;">
+              <input type="checkbox" id="crossfade-toggle" style="margin:0; width:20px; height:20px; accent-color:#1ed760; cursor:pointer;">
+              <span style="font-size:0.95rem; font-weight:500;">Включить кроссфейд</span>
             </label>
           </div>
-          <div style="margin-bottom:16px;">
-            <label style="display:block; margin-bottom:8px; font-size:14px;">Длительность (сек):</label>
-            <input type="range" id="crossfade-duration" min="2" max="20" value="8" style="width:100%; margin-bottom:4px;">
-            <div style="display:flex; justify-content:space-between; font-size:12px; color:#888;">
+          <div style="margin-bottom:20px;">
+            <label style="display:block; margin-bottom:12px; font-size:0.9rem; font-weight:500; color:#b3b3b3;">Длительность (сек):</label>
+            <input type="range" id="crossfade-duration" min="2" max="20" value="8" style="width:100%; margin-bottom:8px; accent-color:#1ed760; cursor:pointer;">
+            <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#888; font-weight:500;">
               <span>2с</span>
-              <span id="crossfade-duration-value">8с</span>
+              <span id="crossfade-duration-value" style="color:#1ed760; font-weight:600;">8с</span>
               <span>20с</span>
             </div>
           </div>
-          <div style="margin-bottom:16px;">
-            <label style="display:block; margin-bottom:8px; font-size:14px;">Агрессивность:</label>
-            <input type="range" id="crossfade-aggressiveness" min="0" max="1" step="0.1" value="0.7" style="width:100%; margin-bottom:4px;">
-            <div style="display:flex; justify-content:space-between; font-size:12px; color:#888;">
+          <div style="margin-bottom:20px;">
+            <label style="display:block; margin-bottom:12px; font-size:0.9rem; font-weight:500; color:#b3b3b3;">Агрессивность:</label>
+            <input type="range" id="crossfade-aggressiveness" min="0" max="1" step="0.1" value="0.7" style="width:100%; margin-bottom:8px; accent-color:#1ed760; cursor:pointer;">
+            <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#888; font-weight:500;">
               <span>Мягко</span>
-              <span id="crossfade-aggressiveness-value">70%</span>
+              <span id="crossfade-aggressiveness-value" style="color:#1ed760; font-weight:600;">70%</span>
               <span>Жёстко</span>
             </div>
           </div>
-          <div id="crossfade-preview" style="background:#1a1a1a; border-radius:8px; padding:12px; font-size:12px; color:#888;">
+          <div id="crossfade-preview" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px; font-size:0.85rem; color:#b3b3b3; line-height:1.6;">
+            <div style="font-weight:600; color:#fff; margin-bottom:8px;">Анализ совместимости:</div>
             <div>Анализ треков для оптимального перехода...</div>
           </div>
         </div>
@@ -873,8 +876,8 @@
             // На десктопе обычная логика
             const anchor = Math.round((lyricsFsInner.clientHeight) * 0.32);
             const guard = getLyricsTopGuardPx();
-            const top = Math.max(guard, el.offsetTop - anchor);
-            lyricsFsInner.scrollTo({ top, behavior: 'auto' });
+          const top = Math.max(guard, el.offsetTop - anchor);
+          lyricsFsInner.scrollTo({ top, behavior: 'auto' });
           }
         }
       }

@@ -71,8 +71,13 @@ document.addEventListener('DOMContentLoaded', async function() {
             const resp = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
             const json = await resp.json();
             window.__likedSet = new Set((json.tracks||[]).map(t=>t.id));
-        } catch(e) { window.__likedSet = new Set(); }
+            window.__likedAlbums = new Set((json.albums||[]).map(a=>a.album_title || a.title));
+        } catch(e) { 
+            window.__likedSet = new Set();
+            window.__likedAlbums = new Set();
+        }
 
+        resetTrackCounters();
         loadArtistData(artistName);
     } else {
         // Redirect to home if no artist specified
@@ -177,17 +182,35 @@ function renderArtistPage(artist) {
     setupEventListeners();
 }
 
-// Render popular tracks
+// Render popular tracks (show only first 10, rest hidden)
+let allArtistTracks = [];
+let visibleTracksCount = 10;
+
+// Reset counters when loading new artist
+function resetTrackCounters() {
+    allArtistTracks = [];
+    visibleTracksCount = 10;
+}
+
 function renderPopularTracks(tracks) {
     const container = document.getElementById('popular-tracks');
     if (!container) return;
     
+    // Сохраняем все треки
+    allArtistTracks = tracks;
+    
     container.innerHTML = '';
     
-    tracks.forEach((track, index) => {
+    // Показываем только первые 10 треков
+    const tracksToShow = tracks.slice(0, visibleTracksCount);
+    
+    tracksToShow.forEach((track, index) => {
         const trackElement = createTrackElement(track, index + 1);
         container.appendChild(trackElement);
     });
+    
+    // Обновляем кнопку "показать ещё"
+    updateShowMoreButton();
 }
 
 // Create track element
@@ -245,19 +268,30 @@ function createTrackElement(track, number) {
     const likeBtn = trackDiv.querySelector('.track-like-btn');
     const icon = likeBtn.querySelector('i');
     const isLiked = window.__likedSet && window.__likedSet.has(track.id);
-    if (isLiked) { icon.classList.remove('far'); icon.classList.add('fas'); likeBtn.style.color = '#1ed760'; }
+    if (isLiked) { 
+        icon.classList.remove('far'); 
+        icon.classList.add('fas'); 
+        likeBtn.classList.add('liked');
+        likeBtn.style.color = '#1ed760'; 
+    }
     likeBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
         if (!window.__likedSet) window.__likedSet = new Set();
         if (window.__likedSet.has(track.id)) {
             await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: track.id })});
             window.__likedSet.delete(track.id);
-            icon.classList.remove('fas'); icon.classList.add('far'); likeBtn.style.color = '#b3b3b3';
+            icon.classList.remove('fas'); 
+            icon.classList.add('far'); 
+            likeBtn.classList.remove('liked');
+            likeBtn.style.color = '#b3b3b3';
             try{ document.dispatchEvent(new CustomEvent('likes:updated', { detail:{ trackId: track.id, liked:false } })); }catch(_){ }
         } else {
             await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: track.id })});
             window.__likedSet.add(track.id);
-            icon.classList.remove('far'); icon.classList.add('fas'); likeBtn.style.color = '#1ed760';
+            icon.classList.remove('far'); 
+            icon.classList.add('fas'); 
+            likeBtn.classList.add('liked');
+            likeBtn.style.color = '#1ed760';
             try{ document.dispatchEvent(new CustomEvent('likes:updated', { detail:{ trackId: track.id, liked:true } })); }catch(_){ }
         }
     });
@@ -284,9 +318,14 @@ function createAlbumElement(album) {
     albumDiv.className = 'album-card';
     albumDiv.dataset.albumTitle = album.title;
     
-    // Format album type
-    const albumType = album.type === 'album' ? 'Альбом' : 
-                     album.type === 'ep' ? 'EP' : 'Сингл';
+    // Format album type - проверяем и type и album_type для совместимости
+    const albumTypeValue = (album.type || album.album_type || 'album').toLowerCase().trim();
+    const albumType = albumTypeValue === 'album' ? 'Альбом' : 
+                     albumTypeValue === 'ep' ? 'EP' : 
+                     albumTypeValue === 'single' ? 'Сингл' : 'Альбом'; // По умолчанию Альбом, а не Сингл
+    
+    // Get artist name from current artist or album data
+    const artistName = currentArtist ? currentArtist.name : (album.artist || '');
 
     (function(){
         // ensure album cover is encoded
@@ -294,9 +333,16 @@ function createAlbumElement(album) {
     const _rcAlbum = resolveCoverPath(album.cover);
     const finalCover = _rcAlbum.startsWith('data:') ? _rcAlbum : encodeURI(_rcAlbum);
     
+    // Check if album is liked
+    const isLiked = window.__likedAlbums && window.__likedAlbums.has(album.title);
+    
     albumDiv.innerHTML = `
+        <button class="album-heart-btn ${isLiked ? 'liked' : ''}" data-album-title="${album.title || ''}" title="В избранные альбомы">
+            <i class="fas fa-heart"></i>
+        </button>
         <img class="album-cover" src="${finalCover}" alt="${album.title || ''}" loading="lazy">
         <div class="album-title">${album.title || ''}</div>
+        <div class="album-artist">${artistName || ''}</div>
         <div class="album-info">${albumType} • ${album.track_count} трек${getTrackWordEnding(album.track_count)}</div>
         <button class="album-play-btn">
             <i class="fas fa-play"></i>
@@ -306,9 +352,28 @@ function createAlbumElement(album) {
     const img = albumDiv.querySelector('img.album-cover');
     attachImgFallback(img);
     
+    // Add like button functionality
+    const likeBtn = albumDiv.querySelector('.album-heart-btn');
+    if (likeBtn) {
+        likeBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (!window.__likedAlbums) window.__likedAlbums = new Set();
+            const icon = likeBtn.querySelector('i');
+            if (window.__likedAlbums.has(album.title)) {
+                await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: album.title })});
+                window.__likedAlbums.delete(album.title);
+                likeBtn.classList.remove('liked');
+            } else {
+                await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: album.title })});
+                window.__likedAlbums.add(album.title);
+                likeBtn.classList.add('liked');
+            }
+        });
+    }
+    
     // Add click event to open album
     albumDiv.addEventListener('click', (e) => {
-        if (!e.target.closest('.album-play-btn')) {
+        if (!e.target.closest('.album-play-btn') && !e.target.closest('.album-heart-btn')) {
             openAlbum(album.title);
         }
     });
@@ -608,8 +673,35 @@ function toggleFollow() {
 
 // Show more tracks function
 function showMoreTracks() {
-    // In a real app, this would load more tracks from the API
-    alert('Функция "Показать больше треков" будет реализована в будущих версиях');
+    const container = document.getElementById('popular-tracks');
+    if (!container) return;
+    
+    // Показываем следующие 10 треков
+    const nextBatch = allArtistTracks.slice(visibleTracksCount, visibleTracksCount + 10);
+    
+    nextBatch.forEach((track, index) => {
+        const trackElement = createTrackElement(track, visibleTracksCount + index + 1);
+        container.appendChild(trackElement);
+    });
+    
+    visibleTracksCount += nextBatch.length;
+    
+    // Обновляем кнопку
+    updateShowMoreButton();
+}
+
+// Update show more button visibility
+function updateShowMoreButton() {
+    const showMoreBtn = document.getElementById('show-more-tracks');
+    if (!showMoreBtn) return;
+    
+    if (visibleTracksCount >= allArtistTracks.length) {
+        showMoreBtn.style.display = 'none';
+    } else {
+        showMoreBtn.style.display = 'block';
+        const remaining = allArtistTracks.length - visibleTracksCount;
+        showMoreBtn.textContent = `Показать ещё ${remaining} трек${getTrackWordEnding(remaining)}`;
+    }
 }
 
 // Utility functions

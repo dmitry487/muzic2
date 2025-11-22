@@ -15,6 +15,12 @@ const mainHeader = document.getElementById('main-header');
 // Guard: run only if home navigation exists on this page
 if (mainContent && navHome && navSearch && navLibrary) {
 	function showPage(page) {
+		// Проверяем авторизацию перед показом любой страницы
+		if (!currentUser) {
+			showLoginScreen();
+			return;
+		}
+		
 		if (page === 'Главная') {
 			renderHome();
 	} else if (page === 'Поиск') {
@@ -64,6 +70,15 @@ window.API_ORIGIN = API_ORIGIN;
 	(async function initSession() {
 		// Wait for DOM to be ready
 		await waitForDOM();
+		
+		// Скрываем весь контент до проверки авторизации
+		if (mainContent) {
+			mainContent.style.display = 'none';
+		}
+		if (mainHeader) {
+			mainHeader.style.display = 'none';
+		}
+		
 		// Ультра-быстрая инициализация сессии для Windows
 		if (isWindows) {
 			console.log('Windows detected - using ultra-fast session init');
@@ -72,26 +87,26 @@ window.API_ORIGIN = API_ORIGIN;
                 const cached = localStorage.getItem('currentUser');
                 if (cached) {
                     currentUser = JSON.parse(cached);
-                    renderAuthHeader();
                 }
             } catch(_) {}
 			try {
 				const res = await fetch(api('/muzic2/src/api/user_windows.php'), { credentials: 'include' });
 				const data = await res.json();
 				currentUser = data.authenticated ? data.user : null;
-				renderAuthHeader();
 			} catch (e) {
 				console.error('Windows session init error:', e);
 				currentUser = null;
-				renderAuthHeader();
 			}
 			
-			// Принудительно показываем кнопки авторизации, если пользователь не авторизован
+			// Проверяем авторизацию
 			if (!currentUser) {
-				setTimeout(() => {
-					renderAuthHeader();
-				}, 100);
+				showLoginScreen();
+				return;
 			}
+			
+			// Пользователь авторизован - показываем контент
+			showAuthenticatedContent();
+			renderAuthHeader();
 			return;
 		}
 		
@@ -100,20 +115,197 @@ window.API_ORIGIN = API_ORIGIN;
 			const res = await fetch(getUserAPI(), { credentials: 'include' });
 			const data = await res.json();
 			currentUser = data.authenticated ? data.user : null;
-			renderAuthHeader();
 		} catch (e) {
 			console.error('Session init error:', e);
 			currentUser = null;
-			renderAuthHeader();
 		}
 		
-		// Принудительно показываем кнопки авторизации, если пользователь не авторизован
+		// Проверяем авторизацию
 		if (!currentUser) {
-			setTimeout(() => {
-				renderAuthHeader();
-			}, 100);
+			showLoginScreen();
+			return;
 		}
+		
+		// Пользователь авторизован - показываем контент
+		showAuthenticatedContent();
+		renderAuthHeader();
 	})();
+	
+	// Функция для показа экрана входа
+	function showLoginScreen() {
+		// Скрываем весь контент
+		if (mainContent) {
+			mainContent.style.display = 'none';
+		}
+		if (mainHeader) {
+			mainHeader.style.display = 'none';
+		}
+		
+		// Создаем экран входа
+		const loginScreen = document.getElementById('login-screen');
+		if (loginScreen) {
+			loginScreen.style.display = 'flex';
+			return;
+		}
+		
+		const screen = document.createElement('div');
+		screen.id = 'login-screen';
+		screen.style.cssText = 'position:fixed; inset:0; background:#0f0f0f; display:flex; align-items:center; justify-content:center; z-index:99999; flex-direction:column; gap:2rem;';
+		screen.innerHTML = `
+			<div style="text-align:center;">
+				<h1 style="color:#fff; font-size:2.5rem; font-weight:900; margin:0 0 1rem 0; letter-spacing:-1px;">Muzic2</h1>
+				<p style="color:#b3b3b3; font-size:1rem; margin:0;">Войдите для доступа к сервису</p>
+			</div>
+			<div style="background:rgba(40,40,40,0.98); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:2rem; width:90%; max-width:400px; box-shadow:0 8px 32px rgba(0,0,0,0.6);">
+				<h2 style="color:#fff; font-size:1.5rem; font-weight:700; margin:0 0 1.5rem 0; text-align:center;">Вход</h2>
+				<input id="login-screen-login" placeholder="Email или логин" autocomplete="username" style="width:100%; padding:0.875rem 1rem; margin-bottom:0.75rem; border:1px solid rgba(255,255,255,0.2); border-radius:8px; background:rgba(255,255,255,0.05); color:#fff; font-size:1rem; outline:none; box-sizing:border-box;">
+				<input id="login-screen-password" type="password" placeholder="Пароль" autocomplete="current-password" style="width:100%; padding:0.875rem 1rem; margin-bottom:0.75rem; border:1px solid rgba(255,255,255,0.2); border-radius:8px; background:rgba(255,255,255,0.05); color:#fff; font-size:1rem; outline:none; box-sizing:border-box;">
+				<div id="login-screen-error" style="display:none; background:rgba(255,77,79,0.15); border:1px solid rgba(255,77,79,0.3); color:#ff6b6b; padding:0.75rem; border-radius:8px; margin-bottom:0.75rem; font-size:0.9rem; text-align:center;"></div>
+				<button id="login-screen-submit" style="width:100%; padding:0.875rem; background:#1ed760; color:#000; border:none; border-radius:8px; font-size:1rem; font-weight:700; cursor:pointer; transition:background 0.2s;">Войти</button>
+			</div>
+		`;
+		document.body.appendChild(screen);
+		
+		// Обработчики
+		const loginInput = document.getElementById('login-screen-login');
+		const passwordInput = document.getElementById('login-screen-password');
+		const submitBtn = document.getElementById('login-screen-submit');
+		const errorBox = document.getElementById('login-screen-error');
+		
+		const handleLogin = async () => {
+			const login = loginInput.value.trim();
+			const password = passwordInput.value;
+			
+			if (errorBox) {
+				errorBox.style.display = 'none';
+				errorBox.textContent = '';
+			}
+			
+			if (!login || !password) {
+				if (errorBox) {
+					errorBox.textContent = 'Введите логин и пароль';
+					errorBox.style.display = 'block';
+				}
+				return;
+			}
+			
+			try {
+				if (submitBtn) {
+					submitBtn.disabled = true;
+					submitBtn.textContent = 'Входим...';
+				}
+				
+				const authAPI = getAuthAPI();
+				const res = await fetch(authAPI, {
+					method: 'POST',
+					credentials: 'include',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						action: 'login',
+						login,
+						password
+					})
+				});
+				
+				let ok = res.ok;
+				let payload = null;
+				try { payload = await res.json(); } catch(_) { payload = null; }
+				
+				if (!ok) {
+					const msg = (payload && payload.error) ? payload.error : 'Ошибка авторизации';
+					if (errorBox) {
+						errorBox.textContent = msg;
+						errorBox.style.display = 'block';
+					}
+					if (submitBtn) {
+						submitBtn.disabled = false;
+						submitBtn.textContent = 'Войти';
+					}
+					return;
+				}
+				
+				// Проверяем авторизацию
+				if (isWindows && payload && payload.user) {
+					currentUser = payload.user;
+					try { localStorage.setItem('currentUser', JSON.stringify(currentUser)); } catch(_) {}
+				} else {
+					const uRes = await fetch(getUserAPI(), { credentials: 'include' });
+					const u = await uRes.json();
+					if (u && u.authenticated && u.user) {
+						currentUser = u.user;
+					} else {
+						if (errorBox) {
+							errorBox.textContent = 'Сессия не установлена';
+							errorBox.style.display = 'block';
+						}
+						if (submitBtn) {
+							submitBtn.disabled = false;
+							submitBtn.textContent = 'Войти';
+						}
+						return;
+					}
+				}
+				
+				// Успешный вход - скрываем экран входа и показываем контент
+				screen.style.display = 'none';
+				showAuthenticatedContent();
+				renderAuthHeader();
+				
+			} catch (e) {
+				console.error('Login error:', e);
+				if (errorBox) {
+					errorBox.textContent = 'Ошибка подключения';
+					errorBox.style.display = 'block';
+				}
+				if (submitBtn) {
+					submitBtn.disabled = false;
+					submitBtn.textContent = 'Войти';
+				}
+			}
+		};
+		
+		if (submitBtn) {
+			submitBtn.onclick = handleLogin;
+		}
+		
+		[loginInput, passwordInput].forEach(inp => {
+			if (inp) {
+				inp.addEventListener('keydown', (e) => {
+					if (e.key === 'Enter') {
+						e.preventDefault();
+						handleLogin();
+					}
+				});
+			}
+		});
+	}
+	
+	// Функция для показа авторизованного контента
+	function showAuthenticatedContent() {
+		if (mainContent) {
+			mainContent.style.display = 'block';
+		}
+		if (mainHeader) {
+			mainHeader.style.display = 'flex';
+		}
+		const loginScreen = document.getElementById('login-screen');
+		if (loginScreen) {
+			loginScreen.style.display = 'none';
+		}
+		
+		// Определяем текущую страницу и загружаем соответствующий контент
+		const urlParams = new URLSearchParams(window.location.search);
+		if (urlParams.has('album')) {
+			// Загружаем страницу альбома
+			navigateTo('album', { album: urlParams.get('album') });
+		} else if (urlParams.has('artist')) {
+			// Загружаем страницу артиста
+			navigateTo('artist', { artist: urlParams.get('artist') });
+		} else {
+			// Главная страница - всегда загружаем контент
+			renderHome();
+		}
+	}
 
 	function mountUserPanel() {
 		if (!mainHeader) return null;
@@ -175,17 +367,31 @@ window.API_ORIGIN = API_ORIGIN;
 				} catch(e) {}
 			};
 			if (headerLogin) headerLogin.onclick = () => openModal('login-modal');
-			if (headerRegister) headerRegister.onclick = () => openModal('register-modal');
+			// Регистрация убрана - только админ может регистрировать пользователей
+			if (headerRegister) headerRegister.style.display = 'none';
 		}
 	}
 
 	async function renderHome() {
+		// Проверяем авторизацию
+		if (!currentUser) {
+			showLoginScreen();
+			return;
+		}
+		
     mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
+    // Ensure Font Awesome is loaded for icons
+    if (!document.querySelector('link[href*="font-awesome"]')) {
+        const fontAwesome = document.createElement('link');
+        fontAwesome.rel = 'stylesheet';
+        fontAwesome.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css';
+        document.head.appendChild(fontAwesome);
+    }
     // Inject responsive styles for home cards (mobile)
     const homeMobileStyles = `
     <style id="home-mobile-styles">
       .card-row,.tile-row{display:grid;grid-template-columns:repeat(6,1fr);gap:18px}
-      .tile{position:relative;background:#181818;border-radius:18px;overflow:hidden;padding-bottom:10px;transition:transform .15s}
+      .tile{position:relative !important;background:#181818;border-radius:18px;overflow:visible !important;padding-bottom:10px;transition:transform .15s}
       .tile:hover{transform:translateY(-2px)}
       .tile-cover{width:100%;aspect-ratio:1/1;object-fit:cover;display:block}
       .tile-title{font-weight:800;color:#fff;margin:.6rem .6rem .2rem}
@@ -203,13 +409,18 @@ window.API_ORIGIN = API_ORIGIN;
 		const homeCardStyles = `
 		<style id="home-cards-compact">
 		.card-row { display:grid; grid-template-columns:repeat(6,1fr); gap:16px }
-		.card { background:#181818; border-radius:18px; padding:10px 12px; display:flex; align-items:center; gap:12px; min-height:72px; position:relative; overflow:hidden }
+		.card { background:#181818; border-radius:18px; padding:10px 12px; display:flex; align-items:center; gap:12px; min-height:72px; position:relative; overflow:visible !important }
 		.card-cover { width:56px; height:56px; border-radius:12px; object-fit:cover; flex:0 0 auto }
 		.card-info { min-width:0 }
 		.card-title { color:#fff; font-weight:800; font-size:1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 		.card-artist { color:#b3b3b3; font-size:.9rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 		.card-type { color:#22c55e; font-size:.86rem; font-weight:700; margin-top:2px }
 		.card:hover { background:#1f1f1f }
+		.card .heart-btn, .card .kebab { opacity:1 !important; display:flex !important; visibility:visible !important; color:#b3b3b3 !important; background:none !important; border:none !important; width:32px !important; height:32px !important; min-width:32px !important; min-height:32px !important; flex-shrink:0 !important; z-index:10 !important; cursor:pointer !important; transition:all 0.2s ease !important; align-items:center !important; justify-content:center !important; border-radius:50% !important; padding:0.5rem !important }
+		.card .heart-btn:hover { color:#1ed760 !important; background:rgba(30,215,96,0.1) !important; transform:scale(1.1) !important }
+		.card .heart-btn.liked { color:#1ed760 !important }
+		.card .heart-btn.liked:hover { background:rgba(30,215,96,0.15) !important; transform:scale(1.15) !important }
+		.card .kebab:hover { color:#fff !important }
 		/* Mix pill look */
 		#mixes-row .card { border-radius:22px }
 		@media(max-width:1024px){ .card-row{grid-template-columns:repeat(4,1fr)} }
@@ -430,10 +641,24 @@ window.API_ORIGIN = API_ORIGIN;
 						const likes = await likesRes.json();
 						window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
 						window.__likedAlbums = new Set((likes.albums||[]).map(a=>a.album_title || a.title));
-						document.querySelectorAll('.heart-btn[data-track-id]').forEach(btn => {
-							const id = Number(btn.getAttribute('data-track-id'));
-							applyHeartState(btn, window.__likedSet.has(id));
-						});
+					document.querySelectorAll('.heart-btn[data-track-id]').forEach(btn => {
+						const id = Number(btn.getAttribute('data-track-id'));
+						const isLiked = window.__likedSet.has(id);
+						const icon = btn.querySelector('i');
+						if (icon) {
+							if (isLiked) {
+								btn.classList.add('liked');
+								icon.classList.remove('far');
+								icon.classList.add('fas');
+							} else {
+								btn.classList.remove('liked');
+								icon.classList.remove('fas');
+								icon.classList.add('far');
+							}
+						} else {
+							applyHeartState(btn, isLiked);
+						}
+					});
 						document.querySelectorAll('.album-heart-btn[data-album-title]').forEach(btn => {
 							const title = btn.getAttribute('data-album-title');
 							if (window.__likedAlbums.has(title)) btn.classList.add('liked');
@@ -590,6 +815,12 @@ window.API_ORIGIN = API_ORIGIN;
 	// My Music (Favorites & Playlists)
 	// =====================
 	async function renderMyMusic() {
+		// Проверяем авторизацию
+		if (!currentUser) {
+			showLoginScreen();
+			return;
+		}
+		
 		// Windows: мгновенный скелет + фоновые загрузки
 		if (isWindows) {
 			console.log('Windows detected - fast My Music');
@@ -812,7 +1043,20 @@ function applyHeartState(btn, liked) {
 	btn.setAttribute('aria-pressed', String(state));
 	btn.setAttribute('title', state ? 'Убрать из избранного' : 'Добавить в избранное');
 	btn.setAttribute('aria-label', state ? 'Убрать из избранного' : 'Добавить в избранное');
-	try { btn.textContent = state ? '♥' : '♡'; } catch(_){}
+	// Обновляем Font Awesome иконку, если она есть
+	const icon = btn.querySelector('i');
+	if (icon) {
+		if (state) {
+			icon.classList.remove('far');
+			icon.classList.add('fas');
+		} else {
+			icon.classList.remove('fas');
+			icon.classList.add('far');
+		}
+	} else {
+		// Fallback для старых кнопок без иконок
+		try { btn.textContent = state ? '♥' : '♡'; } catch(_){}
+	}
 }
 
 // Direct like toggle function (reliable, used by inline onclick)
@@ -846,6 +1090,103 @@ async function toggleTrackLike(trackId, buttonEl) {
 }
 
 window.toggleTrackLike = toggleTrackLike;
+
+// Context menu for albums
+function showAlbumContextMenu(event, album, albumIndex) {
+	const currentButton = event.target.closest('.album-more-btn');
+	
+	const existingMenu = document.querySelector('.context-menu');
+	if (existingMenu) {
+		const menuButtonId = existingMenu.dataset.sourceButtonId;
+		const currentButtonId = currentButton ? String(currentButton) : null;
+		
+		if (menuButtonId && currentButtonId && menuButtonId === currentButtonId) {
+			existingMenu.remove();
+			return;
+		}
+		existingMenu.remove();
+	}
+	
+	const menu = document.createElement('div');
+	menu.className = 'context-menu show';
+	
+	if (currentButton) {
+		menu.dataset.sourceButtonId = String(currentButton);
+	}
+	
+	const albumTitle = album.album || album.title || '';
+	const albumArtist = album.artist || '';
+	
+	const goToAlbum = document.createElement('button');
+	goToAlbum.className = 'context-menu-item';
+	goToAlbum.innerHTML = '<i class="fas fa-compact-disc" style="font-size: 0.9rem; color: #b3b3b3;"></i><span>Открыть альбом</span>';
+	goToAlbum.onclick = () => {
+		if (albumTitle) {
+			navigateTo('album', { album: albumTitle });
+		}
+		menu.remove();
+	};
+	
+	const goToArtist = document.createElement('button');
+	goToArtist.className = 'context-menu-item';
+	goToArtist.innerHTML = '<i class="fas fa-user" style="font-size: 0.9rem; color: #b3b3b3;"></i><span>Перейти к артисту</span>';
+	goToArtist.onclick = () => {
+		if (albumArtist) {
+			navigateTo('artist', { artist: albumArtist });
+		}
+		menu.remove();
+	};
+	
+	const toggleLike = document.createElement('button');
+	toggleLike.className = 'context-menu-item';
+	const isLiked = window.__likedAlbums && window.__likedAlbums.has(albumTitle);
+	toggleLike.innerHTML = `<i class="${isLiked ? 'fas' : 'far'} fa-heart" style="font-size: 0.9rem; color: ${isLiked ? '#1ed760' : '#b3b3b3'};"></i><span>${isLiked ? 'Убрать из избранного' : 'Добавить в избранное'}</span>`;
+	toggleLike.onclick = async () => {
+		if (!window.__likedAlbums) window.__likedAlbums = new Set();
+		if (window.__likedAlbums.has(albumTitle)) {
+			await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
+			window.__likedAlbums.delete(albumTitle);
+		} else {
+			await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
+			window.__likedAlbums.add(albumTitle);
+		}
+		menu.remove();
+	};
+	
+	menu.appendChild(goToAlbum);
+	if (albumArtist) menu.appendChild(goToArtist);
+	menu.appendChild(toggleLike);
+	
+	const rect = event.target.getBoundingClientRect();
+	const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+	const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+	const menuWidth = 200;
+	
+	const absoluteLeft = rect.left + scrollX;
+	const absoluteTop = rect.bottom + scrollY;
+	
+	let left = absoluteLeft - menuWidth + rect.width;
+	if (left < 10) {
+		left = absoluteLeft;
+	}
+	
+	menu.style.position = 'absolute';
+	menu.style.left = left + 'px';
+	menu.style.top = (absoluteTop + 5) + 'px';
+	
+	document.body.appendChild(menu);
+	
+	const closeMenu = (e) => {
+		if (!menu.contains(e.target)) {
+			menu.remove();
+			document.removeEventListener('click', closeMenu);
+		}
+	};
+	
+	setTimeout(() => {
+		document.addEventListener('click', closeMenu);
+	}, 100);
+}
 
 	// Global delegation for heart toggle and artist links (bubbling phase business logic)
 		document.addEventListener('click', async (e) => {
@@ -969,7 +1310,7 @@ window.toggleTrackLike = toggleTrackLike;
             .exp-badge{display:inline-block;width:16px;height:16px;line-height:16px;text-align:center;margin:0 6px 0 0;border:0;border-radius:3px;font-size:10px;font-weight:800;color:#2b2b2b;background:#cfcfcf;vertical-align:middle}
             /* Home cards base (used on main) */
             .card-row,.tile-row{display:grid;grid-template-columns:repeat(6,1fr);gap:18px}
-            .tile{position:relative;background:#181818;border-radius:18px;overflow:hidden;padding-bottom:10px;transition:transform .15s}
+            .tile{position:relative !important;background:#181818;border-radius:18px;overflow:visible !important;padding-bottom:10px;transition:transform .15s}
             .tile:hover{transform:translateY(-2px)}
             .tile-cover{width:100%;aspect-ratio:1/1;object-fit:cover;display:block}
             .tile-title{font-weight:800;color:#fff;margin:.6rem .6rem .2rem}
@@ -1127,17 +1468,6 @@ window.toggleTrackLike = toggleTrackLike;
 						<button id="login-close" class="btn">Отмена</button>
 					</div>
 				</div>
-				<div class="modal" id="register-modal" role="dialog" aria-modal="true" style="display:none">
-					<h3>Регистрация</h3>
-					<input id="reg-email" placeholder="Email" autocomplete="email">
-					<input id="reg-username" placeholder="Логин" autocomplete="username">
-					<input id="reg-password" type="password" placeholder="Пароль (мин. 6)" autocomplete="new-password">
-					<div id="reg-error" class="modal-error" style="display:none"></div>
-					<div class="modal-actions">
-						<button id="reg-submit" class="btn primary">Создать</button>
-						<button id="reg-close" class="btn">Отмена</button>
-					</div>
-				</div>
 			</div>
 		`;
 		document.body.appendChild(wrap);
@@ -1161,14 +1491,11 @@ window.toggleTrackLike = toggleTrackLike;
 		const open = id => { ensureAuthModals(); const o=overlay(); const c=center(); o.style.display='block'; c.style.display='flex'; document.querySelectorAll('#auth-modals .modal').forEach(m=>m.style.display='none'); document.getElementById(id).style.display='block'; setTimeout(()=>{ const first=document.querySelector(`#${id} input`); if(first) first.focus(); }, 0); };
 		const closeAll = () => { const o=overlay(); const c=center(); if(o) o.style.display='none'; if(c) c.style.display='none'; document.querySelectorAll('#auth-modals .modal').forEach(m=>m.style.display='none'); };
 		const loginBtn = document.getElementById('open-login');
-		const regBtn = document.getElementById('open-register');
+		// Регистрация убрана - только админ может регистрировать пользователей
 		if (loginBtn) loginBtn.onclick = () => open('login-modal');
-		if (regBtn) regBtn.onclick = () => open('register-modal');
 		ensureAuthModals();
 		const loginClose = document.getElementById('login-close');
-		const regClose = document.getElementById('reg-close');
 		if (loginClose) loginClose.onclick = closeAll;
-		if (regClose) regClose.onclick = closeAll;
 		const ov = overlay(); if (ov) ov.onclick = closeAll;
 		document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeAll(); });
 		const doLogin = async () => {
@@ -1216,7 +1543,8 @@ window.toggleTrackLike = toggleTrackLike;
 					currentUser = u.user;
                     try { localStorage.setItem('currentUser', JSON.stringify(currentUser)); } catch(_) {}
 					closeAll();
-					window.location.reload();
+					showAuthenticatedContent();
+					renderAuthHeader();
 				} else {
 					if (errBox) { errBox.textContent = 'Сессия не установлена'; errBox.style.display='block'; }
 					if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Войти'; }
@@ -1226,55 +1554,7 @@ window.toggleTrackLike = toggleTrackLike;
 				if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Войти'; }
 			}
 		};
-		const doRegister = async () => {
-			const email = document.getElementById('reg-email').value.trim();
-			const username = document.getElementById('reg-username').value.trim();
-			const password = document.getElementById('reg-password').value;
-			const errBox = document.getElementById('reg-error');
-			if (errBox) { errBox.style.display='none'; errBox.textContent=''; }
-			if (!email || !username || !password) { if (errBox){ errBox.textContent='Заполните все поля'; errBox.style.display='block'; } return; }
-			try {
-				const authAPI = getAuthAPI();
-			const res = await fetch(authAPI, { 
-					method: 'POST', 
-					credentials: 'include', 
-					headers: { 'Content-Type': 'application/json' }, 
-					body: JSON.stringify({ 
-						action: 'register',
-						email, 
-						username, 
-						password 
-					}) 
-				});
-				let ok = res.ok; let payload=null; try { payload = await res.json(); } catch(_) {}
-				if (!ok) { if (errBox){ errBox.textContent=(payload&&payload.error)||'Ошибка регистрации'; errBox.style.display='block'; } return; }
-			// Ultra-fast path for Windows: server already set session and returns user
-            if (isWindows && payload && payload.success) {
-				try {
-					// Immediately login without extra roundtrips
-					const loginAPI = getAuthAPI();
-					const lr = await fetch(loginAPI, {
-						method: 'POST',
-						credentials: 'include',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ action:'login', login: username, password })
-					});
-					let lp = null; try { lp = await lr.json(); } catch(_){ lp = null; }
-					if (lr.ok && lp && lp.user) {
-						currentUser = lp.user;
-                        try { localStorage.setItem('currentUser', JSON.stringify(currentUser)); } catch(_) {}
-						closeAll();
-						renderAuthHeader();
-						return;
-					}
-				} catch(_) {}
-			}
-			// Fallback (Mac or if fast path failed)
-				await doLoginPostRegister(username, password);
-			} catch (e) {
-				if (errBox) { errBox.textContent='Сетевая ошибка'; errBox.style.display='block'; }
-			}
-		};
+		// Регистрация убрана - только админ может регистрировать пользователей через админ панель
 		async function doLoginPostRegister(login, password){
 			const errBox = document.getElementById('login-error'); if (errBox){ errBox.style.display='none'; errBox.textContent=''; }
 			const authAPI = getAuthAPI();
@@ -1293,13 +1573,15 @@ window.toggleTrackLike = toggleTrackLike;
 			const uRes = await fetch(getUserAPI(), { credentials: 'include' });
 			const u = await uRes.json();
 			if (u && u.authenticated && u.user) {
-				currentUser = u.user; closeAll(); window.location.reload();
+				currentUser = u.user;
+				closeAll();
+				showAuthenticatedContent();
+				renderAuthHeader();
 			} else {
 				if (errBox){ errBox.textContent='Сессия не установлена'; errBox.style.display='block'; }
 			}
 		}
 		const loginSubmit = document.getElementById('login-submit');
-		const regSubmit = document.getElementById('reg-submit');
 		if (loginSubmit) {
 			loginSubmit.onclick = doLogin;
 			// Enter key within login inputs
@@ -1309,7 +1591,7 @@ window.toggleTrackLike = toggleTrackLike;
 				if (inp) inp.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') { e.preventDefault(); doLogin(); } });
 			});
 		}
-		if (regSubmit) regSubmit.onclick = doRegister;
+		// Регистрация убрана - только админ может регистрировать пользователей
 		// Fallback delegated handler in case direct binding missed
 		document.addEventListener('click', (e)=>{
 			const btn = e.target && e.target.closest && e.target.closest('#login-submit');
@@ -1323,14 +1605,24 @@ window.toggleTrackLike = toggleTrackLike;
 		let html = '';
 		if (type === 'album') {
 			row.className = 'tile-row';
-			html = items.map((item, idx) => `
-				<div class="tile" data-album="${encodeURIComponent(item.album)}" data-idx="${idx}">
+			html = items.map((item, idx) => {
+				const albumTitle = item.album || item.title || '';
+				const isLiked = window.__likedAlbums && window.__likedAlbums.has(albumTitle);
+				return `
+				<div class="tile" data-album="${encodeURIComponent(albumTitle)}" data-idx="${idx}">
+					<button class="album-heart-btn ${isLiked ? 'liked' : ''}" data-album-title="${escapeHtml(albumTitle)}" title="В избранные альбомы">
+						<i class="${isLiked ? 'fas' : 'far'} fa-heart"></i>
+					</button>
+					<button class="album-more-btn" title="Ещё">
+						<i class="fas fa-ellipsis-h"></i>
+					</button>
 					<img class="tile-cover" loading="lazy" src="/muzic2/${item.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
-					<div class="tile-title">${escapeHtml(item.album)}</div>
+					<div class="tile-title">${escapeHtml(albumTitle)}</div>
 					<div class="tile-desc">${escapeHtml(item.artist || '')}</div>
 					<div class="tile-play">&#9654;</div>
 				</div>
-			`).join('');
+			`;
+			}).join('');
 		} else if (type === 'mix') {
 			row.className = 'tile-row';
 			html = items.map((item, idx) => `
@@ -1357,6 +1649,8 @@ window.toggleTrackLike = toggleTrackLike;
 				if (coverPath && !coverPath.startsWith('/muzic2/') && !coverPath.startsWith('http')) {
 					coverPath = '/muzic2/' + coverPath;
 				}
+				const trackId = item.id || idx;
+				const isLiked = window.__likedSet && window.__likedSet.has(trackId);
 				return `
 				<div class="card" data-idx="${idx}">
 					<img class="card-cover" loading="lazy" src="${coverPath}" alt="cover">
@@ -1365,8 +1659,12 @@ window.toggleTrackLike = toggleTrackLike;
                 <div class="card-artist">${item.explicit? '<span class="exp-badge" title="Нецензурная лексика">E</span>':''}${renderArtistInline(item.feats && String(item.feats).trim() ? `${item.artist}, ${item.feats}` : item.artist)}</div>
 						<div class="card-type">${item.album_type || ''}</div>
 					</div>
-					<button type="button" class="heart-btn" data-track-id="${item.id || idx}" title="Добавить в избранное" aria-label="Добавить в избранное" aria-pressed="false" tabindex="0">♡</button>
-					<button class="kebab" title="Ещё">⋮</button>
+					<button type="button" class="heart-btn ${isLiked ? 'liked' : ''}" data-track-id="${trackId}" title="Добавить в избранное" aria-label="Добавить в избранное" aria-pressed="${isLiked}" tabindex="0">
+						<i class="${isLiked ? 'fas' : 'far'} fa-heart"></i>
+					</button>
+					<button class="kebab" title="Ещё">
+						<i class="fas fa-ellipsis-h"></i>
+					</button>
 				</div>
 			`;
 			}).join('');
@@ -1374,7 +1672,49 @@ window.toggleTrackLike = toggleTrackLike;
 		row.innerHTML = html;
 
 		if (type === 'album') {
+			// Add like button handlers for albums
+			row.querySelectorAll('.album-heart-btn').forEach((btn, idx) => {
+				btn.onclick = async (e) => {
+					e.stopPropagation();
+					if (!window.__likedAlbums) window.__likedAlbums = new Set();
+					const albumTitle = items[idx].album || items[idx].title || '';
+					const icon = btn.querySelector('i');
+					if (window.__likedAlbums.has(albumTitle)) {
+						await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
+						window.__likedAlbums.delete(albumTitle);
+						btn.classList.remove('liked');
+						if (icon) {
+							icon.classList.remove('fas');
+							icon.classList.add('far');
+						}
+					} else {
+						await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
+						window.__likedAlbums.add(albumTitle);
+						btn.classList.add('liked');
+						if (icon) {
+							icon.classList.remove('far');
+							icon.classList.add('fas');
+						}
+					}
+				};
+			});
+			
+			// Add more button handlers for albums
+			row.querySelectorAll('.album-more-btn').forEach((btn, idx) => {
+				btn.onclick = (e) => {
+					e.stopPropagation();
+					// Check if menu is already open for this button
+					const existingMenu = document.querySelector('.context-menu');
+					if (existingMenu && existingMenu.dataset.sourceButtonId === String(btn)) {
+						existingMenu.remove();
+						return;
+					}
+					showAlbumContextMenu(e, items[idx], idx);
+				};
+			});
+			
 			row.onclick = function(e) {
+				if (e.target.closest('.album-heart-btn') || e.target.closest('.album-more-btn')) return;
 				let el = e.target;
 				while (el && el !== row && !el.hasAttribute('data-album')) el = el.parentElement;
 				if (el && el.hasAttribute('data-album')) {
@@ -1416,9 +1756,24 @@ window.toggleTrackLike = toggleTrackLike;
 
 		// Add kebab menu handlers for tracks
 		if (type === 'track') {
+			// Add like button handlers for tracks
+			row.querySelectorAll('.heart-btn').forEach((btn, idx) => {
+				btn.onclick = async (e) => {
+					e.stopPropagation();
+					const trackId = items[idx].id || idx;
+					await toggleTrackLike(trackId, btn);
+				};
+			});
+			
 			row.querySelectorAll('.kebab').forEach((kebab, idx) => {
 				kebab.onclick = (e) => {
 					e.stopPropagation();
+					// Check if menu is already open for this button
+					const existingMenu = document.querySelector('.context-menu');
+					if (existingMenu && existingMenu.dataset.sourceButtonId === String(kebab)) {
+						existingMenu.remove();
+						return;
+					}
 					showContextMenu(e, items[idx], idx);
 				};
 			});
@@ -1446,6 +1801,12 @@ window.toggleTrackLike = toggleTrackLike;
 	let currentParams = {};
 
 	function navigateTo(page, params = {}) {
+		// Проверяем авторизацию перед навигацией
+		if (!currentUser) {
+			showLoginScreen();
+			return;
+		}
+		
 		window.currentPage = page;
 		currentParams = params;
 		
@@ -1495,17 +1856,8 @@ window.toggleTrackLike = toggleTrackLike;
 		}
 	});
 
-	// Initialize SPA on page load
-	(function initSPA() {
-		const urlParams = new URLSearchParams(window.location.search);
-		if (urlParams.has('album')) {
-			navigateTo('album', { album: urlParams.get('album') });
-		} else if (urlParams.has('artist')) {
-			navigateTo('artist', { artist: urlParams.get('artist') });
-		} else {
-			navigateTo('home');
-		}
-	})();
+	// Initialize SPA on page load - вызывается только для авторизованных пользователей
+	// Инициализация происходит в showAuthenticatedContent() и initSession()
 
 	// Minimal SPA renderers to avoid reload only when music is playing
 	async function renderAlbumSPA(albumName){
@@ -1886,25 +2238,34 @@ window.toggleTrackLike = toggleTrackLike;
 				</div>
 			`;
 			
-			// Load popular tracks
+			// Load popular tracks (show only first 10)
 			const list = document.getElementById('popular-tracks'); 
 			list.innerHTML='';
-			(data.top_tracks||[]).forEach((t,i)=>{ 
+			const allTracks = data.top_tracks || [];
+			const tracksToShow = allTracks.slice(0, 10);
+			let visibleTracksCount = 10;
+			
+			tracksToShow.forEach((t,i)=>{ 
 				const d=document.createElement('div'); 
 				d.className='track-item-numbered'; 
 				const likedClass = window.__likedSet && window.__likedSet.has(t.id) ? 'liked' : '';
                 const combined = (t.feats && String(t.feats).trim()) ? `${t.artist}, ${t.feats}` : (t.artist||'');
 				d.innerHTML=`
 					<div class="track-number">${i+1}</div>
-					<div class="track-info">
+					<div class="track-play-icon" style="display: none;"><i class="fas fa-play"></i></div>
+					<img class="track-cover-small" src="/muzic2/${t.cover || data.cover || 'tracks/covers/placeholder.jpg'}" alt="${escapeHtml(t.title||'')}" loading="lazy">
+					<div class="track-details">
 						<div class="track-title-primary">${t.explicit ? '<span class="exp-badge">E</span>' : ''}${escapeHtml(t.title||'')}</div>
-						<div class="track-artist-secondary">${escapeHtml(combined)}</div>
 					</div>
 					<div class="track-duration">${Math.floor((t.duration||0)/60)}:${((t.duration||0)%60).toString().padStart(2,'0')}</div>
-					<div class="track-like"><button class="heart-btn ${likedClass}" data-track-id="${t.id}" title="В избранное">❤</button></div>
+					<button class="track-like-btn ${likedClass}" data-track-id="${t.id}" title="В избранное">
+						<i class="${likedClass ? 'fas' : 'far'} fa-heart"></i>
+					</button>
+					<button class="track-more-btn"><i class="fas fa-ellipsis-h"></i></button>
 				`; 
-				d.onclick=()=>{ 
-					const q=(data.top_tracks||[]).map(tt=>{
+				d.onclick=(e)=>{
+					if(e.target.closest('.track-like-btn') || e.target.closest('.track-more-btn')) return;
+					const q=(allTracks).map(tt=>{
 						const s = tt.file_path || '';
 						if(!s) return null;
 						const src = /^https?:/i.test(s) ? s : (s.indexOf('tracks/') !== -1 ? '/muzic2/' + s.slice(s.indexOf('tracks/')) : '/muzic2/' + s.replace(/^\/+/, ''));
@@ -1914,9 +2275,101 @@ window.toggleTrackLike = toggleTrackLike;
 						window.setQueue && window.setQueue(q, i); 
 						window.playFromQueue && window.playFromQueue(i); 
 					} 
-				}; 
+				};
+				// Like button handler
+				const likeBtn = d.querySelector('.track-like-btn');
+				if(likeBtn) {
+					likeBtn.onclick = async (e) => {
+						e.stopPropagation();
+						if (!window.__likedSet) window.__likedSet = new Set();
+						const icon = likeBtn.querySelector('i');
+						if (window.__likedSet.has(t.id)) {
+							await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: t.id })});
+							window.__likedSet.delete(t.id);
+							icon.classList.remove('fas'); icon.classList.add('far');
+							likeBtn.classList.remove('liked');
+						} else {
+							await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: t.id })});
+							window.__likedSet.add(t.id);
+							icon.classList.remove('far'); icon.classList.add('fas');
+							likeBtn.classList.add('liked');
+						}
+					};
+				}
 				list.appendChild(d); 
 			});
+			
+			// Show more button handler
+			const showMoreBtn = document.getElementById('show-more-tracks');
+			if(showMoreBtn && allTracks.length > 10) {
+				showMoreBtn.style.display = 'block';
+				showMoreBtn.onclick = () => {
+					const nextBatch = allTracks.slice(visibleTracksCount, visibleTracksCount + 10);
+					nextBatch.forEach((t, idx) => {
+						const d=document.createElement('div'); 
+						d.className='track-item-numbered'; 
+						const likedClass = window.__likedSet && window.__likedSet.has(t.id) ? 'liked' : '';
+						const combined = (t.feats && String(t.feats).trim()) ? `${t.artist}, ${t.feats}` : (t.artist||'');
+						d.innerHTML=`
+							<div class="track-number">${visibleTracksCount + idx + 1}</div>
+							<div class="track-play-icon" style="display: none;"><i class="fas fa-play"></i></div>
+							<img class="track-cover-small" src="/muzic2/${t.cover || data.cover || 'tracks/covers/placeholder.jpg'}" alt="${escapeHtml(t.title||'')}" loading="lazy">
+							<div class="track-details">
+								<div class="track-title-primary">${t.explicit ? '<span class="exp-badge">E</span>' : ''}${escapeHtml(t.title||'')}</div>
+							</div>
+							<div class="track-duration">${Math.floor((t.duration||0)/60)}:${((t.duration||0)%60).toString().padStart(2,'0')}</div>
+							<button class="track-like-btn ${likedClass}" data-track-id="${t.id}" title="В избранное">
+								<i class="${likedClass ? 'fas' : 'far'} fa-heart"></i>
+							</button>
+							<button class="track-more-btn"><i class="fas fa-ellipsis-h"></i></button>
+						`;
+						d.onclick=(e)=>{
+							if(e.target.closest('.track-like-btn') || e.target.closest('.track-more-btn')) return;
+							const q=(allTracks).map(tt=>{
+								const s = tt.file_path || '';
+								if(!s) return null;
+								const src = /^https?:/i.test(s) ? s : (s.indexOf('tracks/') !== -1 ? '/muzic2/' + s.slice(s.indexOf('tracks/')) : '/muzic2/' + s.replace(/^\/+/, ''));
+								return { src: encodeURI(src), title: tt.title, artist: tt.artist, cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg'), video_url: tt.video_url || '' };
+							}).filter(t => t !== null);
+							if(q.length){ 
+								window.setQueue && window.setQueue(q, visibleTracksCount + idx); 
+								window.playFromQueue && window.playFromQueue(visibleTracksCount + idx); 
+							} 
+						};
+						const likeBtn = d.querySelector('.track-like-btn');
+						if(likeBtn) {
+							likeBtn.onclick = async (e) => {
+								e.stopPropagation();
+								if (!window.__likedSet) window.__likedSet = new Set();
+								const icon = likeBtn.querySelector('i');
+								if (window.__likedSet.has(t.id)) {
+									await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: t.id })});
+									window.__likedSet.delete(t.id);
+									icon.classList.remove('fas'); icon.classList.add('far');
+									likeBtn.classList.remove('liked');
+								} else {
+									await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: t.id })});
+									window.__likedSet.add(t.id);
+									icon.classList.remove('far'); icon.classList.add('fas');
+									likeBtn.classList.add('liked');
+								}
+							};
+						}
+						list.appendChild(d);
+					});
+					visibleTracksCount += nextBatch.length;
+					if(visibleTracksCount >= allTracks.length) {
+						showMoreBtn.style.display = 'none';
+					} else {
+						const remaining = allTracks.length - visibleTracksCount;
+						showMoreBtn.textContent = `Показать ещё ${remaining} трек${remaining % 10 === 1 && remaining % 100 !== 11 ? '' : [2,3,4].includes(remaining % 10) && ![12,13,14].includes(remaining % 100) ? 'а' : 'ов'}`;
+					}
+				};
+				const remaining = allTracks.length - visibleTracksCount;
+				showMoreBtn.textContent = `Показать ещё ${remaining} трек${remaining % 10 === 1 && remaining % 100 !== 11 ? '' : [2,3,4].includes(remaining % 10) && ![12,13,14].includes(remaining % 100) ? 'а' : 'ов'}`;
+			} else if(showMoreBtn) {
+				showMoreBtn.style.display = 'none';
+			}
 			
 			// Play all button
 			document.getElementById('play-all-btn').onclick=()=>{ 
@@ -1935,12 +2388,80 @@ window.toggleTrackLike = toggleTrackLike;
 			// Load artist albums
 			loadArtistAlbums(artistName);
 			
+			// Load videos
+			loadArtistVideos(artistName);
+			
 			// Load album likes after DOM is ready
 			setTimeout(() => {
 				loadAlbumLikes();
 			}, 100);
 		} catch (e) {
 			mainContent.innerHTML = '<div class="error">Ошибка загрузки артиста</div>';
+		}
+	}
+
+	// Load artist videos
+	async function loadArtistVideos(artistName) {
+		try {
+			const videosList = document.getElementById('videos-list');
+			if (!videosList) return;
+			
+			videosList.innerHTML = '<div class="loading">Загрузка...</div>';
+			
+			const apiUrl = isWindows ? 
+				`/muzic2/src/api/videos.php?artist=${encodeURIComponent(artistName)}` :
+				`/muzic2/public/src/api/videos.php?artist=${encodeURIComponent(artistName)}`;
+			
+			const res = await fetch(apiUrl);
+			const json = await res.json();
+			const items = (json && json.success && Array.isArray(json.data)) ? json.data : [];
+			
+			if (!items.length) {
+				videosList.innerHTML = '<div style="color:#9aa0a6;padding:8px 0;">Видео не найдены</div>';
+				return;
+			}
+			
+			videosList.innerHTML = '';
+			items.forEach(v => {
+				const card = document.createElement('div');
+				card.className = 'album-card';
+				const cover = v.cover || 'tracks/covers/placeholder.jpg';
+				card.innerHTML = `
+					<img class="album-cover" src="/muzic2/${cover}" alt="${escapeHtml(v.title||'')}" loading="lazy">
+					<div class="album-title">${escapeHtml(v.title||'')}</div>
+					<div class="album-info">Видео</div>
+					<button class="album-play-btn"><i class="fas fa-play"></i></button>
+				`;
+				const img = card.querySelector('img.album-cover');
+				if (img) {
+					img.addEventListener('error', () => {
+						img.src = '/muzic2/tracks/covers/placeholder.jpg';
+					}, { once: true });
+				}
+				const btn = card.querySelector('.album-play-btn');
+				if (btn) {
+					btn.addEventListener('click', (e) => {
+						e.stopPropagation();
+						if (window.playTrack) {
+							window.playTrack({
+								src: v.src,
+								title: v.title || '',
+								artist: artistName || '',
+								cover: '/muzic2/' + cover,
+								duration: v.duration || 0,
+								video_url: v.src
+							});
+						}
+					});
+				}
+				videosList.appendChild(card);
+			});
+		} catch (e) {
+			const videosList = document.getElementById('videos-list');
+			if (videosList) {
+				videosList.innerHTML = '<div class="error">Ошибка загрузки видео</div>';
+			}
+			console.error('Error loading videos:', e);
 		}
 	}
 
@@ -1962,15 +2483,49 @@ window.toggleTrackLike = toggleTrackLike;
 					data.albums.slice(0, 6).forEach(album => {
 						const albumDiv = document.createElement('div');
 						albumDiv.className = 'album-card';
+						const isLiked = window.__likedAlbums && window.__likedAlbums.has(album.album || album.title || '');
+						const albumTypeValue = album.type || album.album_type || '';
+						const albumType = albumTypeValue === 'album' ? 'Альбом' : 
+						                 albumTypeValue === 'ep' ? 'EP' : 
+						                 albumTypeValue === 'single' ? 'Сингл' : 'Сингл';
+						const trackCount = album.track_count || 0;
 						albumDiv.innerHTML = `
+							<button class="album-heart-btn ${isLiked ? 'liked' : ''}" data-album-title="${escapeHtml(album.album || album.title || '')}" title="В избранные альбомы">
+								<i class="fas fa-heart"></i>
+							</button>
 							<img class="album-cover" loading="lazy" src="/muzic2/${album.cover || 'tracks/covers/placeholder.jpg'}" alt="album cover">
-							<div class="album-title">${escapeHtml(album.album || '')}</div>
+							<div class="album-title">${escapeHtml(album.album || album.title || '')}</div>
 							<div class="album-artist">${escapeHtml(artistName)}</div>
-							<button class="heart-btn album-heart-btn" data-album-title="${escapeHtml(album.album || '')}" title="В избранные альбомы">❤</button>
+							<div class="album-info">${albumType} • ${trackCount} трек${trackCount % 10 === 1 && trackCount % 100 !== 11 ? '' : [2,3,4].includes(trackCount % 10) && ![12,13,14].includes(trackCount % 100) ? 'а' : 'ов'}</div>
+							<button class="album-play-btn"><i class="fas fa-play"></i></button>
 						`;
+						const likeBtn = albumDiv.querySelector('.album-heart-btn');
+						if (likeBtn) {
+							likeBtn.onclick = async (e) => {
+								e.stopPropagation();
+								if (!window.__likedAlbums) window.__likedAlbums = new Set();
+								const albumTitle = album.album || album.title || '';
+								if (window.__likedAlbums.has(albumTitle)) {
+									await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
+									window.__likedAlbums.delete(albumTitle);
+									likeBtn.classList.remove('liked');
+								} else {
+									await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
+									window.__likedAlbums.add(albumTitle);
+									likeBtn.classList.add('liked');
+								}
+							};
+						}
+						const playBtn = albumDiv.querySelector('.album-play-btn');
+						if (playBtn) {
+							playBtn.onclick = (e) => {
+								e.stopPropagation();
+								navigateTo('album', { album: album.album || album.title });
+							};
+						}
 						albumDiv.onclick = (e) => {
-							if (!e.target.classList.contains('heart-btn')) {
-								navigateTo('album', { album: album.album });
+							if (!e.target.closest('.album-play-btn') && !e.target.closest('.album-heart-btn')) {
+								navigateTo('album', { album: album.album || album.title });
 							}
 						};
 						albumsList.appendChild(albumDiv);
@@ -1987,14 +2542,48 @@ window.toggleTrackLike = toggleTrackLike;
 					data.albums.slice(0, 6).forEach(album => {
 						const albumDiv = document.createElement('div');
 						albumDiv.className = 'album-card';
+						const isLiked = window.__likedAlbums && window.__likedAlbums.has(album.title || '');
+						const albumTypeValue = album.type || album.album_type || '';
+						const albumType = albumTypeValue === 'album' ? 'Альбом' : 
+						                 albumTypeValue === 'ep' ? 'EP' : 
+						                 albumTypeValue === 'single' ? 'Сингл' : 'Сингл';
+						const trackCount = album.track_count || 0;
 						albumDiv.innerHTML = `
+							<button class="album-heart-btn ${isLiked ? 'liked' : ''}" data-album-title="${escapeHtml(album.title || '')}" title="В избранные альбомы">
+								<i class="fas fa-heart"></i>
+							</button>
 							<img class="album-cover" loading="lazy" src="/muzic2/${album.cover || 'tracks/covers/placeholder.jpg'}" alt="album cover">
 							<div class="album-title">${escapeHtml(album.title || '')}</div>
 							<div class="album-artist">${escapeHtml(album.artist || '')}</div>
-							<button class="heart-btn album-heart-btn" data-album-title="${escapeHtml(album.title || '')}" title="В избранные альбомы">❤</button>
+							<div class="album-info">${albumType} • ${trackCount} трек${trackCount % 10 === 1 && trackCount % 100 !== 11 ? '' : [2,3,4].includes(trackCount % 10) && ![12,13,14].includes(trackCount % 100) ? 'а' : 'ов'}</div>
+							<button class="album-play-btn"><i class="fas fa-play"></i></button>
 						`;
+						const likeBtn = albumDiv.querySelector('.album-heart-btn');
+						if (likeBtn) {
+							likeBtn.onclick = async (e) => {
+								e.stopPropagation();
+								if (!window.__likedAlbums) window.__likedAlbums = new Set();
+								const albumTitle = album.title || '';
+								if (window.__likedAlbums.has(albumTitle)) {
+									await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
+									window.__likedAlbums.delete(albumTitle);
+									likeBtn.classList.remove('liked');
+								} else {
+									await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
+									window.__likedAlbums.add(albumTitle);
+									likeBtn.classList.add('liked');
+								}
+							};
+						}
+						const playBtn = albumDiv.querySelector('.album-play-btn');
+						if (playBtn) {
+							playBtn.onclick = (e) => {
+								e.stopPropagation();
+								navigateTo('album', { album: album.title });
+							};
+						}
 						albumDiv.onclick = (e) => {
-							if (!e.target.classList.contains('heart-btn')) {
+							if (!e.target.closest('.album-play-btn') && !e.target.closest('.album-heart-btn')) {
 								navigateTo('album', { album: album.title });
 							}
 						};
@@ -2123,6 +2712,12 @@ window.toggleTrackLike = toggleTrackLike;
 
 	// Search functionality
 	async function renderSearch() {
+		// Проверяем авторизацию
+		if (!currentUser) {
+			showLoginScreen();
+			return;
+		}
+		
 		mainContent.innerHTML = `
 			<div class="search-container">
 				<div class="search-header">
@@ -2399,7 +2994,7 @@ window.toggleTrackLike = toggleTrackLike;
 								e.stopPropagation();
 								e.preventDefault();
 								try {
-									const func = new Function('return ' + playAction)();
+							const func = new Function('return ' + playAction)();
 									if (typeof func === 'function') {
 										func();
 									}
@@ -2599,9 +3194,21 @@ function upgradeRowsToHScroll() {
 
 // Context menu for kebab button - works on all devices
 function showContextMenu(event, track, trackIndex) {
-	// Remove existing context menu
+	// Get the button that triggered this menu
+	const currentButton = event.target.closest('.kebab');
+	
+	// Check if there's an existing menu and if it was opened by the same button
 	const existingMenu = document.querySelector('.context-menu');
 	if (existingMenu) {
+		const menuButtonId = existingMenu.dataset.sourceButtonId;
+		const currentButtonId = currentButton ? String(currentButton) : null;
+		
+		// If clicking the same button that opened the menu, close it
+		if (menuButtonId && currentButtonId && menuButtonId === currentButtonId) {
+			existingMenu.remove();
+			return;
+		}
+		// Otherwise, remove the old menu and create a new one
 		existingMenu.remove();
 	}
 	
@@ -2609,15 +3216,21 @@ function showContextMenu(event, track, trackIndex) {
 	const menu = document.createElement('div');
 	menu.className = 'context-menu show';
 	
+	// Store reference to the button that opened this menu
+	if (currentButton) {
+		menu.dataset.sourceButtonId = String(currentButton);
+	}
+	
 	// Get track data
 	const trackTitle = track.title || '';
 	const trackArtist = track.artist || '';
 	const trackAlbum = track.album || '';
 	
-	// Create menu items
+	// Create menu items with icons
 	const addToFavorites = document.createElement('button');
 	addToFavorites.className = 'context-menu-item';
-	addToFavorites.textContent = 'Добавить в избранное';
+	const isLiked = window.__likedSet && window.__likedSet.has(track.id || trackIndex);
+	addToFavorites.innerHTML = `<i class="${isLiked ? 'fas' : 'far'} fa-heart" style="font-size: 0.9rem; color: ${isLiked ? '#1ed760' : '#b3b3b3'};"></i><span>${isLiked ? 'Убрать из избранного' : 'Добавить в избранное'}</span>`;
 	addToFavorites.onclick = () => {
 		toggleLike(track.id || trackIndex);
 		menu.remove();
@@ -2625,7 +3238,7 @@ function showContextMenu(event, track, trackIndex) {
 	
 	const goToArtist = document.createElement('button');
 	goToArtist.className = 'context-menu-item';
-	goToArtist.textContent = 'Перейти к артисту';
+	goToArtist.innerHTML = '<i class="fas fa-user" style="font-size: 0.9rem; color: #b3b3b3;"></i><span>Перейти к артисту</span>';
 	goToArtist.onclick = () => {
 		if (trackArtist) {
 			navigateTo('artist', { artist: trackArtist });
@@ -2635,7 +3248,7 @@ function showContextMenu(event, track, trackIndex) {
 	
 	const goToAlbum = document.createElement('button');
 	goToAlbum.className = 'context-menu-item';
-	goToAlbum.textContent = 'Перейти к альбому';
+	goToAlbum.innerHTML = '<i class="fas fa-compact-disc" style="font-size: 0.9rem; color: #b3b3b3;"></i><span>Перейти к альбому</span>';
 	goToAlbum.onclick = () => {
 		if (trackAlbum) {
 			navigateTo('album', { album: trackAlbum });

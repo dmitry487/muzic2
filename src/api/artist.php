@@ -1,9 +1,17 @@
 <?php
+session_start();
 require_once __DIR__ . '/../config/db.php';
 header('Content-Type: application/json');
 header('Cache-Control: no-cache, no-store, must-revalidate');
 header('Pragma: no-cache');
 header('Expires: 0');
+
+// Проверка авторизации
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Требуется авторизация']);
+    exit;
+}
 
 $db = get_db_connection();
 $artist = isset($_GET['artist']) ? $_GET['artist'] : null;
@@ -74,9 +82,12 @@ $albumsStmt->execute([$artist]);
 $albums = [];
 
 foreach ($albumsStmt as $album) {
+    // Убеждаемся, что album_type не null и правильно обработан
+    $albumType = $album['album_type'] ? trim(strtolower($album['album_type'])) : 'album';
     $albums[] = [
         'title' => $album['album'],
-        'type' => $album['album_type'],
+        'type' => $albumType,
+        'album_type' => $albumType, // Дублируем для совместимости
         'track_count' => (int)$album['track_count'],
         'cover' => $album['cover'],
         'total_duration' => (int)$album['total_duration']

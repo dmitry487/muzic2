@@ -382,19 +382,33 @@
     background: none;
     border: none;
     color: #b3b3b3;
-    font-size: 1rem;
+    font-size: 1.1rem;
     cursor: pointer;
-    transition: color 0.2s;
+    transition: all 0.2s ease;
     padding: 0.5rem;
-    opacity: 0;
-}
-
-.track-item-numbered:hover .track-like-btn {
     opacity: 1;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    position: relative;
 }
 
 .track-like-btn:hover {
     color: #1ed760;
+    background: rgba(30, 215, 96, 0.1);
+    transform: scale(1.1);
+}
+
+.track-like-btn.liked {
+    color: #1ed760;
+}
+
+.track-like-btn.liked:hover {
+    background: rgba(30, 215, 96, 0.15);
+    transform: scale(1.15);
 }
 
 .track-more-btn {
@@ -507,6 +521,15 @@
     text-overflow: ellipsis;
 }
 
+.album-artist {
+    font-size: 0.875rem;
+    color: #b3b3b3;
+    margin: 0 0 0.5rem 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .album-info {
     font-size: 0.875rem;
     color: #b3b3b3;
@@ -540,6 +563,50 @@
 
 .album-play-btn:hover {
     transform: translateY(-4px) scale(1.04);
+}
+
+/* Кнопка лайка для альбомов */
+.album-heart-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #b3b3b3;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    opacity: 0;
+    z-index: 2;
+}
+
+.album-card:hover .album-heart-btn {
+    opacity: 1;
+}
+
+.album-heart-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: #fff;
+    transform: scale(1.1);
+}
+
+.album-heart-btn.liked {
+    background: rgba(30, 215, 96, 0.2);
+    border-color: #1ed760;
+    color: #1ed760;
+    opacity: 1;
+}
+
+.album-heart-btn.liked:hover {
+    background: rgba(30, 215, 96, 0.3);
+    transform: scale(1.15);
 }
 
 /* Responsive Design */
@@ -605,7 +672,23 @@
     
     .albums-grid {
         grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-        gap: 1rem;
+        gap: 1.25rem;
+    }
+    
+    .album-play-btn {
+        width: 48px;
+        height: 48px;
+        font-size: 1.2rem;
+        right: 1rem;
+        bottom: 5rem;
+    }
+    
+    .album-heart-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 0.75rem;
+        top: 0.75rem;
+        right: 0.75rem;
     }
     
     .track-item-numbered {
@@ -675,7 +758,23 @@
     
     .albums-grid {
         grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-        gap: 0.75rem;
+        gap: 1rem;
+    }
+    
+    .album-play-btn {
+        width: 44px;
+        height: 44px;
+        font-size: 1.1rem;
+        right: 0.75rem;
+        bottom: 4.5rem;
+    }
+    
+    .album-heart-btn {
+        width: 26px;
+        height: 26px;
+        font-size: 0.7rem;
+        top: 0.5rem;
+        right: 0.5rem;
     }
     
     .track-item-numbered {
@@ -749,7 +848,23 @@
     
     .albums-grid {
         grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-        gap: 0.5rem;
+        gap: 0.75rem;
+    }
+    
+    .album-play-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 1rem;
+        right: 0.5rem;
+        bottom: 4rem;
+    }
+    
+    .album-heart-btn {
+        width: 24px;
+        height: 24px;
+        font-size: 0.65rem;
+        top: 0.5rem;
+        right: 0.5rem;
     }
     
     .track-item-numbered {

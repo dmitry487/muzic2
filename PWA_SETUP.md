@@ -71,3 +71,7 @@ if (window.showInstallPrompt) {
 - IndexedDB для хранения данных оффлайн
 
 
+
+
+
+

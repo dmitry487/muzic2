@@ -155,7 +155,8 @@
                 <div id="metadataContent"></div>
                 <div id="metadataActions" style="margin-top: 1rem; display: none;">
                     <button onclick="saveMetadataAsNew()" style="background: #1db954; margin-right: 0.5rem;">💾 Сохранить как новый трек</button>
-                    <button onclick="updateExistingTrack()" style="background: #333;">🔄 Обновить существующий трек</button>
+                    <button onclick="updateExistingTrack()" style="background: #333; margin-right: 0.5rem;">🔄 Обновить существующий трек</button>
+                    <button onclick="saveArtistFromMetadata()" style="background: #2962ff;">👤 Сохранить артиста (из метаданных)</button>
                 </div>
             </div>
         </div>
@@ -178,6 +179,30 @@
             
             <div class="result" id="addTrackResult">
                 <div id="addTrackContent"></div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>Добавить / обновить артиста</h2>
+            <p style="color: #666; margin-bottom: 1rem;">
+                Можно сохранить артиста в отдельную таблицу через API. Данные можно взять из найденных метаданных (iTunes / Deezer) или ввести вручную.
+            </p>
+            <div class="form-group">
+                <label>Имя артиста</label>
+                <input type="text" id="artistNameApi" placeholder="Имя артиста">
+            </div>
+            <div class="form-group">
+                <label>URL обложки (опционально)</label>
+                <input type="text" id="artistCoverApi" placeholder="https://...">
+            </div>
+            <div class="form-group">
+                <label>Био (опционально)</label>
+                <input type="text" id="artistBioApi" placeholder="Краткое описание артиста">
+            </div>
+            <button onclick="saveArtistManual()">💾 Сохранить артиста</button>
+            
+            <div class="result" id="addArtistResult">
+                <div id="addArtistContent"></div>
             </div>
         </div>
         
@@ -596,6 +621,104 @@
                 }
             } catch (error) {
                 content.innerHTML = '<p style="color: #ff4444;">Ошибка: ' + error.message + '</p>';
+            }
+        }
+        
+        async function saveArtistFromMetadata() {
+            const resultBlock = document.getElementById('addArtistResult');
+            const contentBlock = document.getElementById('addArtistContent');
+            
+            if (!currentMetadata) {
+                alert('Сначала получите метаданные трека, чтобы взять имя артиста и обложку');
+                return;
+            }
+            
+            const artistName = (currentMetadata.artist || '').trim() || document.getElementById('trackArtist').value.trim();
+            if (!artistName) {
+                alert('Не удалось определить имя артиста');
+                return;
+            }
+            
+            const cover = (currentMetadata.cover || '').trim();
+            
+            resultBlock.classList.add('show');
+            contentBlock.innerHTML = '<p>Сохранение артиста через API...</p>';
+            
+            try {
+                const response = await fetch('/muzic2/add_artist_api.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        artist_name: artistName,
+                        cover: cover,
+                        bio: ''
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    contentBlock.innerHTML = `
+                        <div class="result-item">
+                            <strong>✅ Артист сохранён!</strong><br>
+                            <strong>Имя:</strong> ${data.data.artist_name}<br>
+                            ${data.data.cover ? `<strong>Обложка:</strong> ${data.data.cover}<br>` : ''}
+                        </div>
+                    `;
+                    document.getElementById('artistNameApi').value = data.data.artist_name;
+                    document.getElementById('artistCoverApi').value = data.data.cover || '';
+                } else {
+                    contentBlock.innerHTML = '<p style="color: #ff4444;">Ошибка: ' + (data.message || 'Неизвестная ошибка') + '</p>';
+                }
+            } catch (error) {
+                contentBlock.innerHTML = '<p style="color: #ff4444;">Ошибка: ' + error.message + '</p>';
+            }
+        }
+        
+        async function saveArtistManual() {
+            const nameInput = document.getElementById('artistNameApi');
+            const coverInput = document.getElementById('artistCoverApi');
+            const bioInput = document.getElementById('artistBioApi');
+            
+            const name = nameInput.value.trim();
+            const cover = coverInput.value.trim();
+            const bio = bioInput.value.trim();
+            
+            if (!name) {
+                alert('Введите имя артиста');
+                return;
+            }
+            
+            const resultBlock = document.getElementById('addArtistResult');
+            const contentBlock = document.getElementById('addArtistContent');
+            resultBlock.classList.add('show');
+            contentBlock.innerHTML = '<p>Сохранение артиста через API...</p>';
+            
+            try {
+                const response = await fetch('/muzic2/add_artist_api.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        artist_name: name,
+                        cover: cover,
+                        bio: bio
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    contentBlock.innerHTML = `
+                        <div class="result-item">
+                            <strong>✅ Артист сохранён!</strong><br>
+                            <strong>Имя:</strong> ${data.data.artist_name}<br>
+                            ${data.data.cover ? `<strong>Обложка:</strong> ${data.data.cover}<br>` : ''}
+                            ${data.data.bio ? `<strong>Био:</strong> ${data.data.bio}<br>` : ''}
+                        </div>
+                    `;
+                } else {
+                    contentBlock.innerHTML = '<p style="color: #ff4444;">Ошибка: ' + (data.message || 'Неизвестная ошибка') + '</p>';
+                }
+            } catch (error) {
+                contentBlock.innerHTML = '<p style="color: #ff4444;">Ошибка: ' + error.message + '</p>';
             }
         }
         

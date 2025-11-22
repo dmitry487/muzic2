@@ -1,8 +1,16 @@
 <?php
+session_start();
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
+
+// Проверка авторизации
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Требуется авторизация']);
+    exit;
+}
 
 // Ультра-быстрая версия для Windows
 $artist = $_GET['artist'] ?? '';
@@ -34,9 +42,23 @@ try {
     }
     
     // Альбомы артиста (упрощенно) - группируем по альбому
-    $stmt = $pdo->prepare("SELECT album, MIN(album_type) as album_type, MIN(cover) as cover FROM tracks WHERE artist = ? AND album IS NOT NULL GROUP BY album ORDER BY album");
+    $stmt = $pdo->prepare("SELECT album, MIN(album_type) as album_type, MIN(cover) as cover, COUNT(*) as track_count FROM tracks WHERE artist = ? AND album IS NOT NULL GROUP BY album ORDER BY album");
     $stmt->execute([$artist]);
-    $albums = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $albumsRaw = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Нормализуем album_type
+    $albums = [];
+    foreach ($albumsRaw as $album) {
+        $albumType = $album['album_type'] ? trim(strtolower($album['album_type'])) : 'album';
+        $albums[] = [
+            'album' => $album['album'],
+            'title' => $album['album'],
+            'type' => $albumType,
+            'album_type' => $albumType,
+            'cover' => $album['cover'],
+            'track_count' => (int)$album['track_count']
+        ];
+    }
     
     // Треки артиста (только первые 20)
     $stmt = $pdo->prepare("SELECT id, title, album, album_type, duration, file_path, cover, video_url, explicit FROM tracks WHERE artist = ? ORDER BY id LIMIT 20");

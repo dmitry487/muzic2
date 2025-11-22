@@ -94,9 +94,12 @@ try {
     $albumsStmt = $db->prepare($sqlAlbums);
     $albumsStmt->execute([$artist, $artist, $artist]);
     foreach ($albumsStmt as $album) {
+        // Убеждаемся, что album_type не null и правильно обработан
+        $albumType = $album['album_type'] ? trim(strtolower($album['album_type'])) : 'album';
         $albums[] = [
             'title' => $album['album'],
-            'type' => $album['album_type'],
+            'type' => $albumType,
+            'album_type' => $albumType, // Дублируем для совместимости
             'track_count' => (int)$album['track_count'],
             'cover' => $album['cover'],
             'total_duration' => (int)$album['total_duration']
