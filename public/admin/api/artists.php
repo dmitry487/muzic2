@@ -20,8 +20,16 @@ try {
         name VARCHAR(255) NOT NULL UNIQUE,
         cover VARCHAR(255),
         bio TEXT,
+        promo_video VARCHAR(500),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )');
+    
+    // Add promo_video column if it doesn't exist
+    try {
+        $db->exec("ALTER TABLE artists ADD COLUMN promo_video VARCHAR(500) DEFAULT NULL");
+    } catch (Throwable $e) {
+        // Column already exists, ignore
+    }
 
     $method = $_SERVER['REQUEST_METHOD'];
 
@@ -32,12 +40,13 @@ try {
             $sql = "SELECT a.name AS artist,
                            a.cover AS artist_cover,
                            a.bio AS bio,
+                           a.promo_video AS promo_video,
                            COUNT(t.id) AS tracks,
                            MIN(t.cover) AS track_cover
                     FROM artists a
                     LEFT JOIN tracks t ON TRIM(LOWER(a.name)) = TRIM(LOWER(t.artist))
                     WHERE a.name LIKE ?
-                    GROUP BY a.name, a.cover, a.bio
+                    GROUP BY a.name, a.cover, a.bio, a.promo_video
                     ORDER BY a.name ASC
                     LIMIT 500";
             $st = $db->prepare($sql);
@@ -48,11 +57,12 @@ try {
             $rows = $db->query("SELECT a.name AS artist,
                                        a.cover AS artist_cover,
                                        a.bio AS bio,
+                                       a.promo_video AS promo_video,
                                        COUNT(t.id) AS tracks,
                                        MIN(t.cover) AS track_cover
                                 FROM artists a
                                 LEFT JOIN tracks t ON TRIM(LOWER(a.name)) = TRIM(LOWER(t.artist))
-                                GROUP BY a.name, a.cover, a.bio
+                                GROUP BY a.name, a.cover, a.bio, a.promo_video
                                 ORDER BY a.name ASC
                                 LIMIT 200")->fetchAll();
         }
@@ -72,9 +82,10 @@ try {
         $name = trim((string)($body['name'] ?? ''));
         $cover = trim((string)($body['cover'] ?? ''));
         $bio = trim((string)($body['bio'] ?? ''));
+        $promoVideo = trim((string)($body['promo_video'] ?? ''));
         if ($name === '') throw new Exception('Введите имя артиста');
-        $st = $db->prepare('INSERT INTO artists (name, cover, bio) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE cover=VALUES(cover), bio=VALUES(bio)');
-        $st->execute([$name, $cover, $bio]);
+        $st = $db->prepare('INSERT INTO artists (name, cover, bio, promo_video) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE cover=VALUES(cover), bio=VALUES(bio), promo_video=VALUES(promo_video)');
+        $st->execute([$name, $cover, $bio, $promoVideo]);
         echo json_encode(['success'=>true]);
         exit;
     }
@@ -84,14 +95,15 @@ try {
         $name_new = trim((string)($body['name_new'] ?? $name));
         $cover = trim((string)($body['cover'] ?? ''));
         $bio = trim((string)($body['bio'] ?? ''));
+        $promoVideo = trim((string)($body['promo_video'] ?? ''));
         if ($name === '') throw new Exception('Введите текущее имя артиста');
         $db->beginTransaction();
         if (strcasecmp($name, $name_new) !== 0) {
             $st = $db->prepare('UPDATE tracks SET artist = ? WHERE TRIM(LOWER(artist)) = TRIM(LOWER(?))');
             $st->execute([$name_new, $name]);
         }
-        $st = $db->prepare('INSERT INTO artists (name, cover, bio) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE cover=VALUES(cover), bio=VALUES(bio)');
-        $st->execute([$name_new, $cover, $bio]);
+        $st = $db->prepare('INSERT INTO artists (name, cover, bio, promo_video) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE cover=VALUES(cover), bio=VALUES(bio), promo_video=VALUES(promo_video)');
+        $st->execute([$name_new, $cover, $bio, $promoVideo]);
         $db->commit();
         echo json_encode(['success'=>true]);
         exit;

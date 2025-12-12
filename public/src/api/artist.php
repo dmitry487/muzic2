@@ -11,12 +11,26 @@ if (!$artist) {
 }
 
 // Prefer explicit artists table first, so artists without tracks still resolve
-$explicitCover = null; $bio = null; $explicitName = null;
+$explicitCover = null; $bio = null; $explicitName = null; $promoVideo = null; $promoTrackId = null;
 try {
-    $row = $db->prepare('SELECT name, cover, bio FROM artists WHERE LOWER(name)=LOWER(?) LIMIT 1');
+    // Добавляем поля если их нет
+    try {
+        $db->exec("ALTER TABLE artists ADD COLUMN IF NOT EXISTS promo_video VARCHAR(500) DEFAULT NULL");
+    } catch (Throwable $e) {}
+    try {
+        $db->exec("ALTER TABLE artists ADD COLUMN IF NOT EXISTS promo_track_id INT DEFAULT NULL");
+    } catch (Throwable $e) {}
+    
+    $row = $db->prepare('SELECT name, cover, bio, promo_video, promo_track_id FROM artists WHERE LOWER(name)=LOWER(?) LIMIT 1');
     $row->execute([$artist]);
     $ar = $row->fetch();
-    if ($ar) { $explicitName = $ar['name']; $explicitCover = $ar['cover']; $bio = $ar['bio']; }
+    if ($ar) { 
+        $explicitName = $ar['name']; 
+        $explicitCover = $ar['cover']; 
+        $bio = $ar['bio']; 
+        $promoVideo = isset($ar['promo_video']) && $ar['promo_video'] !== '' && $ar['promo_video'] !== null ? trim((string)$ar['promo_video']) : null;
+        $promoTrackId = isset($ar['promo_track_id']) && $ar['promo_track_id'] !== null && $ar['promo_track_id'] !== '' ? (int)$ar['promo_track_id'] : null;
+    }
 } catch (Throwable $e) {}
 
 // Try to find exact-match (case-insensitive) artist rows in tracks (for stats)
@@ -129,18 +143,49 @@ try {
 
 $monthlyListeners = rand(100000, 10000000);
 
+// Get promo track info if promo_track_id is set
+$promoTrack = null;
+if ($promoTrackId) {
+    try {
+        $trackStmt = $db->prepare('SELECT id, title, artist, album, cover, file_path, duration FROM tracks WHERE id = ? LIMIT 1');
+        $trackStmt->execute([$promoTrackId]);
+        $trackRow = $trackStmt->fetch();
+        if ($trackRow) {
+            $promoTrack = [
+                'id' => (int)$trackRow['id'],
+                'title' => $trackRow['title'],
+                'artist' => $trackRow['artist'],
+                'album' => $trackRow['album'],
+                'cover' => $trackRow['cover'],
+                'file_path' => $trackRow['file_path'],
+                'duration' => (int)$trackRow['duration']
+            ];
+        }
+    } catch (Throwable $e) {
+        error_log("Failed to load promo track: " . $e->getMessage());
+    }
+}
+
 $response = [
     'name' => $artistInfo['artist'],
     'verified' => true,
     'monthly_listeners' => $monthlyListeners,
     'cover' => $explicitCover ?: $artistInfo['cover'],
     'bio' => $bio ?: null,
+    'promo_video' => $promoVideo ? trim((string)$promoVideo) : null,
+    'promo_track_id' => $promoTrackId,
+    'promo_track' => $promoTrack,
     'total_tracks' => (int)$artistInfo['total_tracks'],
     'total_albums' => (int)$artistInfo['total_albums'],
     'total_duration' => (int)$artistInfo['total_duration'],
     'top_tracks' => $topTracks,
     'albums' => $albums
 ];
+
+// DEBUG: Log promo_video if exists
+if ($promoVideo) {
+    error_log("Artist API: promo_video for {$artistInfo['artist']}: " . $promoVideo);
+}
 
 echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 ?>

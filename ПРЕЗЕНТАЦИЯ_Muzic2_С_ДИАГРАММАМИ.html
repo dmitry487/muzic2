@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Презентация Muzic2 с диаграммами</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #1a1a1a;
+      color: #fff;
+      overflow: hidden;
+    }
+    .presentation {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .slide {
+      width: 90vw;
+      max-width: 1200px;
+      height: 85vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 20px;
+      padding: 60px;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      position: relative;
+    }
+    .slide.active {
+      display: flex;
+    }
+    .slide h1 {
+      font-size: 3.5em;
+      margin-bottom: 30px;
+      text-align: center;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    .slide h2 {
+      font-size: 2.5em;
+      margin-bottom: 40px;
+      text-align: center;
+      color: #ffd700;
+    }
+    .slide h3 {
+      font-size: 2em;
+      margin-bottom: 25px;
+      color: #ffd700;
+    }
+    .slide p {
+      font-size: 1.4em;
+      line-height: 1.8;
+      margin-bottom: 20px;
+      text-align: justify;
+    }
+    .slide ul {
+      font-size: 1.3em;
+      line-height: 2;
+      margin-left: 40px;
+      margin-bottom: 20px;
+    }
+    .slide li {
+      margin-bottom: 15px;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 30px;
+      margin-top: 30px;
+    }
+    .feature-card {
+      background: rgba(255,255,255,0.1);
+      padding: 25px;
+      border-radius: 15px;
+      backdrop-filter: blur(10px);
+    }
+    .feature-card h3 {
+      font-size: 1.6em;
+      margin-bottom: 15px;
+      color: #ffd700;
+    }
+    .tech-stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+      margin-top: 30px;
+    }
+    .tech-badge {
+      background: rgba(255,255,255,0.2);
+      padding: 15px 30px;
+      border-radius: 25px;
+      font-size: 1.2em;
+      backdrop-filter: blur(10px);
+    }
+    .slide-number {
+      position: absolute;
+      bottom: 20px;
+      right: 30px;
+      font-size: 1.2em;
+      opacity: 0.7;
+    }
+    .controls {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 20px;
+      z-index: 1000;
+    }
+    .btn {
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+      border: 2px solid rgba(255,255,255,0.5);
+      padding: 12px 30px;
+      border-radius: 25px;
+      cursor: pointer;
+      font-size: 1.1em;
+      backdrop-filter: blur(10px);
+      transition: all 0.3s;
+    }
+    .btn:hover {
+      background: rgba(255,255,255,0.3);
+      transform: scale(1.05);
+    }
+    .highlight {
+      color: #ffd700;
+      font-weight: bold;
+    }
+    .diagram-container {
+      margin: 30px 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    svg {
+      background: rgba(255,255,255,0.1);
+      border-radius: 15px;
+      padding: 20px;
+      max-width: 100%;
+      height: auto;
+    }
+    .architecture-diagram {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      margin: 40px 0;
+      font-size: 1.2em;
+    }
+    .arch-box {
+      background: rgba(255,255,255,0.15);
+      padding: 20px 40px;
+      border-radius: 15px;
+      backdrop-filter: blur(10px);
+    }
+    .arrow {
+      font-size: 2em;
+      color: #ffd700;
+    }
+    .export-btn {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+      border: 2px solid rgba(255,255,255,0.5);
+      padding: 10px 20px;
+      border-radius: 15px;
+      cursor: pointer;
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+  <button class="export-btn" onclick="exportToPowerPoint()">📥 Экспорт в PowerPoint</button>
+
+  <div class="presentation">
+    <!-- Слайд 1: Титульный -->
+    <div class="slide active">
+      <h1>Muzic2</h1>
+      <h2>Веб-приложение для воспроизведения музыки<br>с функционалом караоке и статистики</h2>
+      <p style="text-align: center; margin-top: 60px; font-size: 1.6em;">
+        Музыкальный сервис нового поколения
+      </p>
+      <div class="slide-number">1 / 10</div>
+    </div>
+
+    <!-- Слайд 2: О проекте -->
+    <div class="slide">
+      <h2>О проекте</h2>
+      <p>Muzic2 — это полнофункциональный музыкальный веб-сервис, объединяющий:</p>
+      <ul>
+        <li><span class="highlight">Караоке-режим</span> с точной синхронизацией текста (LRC)</li>
+        <li><span class="highlight">Детальную статистику</span> прослушиваний и аналитику</li>
+        <li><span class="highlight">Умные рекомендации</span> и подборки по настроению</li>
+        <li><span class="highlight">Кроссплатформенность</span> — веб, PWA, macOS, iOS</li>
+        <li><span class="highlight">Офлайн-режим</span> для работы без интернета</li>
+      </ul>
+      <div class="slide-number">2 / 10</div>
+    </div>
+
+    <!-- Слайд 3: Основные функции -->
+    <div class="slide">
+      <h2>Основные функции</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>🎵 Плеер</h3>
+          <p>Воспроизведение MP3, FLAC, M4A<br>Очередь треков<br>Кроссфейд между композициями</p>
+        </div>
+        <div class="feature-card">
+          <h3>🎤 Караоке</h3>
+          <p>LRC-синхронизация (±50 мс)<br>Визуальные эффекты<br>AR-режим с камерой</p>
+        </div>
+        <div class="feature-card">
+          <h3>📊 Статистика</h3>
+          <p>Топ артистов и треков<br>Графики активности<br>Суммарные метрики</p>
+        </div>
+        <div class="feature-card">
+          <h3>📁 Плейлисты</h3>
+          <p>Создание и управление<br>Публичные плейлисты<br>Поиск по каталогу</p>
+        </div>
+      </div>
+      <div class="slide-number">3 / 10</div>
+    </div>
+
+    <!-- Слайд 4: Технологии -->
+    <div class="slide">
+      <h2>Технологический стек</h2>
+      <div class="tech-stack">
+        <div class="tech-badge">HTML5</div>
+        <div class="tech-badge">CSS3</div>
+        <div class="tech-badge">JavaScript ES6+</div>
+        <div class="tech-badge">PHP 7.4+</div>
+        <div class="tech-badge">MySQL 8</div>
+        <div class="tech-badge">Web Audio API</div>
+        <div class="tech-badge">Service Worker</div>
+        <div class="tech-badge">Electron</div>
+        <div class="tech-badge">Swift</div>
+        <div class="tech-badge">REST API</div>
+      </div>
+      <p style="margin-top: 50px; text-align: center; font-size: 1.3em;">
+        Современные веб-технологии для максимальной производительности и удобства
+      </p>
+      <div class="slide-number">4 / 10</div>
+    </div>
+
+    <!-- Слайд 5: Архитектура с диаграммой -->
+    <div class="slide">
+      <h2>Архитектура системы</h2>
+      <div class="diagram-container">
+        <svg width="800" height="300" viewBox="0 0 800 300">
+          <!-- Клиент -->
+          <rect x="50" y="100" width="150" height="100" rx="10" fill="#4a90e2" stroke="#fff" stroke-width="2"/>
+          <text x="125" y="145" text-anchor="middle" fill="#fff" font-size="18" font-weight="bold">Клиент</text>
+          <text x="125" y="170" text-anchor="middle" fill="#fff" font-size="14">SPA/PWA</text>
+          <text x="125" y="190" text-anchor="middle" fill="#fff" font-size="14">JavaScript</text>
+          
+          <!-- Стрелка -->
+          <path d="M 220 150 L 280 150" stroke="#ffd700" stroke-width="4" fill="none" marker-end="url(#arrowhead)"/>
+          <defs>
+            <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+              <polygon points="0 0, 10 3, 0 6" fill="#ffd700"/>
+            </marker>
+          </defs>
+          
+          <!-- API -->
+          <rect x="300" y="100" width="150" height="100" rx="10" fill="#50c878" stroke="#fff" stroke-width="2"/>
+          <text x="375" y="145" text-anchor="middle" fill="#fff" font-size="18" font-weight="bold">REST API</text>
+          <text x="375" y="170" text-anchor="middle" fill="#fff" font-size="14">PHP</text>
+          <text x="375" y="190" text-anchor="middle" fill="#fff" font-size="14">JSON/HTTPS</text>
+          
+          <!-- Стрелка -->
+          <path d="M 470 150 L 530 150" stroke="#ffd700" stroke-width="4" fill="none" marker-end="url(#arrowhead)"/>
+          
+          <!-- БД -->
+          <rect x="550" y="100" width="150" height="100" rx="10" fill="#e74c3c" stroke="#fff" stroke-width="2"/>
+          <text x="625" y="145" text-anchor="middle" fill="#fff" font-size="18" font-weight="bold">База данных</text>
+          <text x="625" y="170" text-anchor="middle" fill="#fff" font-size="14">MySQL 8</text>
+          <text x="625" y="190" text-anchor="middle" fill="#fff" font-size="14">Индексы</text>
+          
+          <!-- Кэш -->
+          <rect x="300" y="230" width="150" height="50" rx="10" fill="#f39c12" stroke="#fff" stroke-width="2"/>
+          <text x="375" y="255" text-anchor="middle" fill="#fff" font-size="14">Service Worker</text>
+          <text x="375" y="270" text-anchor="middle" fill="#fff" font-size="12">Офлайн кэш</text>
+          
+          <!-- Линия к кэшу -->
+          <path d="M 375 200 L 375 230" stroke="#ffd700" stroke-width="2" fill="none"/>
+        </svg>
+      </div>
+      <ul style="margin-top: 20px; font-size: 1.1em;">
+        <li><span class="highlight">Клиентский слой:</span> Single Page Application с навигацией без перезагрузок</li>
+        <li><span class="highlight">Серверный слой:</span> RESTful API для всех операций</li>
+        <li><span class="highlight">Хранение данных:</span> MySQL с оптимизированными индексами</li>
+      </ul>
+      <div class="slide-number">5 / 10</div>
+    </div>
+
+    <!-- Слайд 6: ER-диаграмма БД -->
+    <div class="slide">
+      <h2>Структура базы данных</h2>
+      <div class="diagram-container">
+        <svg width="900" height="500" viewBox="0 0 900 500">
+          <!-- Users -->
+          <rect x="50" y="50" width="120" height="80" rx="5" fill="#3498db" stroke="#fff" stroke-width="2"/>
+          <text x="110" y="75" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold">users</text>
+          <text x="110" y="95" text-anchor="middle" fill="#fff" font-size="11">id, email</text>
+          <text x="110" y="110" text-anchor="middle" fill="#fff" font-size="11">password_hash</text>
+          <text x="110" y="125" text-anchor="middle" fill="#fff" font-size="11">created_at</text>
+          
+          <!-- Tracks -->
+          <rect x="300" y="50" width="120" height="100" rx="5" fill="#2ecc71" stroke="#fff" stroke-width="2"/>
+          <text x="360" y="75" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold">tracks</text>
+          <text x="360" y="95" text-anchor="middle" fill="#fff" font-size="11">id, title</text>
+          <text x="360" y="110" text-anchor="middle" fill="#fff" font-size="11">artist, album</text>
+          <text x="360" y="125" text-anchor="middle" fill="#fff" font-size="11">duration, path</text>
+          <text x="360" y="140" text-anchor="middle" fill="#fff" font-size="11">genre_id</text>
+          
+          <!-- Playlists -->
+          <rect x="50" y="200" width="120" height="80" rx="5" fill="#9b59b6" stroke="#fff" stroke-width="2"/>
+          <text x="110" y="225" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold">playlists</text>
+          <text x="110" y="245" text-anchor="middle" fill="#fff" font-size="11">id, user_id</text>
+          <text x="110" y="260" text-anchor="middle" fill="#fff" font-size="11">title, is_public</text>
+          
+          <!-- Play History -->
+          <rect x="300" y="200" width="120" height="80" rx="5" fill="#e67e22" stroke="#fff" stroke-width="2"/>
+          <text x="360" y="225" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold">play_history</text>
+          <text x="360" y="245" text-anchor="middle" fill="#fff" font-size="11">id, user_id</text>
+          <text x="360" y="260" text-anchor="middle" fill="#fff" font-size="11">track_id, played_at</text>
+          
+          <!-- Listening Stats -->
+          <rect x="550" y="200" width="120" height="80" rx="5" fill="#e74c3c" stroke="#fff" stroke-width="2"/>
+          <text x="610" y="225" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold">listening_stats</text>
+          <text x="610" y="245" text-anchor="middle" fill="#fff" font-size="11">user_id, metric</text>
+          <text x="610" y="260" text-anchor="middle" fill="#fff" font-size="11">value, period</text>
+          
+          <!-- Genres -->
+          <rect x="550" y="50" width="120" height="60" rx="5" fill="#1abc9c" stroke="#fff" stroke-width="2"/>
+          <text x="610" y="75" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold">genres</text>
+          <text x="610" y="95" text-anchor="middle" fill="#fff" font-size="11">id, name</text>
+          
+          <!-- Playlist Tracks -->
+          <rect x="200" y="350" width="120" height="60" rx="5" fill="#f39c12" stroke="#fff" stroke-width="2"/>
+          <text x="260" y="375" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold">playlist_tracks</text>
+          <text x="260" y="395" text-anchor="middle" fill="#fff" font-size="11">playlist_id, track_id</text>
+          
+          <!-- Связи -->
+          <path d="M 110 130 L 110 200" stroke="#ffd700" stroke-width="2" fill="none"/>
+          <path d="M 110 280 L 110 350" stroke="#ffd700" stroke-width="2" fill="none"/>
+          <path d="M 170 130 L 300 130" stroke="#ffd700" stroke-width="2" fill="none"/>
+          <path d="M 360 150 L 360 200" stroke="#ffd700" stroke-width="2" fill="none"/>
+          <path d="M 360 280 L 360 350" stroke="#ffd700" stroke-width="2" fill="none"/>
+          <path d="M 420 150 L 550 150" stroke="#ffd700" stroke-width="2" fill="none"/>
+          <path d="M 360 280 L 550 280" stroke="#ffd700" stroke-width="2" fill="none"/>
+          <path d="M 260 410 L 260 350" stroke="#ffd700" stroke-width="2" fill="none"/>
+          <path d="M 260 350 L 300 350" stroke="#ffd700" stroke-width="2" fill="none"/>
+        </svg>
+      </div>
+      <div class="slide-number">6 / 10</div>
+    </div>
+
+    <!-- Слайд 7: Караоке с диаграммой -->
+    <div class="slide">
+      <h2>Караоке-режим</h2>
+      <div class="diagram-container">
+        <svg width="800" height="300" viewBox="0 0 800 300">
+          <!-- LRC файл -->
+          <rect x="50" y="100" width="120" height="80" rx="10" fill="#3498db" stroke="#fff" stroke-width="2"/>
+          <text x="110" y="130" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold">LRC файл</text>
+          <text x="110" y="150" text-anchor="middle" fill="#fff" font-size="12">[00:12.34]Текст</text>
+          <text x="110" y="170" text-anchor="middle" fill="#fff" font-size="12">Метки времени</text>
+          
+          <!-- Стрелка -->
+          <path d="M 180 140 L 240 140" stroke="#ffd700" stroke-width="3" fill="none" marker-end="url(#arrow2)"/>
+          <defs>
+            <marker id="arrow2" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+              <polygon points="0 0, 10 3, 0 6" fill="#ffd700"/>
+            </marker>
+          </defs>
+          
+          <!-- Парсер -->
+          <rect x="260" y="100" width="120" height="80" rx="10" fill="#2ecc71" stroke="#fff" stroke-width="2"/>
+          <text x="320" y="130" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold">Парсер</text>
+          <text x="320" y="150" text-anchor="middle" fill="#fff" font-size="12">Разбор меток</text>
+          <text x="320" y="170" text-anchor="middle" fill="#fff" font-size="12">Массив строк</text>
+          
+          <!-- Стрелка -->
+          <path d="M 390 140 L 450 140" stroke="#ffd700" stroke-width="3" fill="none" marker-end="url(#arrow2)"/>
+          
+          <!-- Синхронизатор -->
+          <rect x="470" y="100" width="120" height="80" rx="10" fill="#e67e22" stroke="#fff" stroke-width="2"/>
+          <text x="530" y="130" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold">Синхронизатор</text>
+          <text x="530" y="150" text-anchor="middle" fill="#fff" font-size="12">AudioContext</text>
+          <text x="530" y="170" text-anchor="middle" fill="#fff" font-size="12">±50 мс</text>
+          
+          <!-- Стрелка вниз -->
+          <path d="M 530 190 L 530 220" stroke="#ffd700" stroke-width="3" fill="none" marker-end="url(#arrow2)"/>
+          
+          <!-- UI -->
+          <rect x="430" y="230" width="200" height="50" rx="10" fill="#9b59b6" stroke="#fff" stroke-width="2"/>
+          <text x="530" y="255" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold">Подсветка + Эффекты</text>
+          <text x="530" y="270" text-anchor="middle" fill="#fff" font-size="11">Canvas, Particles, AR</text>
+        </svg>
+      </div>
+      <ul style="margin-top: 20px; font-size: 1.1em;">
+        <li><span class="highlight">LRC-формат:</span> поддержка стандартных файлов синхронизации</li>
+        <li><span class="highlight">Точность:</span> синхронизация текста с музыкой до ±50 миллисекунд</li>
+        <li><span class="highlight">Визуальные эффекты:</span> подсветка активной строки, particle-эффекты</li>
+        <li><span class="highlight">AR-режим:</span> наложение текста на видео с камеры в реальном времени</li>
+      </ul>
+      <div class="slide-number">7 / 10</div>
+    </div>
+
+    <!-- Слайд 8: Статистика с диаграммой -->
+    <div class="slide">
+      <h2>Статистика и рекомендации</h2>
+      <div class="diagram-container">
+        <svg width="800" height="350" viewBox="0 0 800 350">
+          <!-- Пользователь -->
+          <circle cx="100" cy="100" r="40" fill="#3498db" stroke="#fff" stroke-width="2"/>
+          <text x="100" y="105" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold">User</text>
+          
+          <!-- Стрелка -->
+          <path d="M 140 100 L 200 100" stroke="#ffd700" stroke-width="3" fill="none" marker-end="url(#arrow3)"/>
+          <defs>
+            <marker id="arrow3" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+              <polygon points="0 0, 10 3, 0 6" fill="#ffd700"/>
+            </marker>
+          </defs>
+          
+          <!-- Track Play -->
+          <rect x="220" y="70" width="120" height="60" rx="10" fill="#2ecc71" stroke="#fff" stroke-width="2"/>
+          <text x="280" y="95" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">track_play</text>
+          <text x="280" y="115" text-anchor="middle" fill="#fff" font-size="11">Фиксация</text>
+          
+          <!-- Стрелка вниз -->
+          <path d="M 280 140 L 280 180" stroke="#ffd700" stroke-width="2" fill="none"/>
+          
+          <!-- Play History -->
+          <rect x="220" y="190" width="120" height="60" rx="10" fill="#e67e22" stroke="#fff" stroke-width="2"/>
+          <text x="280" y="215" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">play_history</text>
+          <text x="280" y="235" text-anchor="middle" fill="#fff" font-size="11">Хранение</text>
+          
+          <!-- Стрелка -->
+          <path d="M 350 220 L 420 220" stroke="#ffd700" stroke-width="3" fill="none" marker-end="url(#arrow3)"/>
+          
+          <!-- Агрегатор -->
+          <rect x="440" y="190" width="120" height="60" rx="10" fill="#9b59b6" stroke="#fff" stroke-width="2"/>
+          <text x="500" y="215" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">Агрегатор</text>
+          <text x="500" y="235" text-anchor="middle" fill="#fff" font-size="11">Обработка</text>
+          
+          <!-- Стрелка вверх -->
+          <path d="M 500 190 L 500 150" stroke="#ffd700" stroke-width="2" fill="none"/>
+          
+          <!-- Listening Stats -->
+          <rect x="440" y="70" width="120" height="60" rx="10" fill="#e74c3c" stroke="#fff" stroke-width="2"/>
+          <text x="500" y="95" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">listening_stats</text>
+          <text x="500" y="115" text-anchor="middle" fill="#fff" font-size="11">Кэш</text>
+          
+          <!-- Стрелка -->
+          <path d="M 570 100 L 630 100" stroke="#ffd700" stroke-width="3" fill="none" marker-end="url(#arrow3)"/>
+          
+          <!-- API Stats -->
+          <rect x="650" y="70" width="100" height="60" rx="10" fill="#1abc9c" stroke="#fff" stroke-width="2"/>
+          <text x="700" y="95" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">API</text>
+          <text x="700" y="115" text-anchor="middle" fill="#fff" font-size="11">stats.php</text>
+          
+          <!-- Стрелка вниз -->
+          <path d="M 700 140 L 700 200" stroke="#ffd700" stroke-width="2" fill="none"/>
+          
+          <!-- UI -->
+          <rect x="600" y="210" width="200" height="80" rx="10" fill="#f39c12" stroke="#fff" stroke-width="2"/>
+          <text x="700" y="240" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold">Визуализация</text>
+          <text x="700" y="260" text-anchor="middle" fill="#fff" font-size="11">Топы, графики</text>
+          <text x="700" y="275" text-anchor="middle" fill="#fff" font-size="11">Рекомендации</text>
+        </svg>
+      </div>
+      <div class="features-grid" style="margin-top: 20px;">
+        <div class="feature-card">
+          <h3>📈 Сбор данных</h3>
+          <p>Каждое прослушивание фиксируется</p>
+        </div>
+        <div class="feature-card">
+          <h3>🎯 Рекомендации</h3>
+          <p>На основе топ-артистов</p>
+        </div>
+      </div>
+      <div class="slide-number">8 / 10</div>
+    </div>
+
+    <!-- Слайд 9: Кроссплатформенность -->
+    <div class="slide">
+      <h2>Кроссплатформенность</h2>
+      <div class="diagram-container">
+        <svg width="900" height="400" viewBox="0 0 900 400">
+          <!-- Веб -->
+          <rect x="50" y="50" width="200" height="120" rx="15" fill="#3498db" stroke="#fff" stroke-width="3"/>
+          <text x="150" y="85" text-anchor="middle" fill="#fff" font-size="18" font-weight="bold">🌐 Веб</text>
+          <text x="150" y="110" text-anchor="middle" fill="#fff" font-size="14">SPA</text>
+          <text x="150" y="130" text-anchor="middle" fill="#fff" font-size="14">HTML5/CSS3/JS</text>
+          <text x="150" y="150" text-anchor="middle" fill="#fff" font-size="12">Все браузеры</text>
+          
+          <!-- PWA -->
+          <rect x="300" y="50" width="200" height="120" rx="15" fill="#2ecc71" stroke="#fff" stroke-width="3"/>
+          <text x="400" y="85" text-anchor="middle" fill="#fff" font-size="18" font-weight="bold">📱 PWA</text>
+          <text x="400" y="110" text-anchor="middle" fill="#fff" font-size="14">Service Worker</text>
+          <text x="400" y="130" text-anchor="middle" fill="#fff" font-size="14">Офлайн-кэш</text>
+          <text x="400" y="150" text-anchor="middle" fill="#fff" font-size="12">Установка на рабочий стол</text>
+          
+          <!-- macOS -->
+          <rect x="550" y="50" width="200" height="120" rx="15" fill="#9b59b6" stroke="#fff" stroke-width="3"/>
+          <text x="650" y="85" text-anchor="middle" fill="#fff" font-size="18" font-weight="bold">💻 macOS</text>
+          <text x="650" y="110" text-anchor="middle" fill="#fff" font-size="14">Electron</text>
+          <text x="650" y="130" text-anchor="middle" fill="#fff" font-size="14">Локальный сервер</text>
+          <text x="650" y="150" text-anchor="middle" fill="#fff" font-size="12">Нативное приложение</text>
+          
+          <!-- iOS -->
+          <rect x="300" y="220" width="200" height="120" rx="15" fill="#e74c3c" stroke="#fff" stroke-width="3"/>
+          <text x="400" y="255" text-anchor="middle" fill="#fff" font-size="18" font-weight="bold">📱 iOS</text>
+          <text x="400" y="280" text-anchor="middle" fill="#fff" font-size="14">Swift + WKWebView</text>
+          <text x="400" y="300" text-anchor="middle" fill="#fff" font-size="14">file:// протокол</text>
+          <text x="400" y="320" text-anchor="middle" fill="#fff" font-size="12">Все функции веб-версии</text>
+          
+          <!-- Центральный блок -->
+          <rect x="350" y="100" width="200" height="80" rx="15" fill="#f39c12" stroke="#fff" stroke-width="3"/>
+          <text x="450" y="130" text-anchor="middle" fill="#fff" font-size="16" font-weight="bold">Единая кодовая база</text>
+          <text x="450" y="155" text-anchor="middle" fill="#fff" font-size="13">Один фронтенд</text>
+          <text x="450" y="170" text-anchor="middle" fill="#fff" font-size="13">Минимум дублирования</text>
+        </svg>
+      </div>
+      <div class="slide-number">9 / 10</div>
+    </div>
+
+    <!-- Слайд 10: Заключение -->
+    <div class="slide">
+      <h2>Результаты</h2>
+      <ul style="font-size: 1.5em;">
+        <li>✅ Полнофункциональный музыкальный сервис</li>
+        <li>✅ Уникальный караоке-режим с высокой точностью</li>
+        <li>✅ Детальная статистика и умные рекомендации</li>
+        <li>✅ Работа на всех платформах (веб, macOS, iOS)</li>
+        <li>✅ Офлайн-режим и производительность</li>
+      </ul>
+      <h2 style="margin-top: 60px; color: #ffd700;">Спасибо за внимание!</h2>
+      <div class="slide-number">10 / 10</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" onclick="previousSlide()">← Назад</button>
+    <button class="btn" onclick="nextSlide()">Вперёд →</button>
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+
+    function showSlide(n) {
+      slides[currentSlide].classList.remove('active');
+      currentSlide = (n + totalSlides) % totalSlides;
+      slides[currentSlide].classList.add('active');
+    }
+
+    function nextSlide() {
+      showSlide(currentSlide + 1);
+    }
+
+    function previousSlide() {
+      showSlide(currentSlide - 1);
+    }
+
+    // Клавиатурная навигация
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
+        e.preventDefault();
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        previousSlide();
+      }
+    });
+
+    // Экспорт в PowerPoint (инструкция)
+    function exportToPowerPoint() {
+      alert('Для экспорта в PowerPoint:\n\n' +
+            '1. Откройте эту презентацию в браузере\n' +
+            '2. Нажмите F11 для полноэкранного режима\n' +
+            '3. Делайте скриншоты каждого слайда (Cmd+Shift+4 на Mac)\n' +
+            '4. Или используйте Python скрипт generate_pptx.py\n\n' +
+            'Также можно скопировать SVG диаграммы прямо из браузера (правый клик → Сохранить изображение)');
+    }
+  </script>
+</body>
+</html>
+

@@ -102,7 +102,29 @@
       #lyrics-fs-video-wrap { width: 100%; max-width: 100%; aspect-ratio: 16/9; background:#000; border-radius:18px; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.45); display:none; }
       #lyrics-fs-video-embed { width:100%; height:100%; display:none; background:#000; }
       #lyrics-fs-video-embed::-webkit-media-controls { display: none !important; }
+      #lyrics-fs.promo-mode #lyrics-fs-video-embed::-webkit-media-controls { display: flex !important; }
       #lyrics-fs-video-cover { width:100%; height:100%; object-fit:cover; display:none; background:#000; }
+      #lyrics-fs.promo-mode #lyrics-fs-panel,
+      #lyrics-fs.promo-mode #lyrics-fs-inner,
+      #lyrics-fs.promo-mode #lyrics-fs-dots,
+      #lyrics-fs.promo-mode .lyrics-fs-fade { display:none !important; }
+      #lyrics-fs.promo-mode { bottom: 0 !important; }
+      #lyrics-fs.promo-mode #lyrics-fs-grid { grid-template-columns: 1fr; gap: 0; padding: 0; position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+      #lyrics-fs.promo-mode #lyrics-fs-bg { display:none !important; }
+      #lyrics-fs.promo-mode #lyrics-fs-meta { align-items: center; text-align: center; gap: 12px; padding: 20px 24px; position: absolute; top: 0; left: 0; right: 0; z-index: 3; background: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 100%); pointer-events: none; }
+      #lyrics-fs.promo-mode #lyrics-fs-meta * { pointer-events: auto; }
+      #lyrics-fs.promo-mode #lyrics-fs-cover { width: clamp(80px, 12vw, 120px); height: clamp(80px, 12vw, 120px); border-radius: 12px; display: none !important; }
+      #lyrics-fs.promo-mode #lyrics-fs-video-wrap { display:block !important; width: 100vw !important; height: 100vh !important; max-width: none !important; max-height: none !important; aspect-ratio: unset !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: 1; overflow: hidden; margin: 0; padding: 0; }
+      #lyrics-fs.promo-mode #lyrics-fs-video-embed { display:block !important; width: 100% !important; height: 100% !important; min-width: 100% !important; min-height: 100% !important; object-fit: cover !important; background: #000; position: absolute; top: 0; left: 0; right: 0; bottom: 0; margin: 0; padding: 0; }
+      #lyrics-fs.promo-mode #lyrics-fs-video-embed video { width: 100% !important; height: 100% !important; min-width: 100% !important; min-height: 100% !important; object-fit: cover !important; position: absolute; top: 0; left: 0; }
+      #lyrics-fs.promo-mode #lyrics-fs-mode { display:none !important; }
+      #lyrics-fs.promo-mode #lyrics-fs-title { font-size: clamp(20px, 3.5vw, 32px); margin: 0; }
+      #lyrics-fs.promo-mode #lyrics-fs-artist { display: none !important; }
+      #lyrics-fs.promo-mode #promo-track-info { display: flex; align-items: center; gap: 12px; position: absolute; bottom: 120px; left: 24px; z-index: 4; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); padding: 12px 16px; border-radius: 12px; max-width: 320px; }
+      #lyrics-fs.promo-mode #promo-track-info img { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; }
+      #lyrics-fs.promo-mode #promo-track-info-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+      #lyrics-fs.promo-mode #promo-track-title { color: #fff; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #lyrics-fs.promo-mode #promo-track-artist { color: #b3b3b3; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       #lyrics-fs-title { color: #fff; font-size: 30px; font-weight: 800; }
       #lyrics-fs-artist { color: #bdbdbd; font-size: 18px; }
       #lyrics-fs-panel { position: relative; width: 100%; margin: 0 auto; overflow: visible; }
@@ -178,6 +200,11 @@
         #lyrics-fs-cover { width: 120px; height: 120px; }
         #lyrics-fs-title { font-size: 18px !important; }
         #lyrics-fs-artist { font-size: 14px !important; }
+        #lyrics-fs.promo-mode #lyrics-fs-grid { padding: 0; }
+        #lyrics-fs.promo-mode #lyrics-fs-meta { padding: 12px 16px; }
+        #lyrics-fs.promo-mode #lyrics-fs-cover { width: 60px; height: 60px; }
+        #lyrics-fs.promo-mode #lyrics-fs-title { font-size: 16px !important; }
+        #lyrics-fs.promo-mode #lyrics-fs-artist { font-size: 13px !important; }
         #lyrics-fs-panel { margin-top: 0 !important; }
         #lyrics-fs-inner { max-height: calc(100vh - 280px); padding: 0px 0 8px 0; box-sizing: border-box; padding-top: 0px; }
         #lyrics-fs-inner .lyric-line { font-size: clamp(14px, 4vw, 18px) !important; line-height: 1.4 !important; padding: 4px 4px !important; word-break: break-word !important; overflow-wrap: break-word !important; word-wrap: break-word !important; white-space: normal !important; max-width: 100% !important; width: 100% !important; box-sizing: border-box !important; }
@@ -389,6 +416,13 @@
       <div id="lyrics-fs-bg"><img id="lyrics-fs-bg-img" alt="bg" style="display:none;"><video id="lyrics-fs-bg-video" playsinline muted loop style="display:none;"></video></div>
       <button id="lyrics-fs-close" title="Закрыть">×</button>
       <button id="lyrics-fs-mode" title="Показать весь текст">≡</button>
+      <div id="promo-track-info" style="display:none;">
+        <img id="promo-track-cover" src="" alt="Track cover" />
+        <div id="promo-track-info-text">
+          <div id="promo-track-title"></div>
+          <div id="promo-track-artist"></div>
+        </div>
+      </div>
       <div id="lyrics-fs-grid">
         <div id="lyrics-fs-meta">
           <img id="lyrics-fs-cover" src="" alt="cover" />
@@ -526,6 +560,9 @@
   const lyricsFsTitle = playerRoot.querySelector('#lyrics-fs-title');
   const lyricsFsArtist = playerRoot.querySelector('#lyrics-fs-artist');
   const lyricsFsDots = playerRoot.querySelector('#lyrics-fs-dots');
+  const lyricsFsPanel = playerRoot.querySelector('#lyrics-fs-panel');
+  const lyricsFsMeta = playerRoot.querySelector('#lyrics-fs-meta');
+  const lyricsFsFades = playerRoot.querySelectorAll('.lyrics-fs-fade');
   // Prevent pausing video when audio pause is triggered as part of handing control to video
   let suppressVideoPauseOnce = false;
   // Visibility-based rendering control for karaoke (do not pause media)
@@ -706,10 +743,35 @@
   const lyricsFsVideoWrap = playerRoot.querySelector('#lyrics-fs-video-wrap');
   const lyricsFsVideo = playerRoot.querySelector('#lyrics-fs-video-embed');
   const lyricsFsVideoCover = playerRoot.querySelector('#lyrics-fs-video-cover');
+  
+  function pinPlayerForOverlay(active) {
+    if (!playerContainer) return;
+    if (active) {
+      playerContainer.style.position = 'fixed';
+      playerContainer.style.left = '0';
+      playerContainer.style.right = '0';
+      playerContainer.style.bottom = '0';
+      playerContainer.style.zIndex = '12000';
+    } else {
+      playerContainer.style.position = '';
+      playerContainer.style.left = '';
+      playerContainer.style.right = '';
+      playerContainer.style.bottom = '';
+      playerContainer.style.zIndex = '';
+    }
+  }
 
   // Lyrics state
   let lyricsLines = []; // [{time:number, text:string}]
   let lyricsVisible = false;
+  let promoModeActive = false;
+  let promoWasPlaying = false;
+  let promoPreviousCoverSrc = '';
+  let promoPayload = null;
+  const promoVideoListeners = [];
+  let promoPrevPlayerCover = '';
+  let promoPrevPlayerTitle = '';
+  let promoPrevPlayerArtist = '';
   let lyricsRenderingLock = false; // Флаг для блокировки updateLyricsHighlight во время рендеринга
   // Top guard so lyrics can't overlap artist/cover block in fullscreen
   function getLyricsTopGuardPx() {
@@ -1670,7 +1732,9 @@
   function updatePlayPauseUI() {
     // Prefer inline video state if video panel is open
     let playing;
-    if (videoPanel && videoPanel.style.display === 'block' && inlineVideo) {
+    if (isPromoVideoActive()) {
+      try { playing = !lyricsFsVideo.paused && !lyricsFsVideo.ended; } catch(_) { playing = false; }
+    } else if (videoPanel && videoPanel.style.display === 'block' && inlineVideo) {
       try { playing = !inlineVideo.paused && !inlineVideo.ended; } catch(_) { playing = !audio.paused; }
     } else {
       playing = popupActive ? !!popupState.isPlaying : !audio.paused;
@@ -2045,6 +2109,15 @@
       }
     } catch(e) {}
     
+    // ВАЖНО: НЕ преобразуем пути к видео в audio.php!
+    // Проверяем, является ли это видео файлом
+    const videoExts = ['.mp4', '.webm', '.mov', '.avi', '.m4v', '.ogg'];
+    const isVideo = videoExts.some(ext => path.toLowerCase().endsWith(ext));
+    if (isVideo) {
+      // Для видео возвращаем прямой путь, НЕ через audio.php
+      return '/muzic2/' + path.replace(/^\/+/, '');
+    }
+    
     // Если путь содержит tracks/music/, используем прокси
     const i = path.indexOf('tracks/music/');
     if (i !== -1) {
@@ -2052,7 +2125,13 @@
       return '/muzic2/public/src/api/audio.php?f=' + encodeURIComponent(tracksPath);
     }
     
-    // Если путь содержит tracks/, используем прокси
+    // Если путь содержит tracks/video/ или tracks/videos/, возвращаем прямой путь (НЕ через audio.php)
+    const videoIdx = path.indexOf('tracks/video');
+    if (videoIdx !== -1) {
+      return '/muzic2/' + path.replace(/^\/+/, '');
+    }
+    
+    // Если путь содержит tracks/, используем прокси (только для аудио)
     const j = path.indexOf('tracks/');
     if (j !== -1) {
       const tracksPath = path.substring(j);
@@ -2090,7 +2169,7 @@
     
     // Update karaoke meta immediately on track change when overlay is visible
     try {
-      if (lyricsVisible) {
+      if (lyricsVisible && !promoModeActive) {
         if (lyricsFsCover) lyricsFsCover.src = t.cover || (cover && cover.src) || '';
         if (lyricsFsTitle) lyricsFsTitle.textContent = t.title || '';
         if (lyricsFsArtist) lyricsFsArtist.textContent = t.artist || '';
@@ -2252,15 +2331,7 @@
       }
       try { adjustKaraokeBottomOffset && adjustKaraokeBottomOffset(); } catch(_) {}
       // Ensure player pinned and visible above underlay
-      try {
-        if (playerContainer) {
-          playerContainer.style.position = lyricsVisible ? 'fixed' : '';
-          playerContainer.style.left = lyricsVisible ? '0' : '';
-          playerContainer.style.right = lyricsVisible ? '0' : '';
-          playerContainer.style.bottom = lyricsVisible ? '0' : '';
-          playerContainer.style.zIndex = lyricsVisible ? '12000' : '';
-        }
-      } catch(_) {}
+      try { pinPlayerForOverlay(lyricsVisible); } catch(_) {}
       // Show underlay background behind player too (fills gray corners) while karaoke open
       try {
         if (lyricsFsUnderlay) lyricsFsUnderlay.style.display = lyricsVisible ? 'block' : 'none';
@@ -2290,7 +2361,7 @@
     } else {
       if (lyricsContainer) lyricsContainer.style.display = lyricsVisible ? 'block' : 'none';
     }
-    if (lyricsVisible) {
+    if (lyricsVisible && !promoModeActive) {
       lyricsSyncLocked = true;
       // Fill meta like on the screenshot
       try {
@@ -2324,19 +2395,17 @@
   };
 
   const hideKaraoke = () => {
+    const wasPromo = promoModeActive;
     lyricsVisible = false;
-    if (lyricsFs) { lyricsFs.style.display = 'none'; }
+    promoModeActive = false;
+    detachPromoVideoSync();
+    if (lyricsFs) {
+      lyricsFs.style.display = 'none';
+      lyricsFs.classList.remove('promo-mode');
+    }
     try { adjustKaraokeBottomOffset && adjustKaraokeBottomOffset(); } catch(_) {}
     // Unpin player
-    try {
-      if (playerContainer) {
-        playerContainer.style.position = '';
-        playerContainer.style.left = '';
-        playerContainer.style.right = '';
-        playerContainer.style.bottom = '';
-        playerContainer.style.zIndex = '';
-      }
-    } catch(_) {}
+    try { pinPlayerForOverlay(false); } catch(_) {}
     try {
       if (lyricsFsUnderlay) lyricsFsUnderlay.style.display = 'none';
       if (lyricsFsUnderlayVideo) { lyricsFsUnderlayVideo.pause(); lyricsFsUnderlayVideo.removeAttribute('src'); lyricsFsUnderlayVideo.load(); lyricsFsUnderlayVideo.style.display='none'; }
@@ -2345,8 +2414,23 @@
     lyricsBtn && lyricsBtn.classList.remove('btn-active');
     lyricsSyncLocked = false;
     // Stop karaoke video if playing
-    try { if (lyricsFsVideo) { lyricsFsVideo.pause(); lyricsFsVideo.removeAttribute('src'); lyricsFsVideo.load(); lyricsFsVideo.style.display='none'; } } catch(_) {}
+    try {
+      if (lyricsFsVideo) {
+        lyricsFsVideo.pause();
+        lyricsFsVideo.removeAttribute('src');
+        lyricsFsVideo.innerHTML = '';
+        lyricsFsVideo.load();
+        lyricsFsVideo.removeAttribute('poster');
+        lyricsFsVideo.controls = false;
+        lyricsFsVideo.style.display='none';
+      }
+    } catch(_) {}
     try { if (lyricsFsVideoWrap) lyricsFsVideoWrap.style.display='none'; } catch(_) {}
+    // Hide promo track info
+    try {
+      const promoTrackInfo = playerRoot.querySelector('#promo-track-info');
+      if (promoTrackInfo) promoTrackInfo.style.display = 'none';
+    } catch(_) {}
     // Restore cover in the left panel when video is hidden
     try { if (lyricsFsCover) { lyricsFsCover.style.display = 'block'; } } catch(_) {}
     try { if (lyricsFsVideoCover) { lyricsFsVideoCover.style.display = 'none'; } } catch(_) {}
@@ -2354,6 +2438,46 @@
     try { if (lyricsFsBgVideo) { lyricsFsBgVideo.pause(); lyricsFsBgVideo.removeAttribute('src'); lyricsFsBgVideo.load(); lyricsFsBgVideo.style.display='none'; } } catch(_) {}
     // Restore audio sound
     try { audio.muted = false; } catch(_) {}
+    if (wasPromo) {
+      try {
+        if (lyricsFsBgImg) {
+          lyricsFsBgImg.src = lyricsFsBgImg.src || '';
+        }
+      } catch(_) {}
+      if (lyricsFsArtist) {
+        lyricsFsArtist.style.display = '';
+      }
+      if (lyricsFsCover && promoPreviousCoverSrc) {
+        lyricsFsCover.src = promoPreviousCoverSrc;
+      }
+      promoPreviousCoverSrc = '';
+      promoPayload = null;
+      if (cover && promoPrevPlayerCover) {
+        cover.src = promoPrevPlayerCover;
+      }
+      promoPrevPlayerCover = '';
+      if (trackTitle && promoPrevPlayerTitle) {
+        trackTitle.textContent = promoPrevPlayerTitle;
+      }
+      promoPrevPlayerTitle = '';
+      if (trackArtist && promoPrevPlayerArtist) {
+        trackArtist.textContent = promoPrevPlayerArtist;
+      }
+      promoPrevPlayerArtist = '';
+      // Clean up resize handlers
+      if (window._promoResizeHandlers) {
+        window._promoResizeHandlers.forEach(({ handler, mode }) => {
+          if (mode === 'promo') {
+            window.removeEventListener('resize', handler);
+          }
+        });
+        window._promoResizeHandlers = window._promoResizeHandlers.filter(h => h.mode !== 'promo');
+      }
+      if (promoWasPlaying) {
+        try { audio.play().catch(()=>{}); } catch(_) {}
+      }
+      promoWasPlaying = false;
+    }
     // Player remains visible during karaoke; nothing to restore
   };
   if (lyricsFsClose) lyricsFsClose.onclick = hideKaraoke;
@@ -2385,6 +2509,247 @@
     lyricsFsMode.title = isStatic ? 'Режим караоке (по строкам)' : 'Показать весь текст';
     };
   }
+
+  function isPromoVideoActive() {
+    return promoModeActive && lyricsFsVideo && lyricsFsVideo.style.display === 'block';
+  }
+
+  function syncPromoVideoUI() {
+    if (!isPromoVideoActive()) return;
+    const duration = Number.isFinite(lyricsFsVideo.duration) ? lyricsFsVideo.duration : 0;
+    const current = lyricsFsVideo.currentTime || 0;
+    durationEl.textContent = formatTime(duration || 0);
+    currentTimeEl.textContent = formatTime(current);
+    if (duration > 0) {
+      const progress = (current / duration) * 100;
+      seekBar.value = Math.max(0, Math.min(100, progress));
+    } else {
+      seekBar.value = 0;
+    }
+  }
+
+  function detachPromoVideoSync() {
+    if (promoVideoListeners.length && lyricsFsVideo) {
+      promoVideoListeners.forEach(({ evt, handler }) => {
+        try { lyricsFsVideo.removeEventListener(evt, handler); } catch(_) {}
+      });
+    }
+    promoVideoListeners.length = 0;
+  }
+
+  function attachPromoVideoSync() {
+    detachPromoVideoSync();
+    if (!lyricsFsVideo) return;
+    const syncEvents = ['timeupdate', 'durationchange', 'loadedmetadata', 'seeking', 'seeked'];
+    syncEvents.forEach(evt => {
+      const handler = () => syncPromoVideoUI();
+      lyricsFsVideo.addEventListener(evt, handler);
+      promoVideoListeners.push({ evt, handler });
+    });
+    ['play', 'pause', 'ended'].forEach(evt => {
+      const handler = () => {
+        if (!isPromoVideoActive()) return;
+        isPlaying = evt === 'play';
+        if (evt === 'ended') {
+          isPlaying = false;
+          if (!lyricsFsVideo.loop) {
+            seekBar.value = 0;
+            currentTimeEl.textContent = formatTime(0);
+          }
+        }
+        updatePlayPauseUI();
+      };
+      lyricsFsVideo.addEventListener(evt, handler);
+      promoVideoListeners.push({ evt, handler });
+    });
+    syncPromoVideoUI();
+  }
+
+  function openArtistPromoFromSPA(payload = {}) {
+    if (!payload || !Array.isArray(payload.sources) || !payload.sources.length) {
+      console.warn('[promo] payload missing sources');
+      return;
+    }
+    if (lyricsVisible && !promoModeActive) {
+      hideKaraoke();
+    }
+    lyricsVisible = true;
+    promoModeActive = true;
+    promoPayload = payload;
+    promoWasPlaying = !audio.paused && !audio.ended;
+    if (promoWasPlaying) {
+      suppressVideoPauseOnce = true;
+      try { audio.pause(); } catch(_) {}
+    }
+    const posterSrc = payload.poster || payload.cover || (cover ? cover.src : '');
+    const bgSrc = payload.background || posterSrc || '';
+    const promoTitle = payload.title || (payload.artist || 'Видео-промо');
+    const promoArtist = payload.artist || '';
+    if (cover && posterSrc) {
+      if (!promoPrevPlayerCover) promoPrevPlayerCover = cover.src || '';
+      cover.src = posterSrc;
+    }
+    // Update player track info to show promo
+    if (trackTitle) {
+      if (!promoPrevPlayerTitle) promoPrevPlayerTitle = trackTitle.textContent || '';
+      trackTitle.textContent = promoTitle;
+    }
+    if (trackArtist) {
+      if (!promoPrevPlayerArtist) promoPrevPlayerArtist = trackArtist.textContent || '';
+      trackArtist.textContent = promoArtist;
+    }
+    if (lyricsFs) {
+      lyricsFs.style.display = 'block';
+      lyricsFs.classList.add('promo-mode');
+    }
+    if (lyricsBtn) lyricsBtn.classList.remove('btn-active');
+    document.body.style.overflow = 'hidden';
+    try { pinPlayerForOverlay(true); } catch(_) {}
+    if (lyricsFsUnderlay) lyricsFsUnderlay.style.display = 'block';
+    if (lyricsFsCover) {
+      if (!promoPreviousCoverSrc) promoPreviousCoverSrc = lyricsFsCover.src || '';
+      if (posterSrc) {
+        lyricsFsCover.src = posterSrc;
+      }
+      lyricsFsCover.style.display = 'none';
+    }
+    if (lyricsFsTitle) lyricsFsTitle.textContent = promoTitle;
+    if (lyricsFsArtist) {
+      lyricsFsArtist.textContent = promoArtist;
+      lyricsFsArtist.style.display = promoArtist ? '' : 'none';
+    }
+    // Display promo track info if available
+    const promoTrackInfo = playerRoot.querySelector('#promo-track-info');
+    const promoTrackCover = playerRoot.querySelector('#promo-track-cover');
+    const promoTrackTitle = playerRoot.querySelector('#promo-track-title');
+    const promoTrackArtist = playerRoot.querySelector('#promo-track-artist');
+    if (payload.promo_track && promoTrackInfo) {
+      const track = payload.promo_track;
+      const trackCoverUrl = track.cover ? (track.cover.startsWith('http') ? track.cover : `/muzic2/${track.cover}`) : '/muzic2/tracks/covers/placeholder.jpg';
+      if (promoTrackCover) promoTrackCover.src = trackCoverUrl;
+      if (promoTrackTitle) promoTrackTitle.textContent = track.title || '';
+      if (promoTrackArtist) promoTrackArtist.textContent = track.artist || '';
+      promoTrackInfo.style.display = 'flex';
+    } else if (promoTrackInfo) {
+      promoTrackInfo.style.display = 'none';
+    }
+    if (lyricsFsBgImg) {
+      lyricsFsBgImg.src = bgSrc;
+      lyricsFsBgImg.style.display = bgSrc ? 'block' : 'none';
+    }
+    if (lyricsFsBgVideo) {
+      try {
+        lyricsFsBgVideo.pause();
+        lyricsFsBgVideo.removeAttribute('src');
+        lyricsFsBgVideo.load();
+        lyricsFsBgVideo.style.display = 'none';
+      } catch(_) {}
+    }
+    if (lyricsFsUnderlayImg) {
+      lyricsFsUnderlayImg.src = bgSrc;
+      lyricsFsUnderlayImg.style.display = bgSrc ? 'block' : 'none';
+    }
+    if (lyricsFsUnderlayVideo) {
+      try {
+        lyricsFsUnderlayVideo.pause();
+        lyricsFsUnderlayVideo.removeAttribute('src');
+        lyricsFsUnderlayVideo.load();
+        lyricsFsUnderlayVideo.style.display = 'none';
+      } catch(_) {}
+    }
+    if (lyricsContainer) {
+      lyricsContainer.innerHTML = '';
+    }
+    if (lyricsFsVideoWrap) lyricsFsVideoWrap.style.display = 'block';
+    if (lyricsFsVideo) {
+      try {
+        lyricsFsVideo.pause();
+        lyricsFsVideo.removeAttribute('src');
+        lyricsFsVideo.innerHTML = '';
+        lyricsFsVideo.load();
+      } catch(_) {}
+      if (posterSrc) {
+        try { lyricsFsVideo.setAttribute('poster', posterSrc); } catch(_) {}
+      } else {
+        lyricsFsVideo.removeAttribute('poster');
+      }
+      lyricsFsVideo.controls = true;
+      lyricsFsVideo.loop = payload.loop !== false;
+      lyricsFsVideo.muted = !!isMuted;
+      const initialVolume = isMuted ? 0 : audio.volume;
+      try { lyricsFsVideo.volume = initialVolume; } catch(_) {}
+      lyricsFsVideo.playsInline = true;
+      lyricsFsVideo.style.display = 'block';
+      payload.sources.forEach(srcObj => {
+        if (!srcObj || !srcObj.src) return;
+        const sourceEl = document.createElement('source');
+        sourceEl.src = srcObj.src;
+        if (srcObj.type) sourceEl.type = srcObj.type;
+        lyricsFsVideo.appendChild(sourceEl);
+      });
+      const ensureFullscreen = () => {
+        try {
+          if (lyricsFsVideoWrap) {
+            lyricsFsVideoWrap.style.width = '100vw';
+            lyricsFsVideoWrap.style.height = '100vh';
+            lyricsFsVideoWrap.style.position = 'fixed';
+            lyricsFsVideoWrap.style.top = '0';
+            lyricsFsVideoWrap.style.left = '0';
+            lyricsFsVideoWrap.style.right = '0';
+            lyricsFsVideoWrap.style.bottom = '0';
+          }
+          if (lyricsFsVideo) {
+            lyricsFsVideo.style.width = '100%';
+            lyricsFsVideo.style.height = '100%';
+            lyricsFsVideo.style.minWidth = '100%';
+            lyricsFsVideo.style.minHeight = '100%';
+            lyricsFsVideo.style.objectFit = 'cover';
+          }
+        } catch(_) {}
+      };
+      const startVideo = () => {
+        try {
+          ensureFullscreen();
+          lyricsFsVideo.currentTime = 0;
+          lyricsFsVideo.play().catch(err => {
+            console.warn('⚠️ Promo video autoplay prevented:', err);
+          });
+        } catch(err) {
+          console.warn('⚠️ Promo video start failed:', err);
+        }
+      };
+      ensureFullscreen();
+      if (lyricsFsVideo.readyState >= 2) {
+        startVideo();
+      } else {
+        const onLoaded = () => {
+          lyricsFsVideo.removeEventListener('loadeddata', onLoaded);
+          ensureFullscreen();
+          startVideo();
+        };
+        lyricsFsVideo.addEventListener('loadeddata', onLoaded, { once: true });
+        lyricsFsVideo.addEventListener('loadedmetadata', ensureFullscreen, { once: true });
+      }
+      // Add resize handler for promo mode
+      const promoResizeHandler = () => {
+        if (promoModeActive && lyricsVisible) {
+          ensureFullscreen();
+        }
+      };
+      window.addEventListener('resize', promoResizeHandler);
+      // Store handler for cleanup
+      if (!window._promoResizeHandlers) window._promoResizeHandlers = [];
+      window._promoResizeHandlers.push({ handler: promoResizeHandler, mode: 'promo' });
+      seekBar.value = 0;
+      currentTimeEl.textContent = formatTime(0);
+      durationEl.textContent = formatTime(lyricsFsVideo.duration || 0);
+      attachPromoVideoSync();
+      updatePlayPauseUI();
+    }
+    try { adjustKaraokeBottomOffset && adjustKaraokeBottomOffset(); } catch(_) {}
+  }
+
+  window.openArtistPromoFromSPA = openArtistPromoFromSPA;
 
 
   // Update lyrics on timeupdate
@@ -2687,6 +3052,16 @@
       }
       // if posting failed, fall through to local audio
     }
+    // If promo video is active, control it directly
+    if (isPromoVideoActive() && lyricsFsVideo) {
+      const paused = lyricsFsVideo.paused || lyricsFsVideo.ended;
+      if (paused) {
+        lyricsFsVideo.play().catch(()=>{});
+      } else {
+        try { lyricsFsVideo.pause(); } catch(_) {}
+      }
+      return;
+    }
     // If inline video is visible, control video instead of audio
     if (videoPanel && videoPanel.style.display === 'block' && inlineVideo) {
       const paused = inlineVideo.paused || inlineVideo.ended;
@@ -2728,6 +3103,120 @@
       audio.pause();
     }
   };
+  // Отслеживание прослушиваний
+  let trackPlayStartTime = null;
+  let currentPlayingTrack = null;
+  let trackPlayUpdateInterval = null;
+  
+  async function trackPlayStart(track) {
+    if (!track || !track.id) {
+      console.warn('trackPlayStart: track or track.id is missing', track);
+      return;
+    }
+    try {
+      console.log('trackPlayStart: tracking track', track.id, track.title);
+      const response = await fetch('/muzic2/src/api/track_play.php', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'start',
+          track_id: track.id,
+          title: track.title || '',
+          artist: track.artist || '',
+          album: track.album || '',
+          duration: track.duration || 0
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('trackPlayStart: response', data);
+        if (data.history_id || data.success) {
+          currentPlayingTrack = { ...track, history_id: data.history_id };
+          trackPlayStartTime = Date.now();
+          
+          // Запускаем периодическое обновление времени прослушивания
+          if (trackPlayUpdateInterval) clearInterval(trackPlayUpdateInterval);
+          trackPlayUpdateInterval = setInterval(() => {
+            trackPlayUpdate(track);
+          }, 10000); // Обновляем каждые 10 секунд
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('trackPlayStart: API error', response.status, errorText);
+      }
+    } catch (e) {
+      console.error('Error tracking play start:', e);
+    }
+  }
+  
+  async function trackPlayUpdate(track) {
+    if (!currentPlayingTrack || !track || !audio) return;
+    try {
+      const playDuration = Math.floor(audio.currentTime || 0);
+      await fetch('/muzic2/src/api/track_play.php', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update',
+          track_id: track.id,
+          play_duration: playDuration,
+          title: track.title || '',
+          artist: track.artist || '',
+          album: track.album || '',
+          duration: track.duration || 0
+        })
+      });
+    } catch (e) {
+      console.error('Error updating play duration:', e);
+    }
+  }
+  
+  async function trackPlayComplete(track) {
+    if (!currentPlayingTrack || !track || !audio) return;
+    try {
+      // Останавливаем периодическое обновление
+      if (trackPlayUpdateInterval) {
+        clearInterval(trackPlayUpdateInterval);
+        trackPlayUpdateInterval = null;
+      }
+      
+      const playDuration = Math.floor(audio.currentTime || 0);
+      console.log('trackPlayComplete: completing track', track.id, track.title, 'duration:', playDuration);
+      const response = await fetch('/muzic2/src/api/track_play.php', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'complete',
+          track_id: track.id,
+          play_duration: playDuration,
+          title: track.title || '',
+          artist: track.artist || '',
+          album: track.album || '',
+          duration: track.duration || 0
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('trackPlayComplete: success', data);
+      } else {
+        const errorText = await response.text();
+        console.error('trackPlayComplete: API error', response.status, errorText);
+      }
+      
+      if (response.ok) {
+        currentPlayingTrack = null;
+        trackPlayStartTime = null;
+      }
+    } catch (e) {
+      console.error('Error tracking play complete:', e);
+    }
+  }
+  
   audio.addEventListener('play', () => {
     if (popupActive) return;
     isPlaying = true;
@@ -2737,6 +3226,26 @@
     
     // Reset crossfade state when new track starts
     crossfadeStarted = false;
+    
+    // Отслеживание прослушивания
+    if (trackQueue[queueIndex]) {
+      const currentTrack = trackQueue[queueIndex];
+      // Используем ID из трека, если есть, иначе генерируем временный ID на основе названия и артиста
+      const trackId = currentTrackId || currentTrack.id || (currentTrack.title && currentTrack.artist ? 
+        (currentTrack.title + currentTrack.artist).replace(/\s+/g, '').toLowerCase().substring(0, 50) : null);
+      if (trackId) {
+        console.log('Audio play: tracking track', trackId, currentTrack.title);
+        trackPlayStart({
+          id: trackId,
+          title: currentTrack.title || '',
+          artist: currentTrack.artist || '',
+          album: currentTrack.album || '',
+          duration: currentTrack.duration || 0
+        });
+      } else {
+        console.warn('Audio play: no track ID available', currentTrack);
+      }
+    }
     
     // Update media session playback state
     if (window.updateMediaSessionPlaybackState) {
@@ -2802,7 +3311,7 @@
       return;
     }
     // If video is playing, don't update progress bar - let video handle it
-    if (videoPanel && videoPanel.style.display === 'block' && inlineVideo && !inlineVideo.ended) {
+    if ((videoPanel && videoPanel.style.display === 'block' && inlineVideo && !inlineVideo.ended) || isPromoVideoActive()) {
       return;
     }
     seekBar.value = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
@@ -2897,6 +3406,27 @@
   });
   audio.addEventListener('ended', () => {
     console.log('Audio ended event triggered');
+    
+    // Отслеживание завершения прослушивания
+    if (trackQueue[queueIndex]) {
+      const currentTrack = trackQueue[queueIndex];
+      // Используем ID из трека, если есть, иначе генерируем временный ID на основе названия и артиста
+      const trackId = currentTrackId || currentTrack.id || (currentTrack.title && currentTrack.artist ? 
+        (currentTrack.title + currentTrack.artist).replace(/\s+/g, '').toLowerCase().substring(0, 50) : null);
+      if (trackId) {
+        console.log('Audio ended: tracking completion', trackId, currentTrack.title);
+        trackPlayComplete({
+          id: trackId,
+          title: currentTrack.title || '',
+          artist: currentTrack.artist || '',
+          album: currentTrack.album || '',
+          duration: currentTrack.duration || 0
+        });
+      } else {
+        console.warn('Audio ended: no track ID available', currentTrack);
+      }
+    }
+    
     if (popupActive) {
       console.log('Popup is active, skipping playNext');
       return;
@@ -2913,6 +3443,12 @@
   });
 
   seekBar.oninput = () => {
+    if (isPromoVideoActive() && lyricsFsVideo && Number.isFinite(lyricsFsVideo.duration) && lyricsFsVideo.duration > 0) {
+      const target = (seekBar.value / 100) * lyricsFsVideo.duration;
+      try { lyricsFsVideo.currentTime = target; } catch(_) {}
+      syncPromoVideoUI();
+      return;
+    }
     if (popupActive) {
       if (popupState.duration) {
         const t = (seekBar.value / 100) * popupState.duration;
@@ -2934,6 +3470,7 @@
   };
   volumeBar.oninput = () => {
     const newVolume = volumeBar.value / 100;
+    const promoActive = isPromoVideoActive() && lyricsFsVideo;
     if (popupActive) {
       const ok = postToPopup({ cmd: 'setVolume', volume: newVolume }, { retries: 3, delay: 100 });
       if (!ok) {
@@ -2943,9 +3480,16 @@
     } else {
       audio.volume = newVolume;
     }
+    if (promoActive) {
+      try { lyricsFsVideo.volume = newVolume; } catch(_) {}
+      lyricsFsVideo.muted = isMuted || newVolume === 0;
+    }
     // If user manually changes volume, unmute
     if (isMuted && newVolume > 0) {
       isMuted = false;
+      if (promoActive) {
+        lyricsFsVideo.muted = false;
+      }
       updateMuteUI();
     }
     savePlayerState();
@@ -3540,23 +4084,35 @@
   });
 
   volumeBtn.onclick = () => {
+    const promoVideo = isPromoVideoActive() && lyricsFsVideo ? lyricsFsVideo : null;
     if (isMuted) {
       // Unmute: restore previous volume
       isMuted = false;
       audio.volume = previousVolume;
       volumeBar.value = Math.round(previousVolume * 100);
+      if (promoVideo) {
+        try { promoVideo.volume = previousVolume; } catch(_) {}
+        promoVideo.muted = false;
+      }
       if (popupActive) {
         postToPopup({ cmd: 'setVolume', volume: previousVolume });
       }
     } else {
       // Mute: save current volume and set to 0
-      previousVolume = audio.volume;
+      previousVolume = promoVideo ? (promoVideo.volume || audio.volume || 1) : audio.volume;
       isMuted = true;
       audio.volume = 0;
       volumeBar.value = 0;
+      if (promoVideo) {
+        promoVideo.muted = true;
+        try { promoVideo.volume = 0; } catch(_) {}
+      }
       if (popupActive) {
         postToPopup({ cmd: 'setVolume', volume: 0 });
       }
+    }
+    if (promoVideo && !isMuted) {
+      promoVideo.muted = false;
     }
     updateMuteUI();
     savePlayerState();

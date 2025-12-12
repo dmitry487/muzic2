@@ -47,11 +47,11 @@ if (!exported && fs.existsSync(jsExporter)) {
 
 if (!exported) {
   // Создаем JSON файлы для каждого API (заглушки)
-  Object.keys(apiResponses).forEach(apiName => {
-    const jsonPath = path.join(apiDir, apiName + '.json');
-    fs.writeFileSync(jsonPath, JSON.stringify(apiResponses[apiName], null, 2));
-    console.log(`Создан API файл: ${apiName}.json`);
-  });
+Object.keys(apiResponses).forEach(apiName => {
+  const jsonPath = path.join(apiDir, apiName + '.json');
+  fs.writeFileSync(jsonPath, JSON.stringify(apiResponses[apiName], null, 2));
+  console.log(`Создан API файл: ${apiName}.json`);
+});
 
   console.log('API JSON файлы созданы (заглушки).');
   console.log('Для реальных данных убедитесь, что MySQL доступен и повторите команду.');

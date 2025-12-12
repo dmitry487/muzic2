@@ -647,6 +647,16 @@ body {
     scrollbar-width: thin;
     scrollbar-color: #232323 #181818;
 }
+@media (max-width: 1024px) {
+    .card-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+@media (max-width: 768px) {
+    .card-row {
+        grid-template-columns: 1fr;
+    }
+}
 .card-row::-webkit-scrollbar {
     height: 10px;
 }
@@ -667,7 +677,8 @@ body {
     box-shadow: 0 4px 24px rgba(30,185,84,0.10);
     padding: 0.6vw 1.2vw 0.6vw 0.6vw;
     width: 100%;
-    height: 78px;
+    min-height: 78px;
+    height: auto;
     transition: box-shadow 0.22s, background 0.22s, transform 0.22s;
     cursor: pointer;
     position: relative;
@@ -935,6 +946,12 @@ body {
     object-fit: cover;
     background: #181818;
     margin-bottom: 1vw;
+}
+.artist-avatar-circle {
+    border-radius: 50% !important;
+    width: 100% !important;
+    aspect-ratio: 1/1 !important;
+    object-fit: cover !important;
     box-shadow: 0 2px 12px rgba(0,0,0,0.10);
     flex-shrink: 0;
     position: relative;

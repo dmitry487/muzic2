@@ -21,18 +21,107 @@ foreach ([$albumsDir, $artistsDir] as $dir) {
 }
 
 function encode_key(string $value): string {
-    $encoded = rawurlencode($value);
-    return str_replace('%', '_', $encoded);
+    // Используем стандартное URL-кодирование без замены % на _
+    // Это соответствует encodeURIComponent в JavaScript
+    return rawurlencode($value);
 }
 
 function normalize_media_path(?string $path, string $fallback = ''): string {
-    if (!$path) return $fallback;
-    $path = str_replace('\\', '/', $path);
+    if (!$path || trim($path) === '') return $fallback;
+    $path = str_replace('\\', '/', trim($path));
+    // Убираем относительные пути типа ../../ или ../
+    $path = preg_replace('#\.\.?/#', '', $path);
     $pos = strpos($path, 'tracks/');
     if ($pos !== false) {
         $path = substr($path, $pos);
     }
-    return ltrim($path, './');
+    // Убираем начальные ./ и /
+    $path = ltrim($path, './');
+    // Если путь не начинается с tracks/, добавляем tracks/covers/ для обложек
+    if ($fallback && strpos($fallback, 'covers') !== false && strpos($path, 'tracks/') === false) {
+        $path = 'tracks/covers/' . basename($path);
+    }
+    return './' . ltrim($path, './');
+}
+
+// Функция для поиска обложки трека в БД
+function find_track_cover($db, $trackId, $title, $artist, $album): ?string {
+    if (!$db) return null;
+    
+    // Сначала ищем по track_id
+    if ($trackId) {
+        $stmt = $db->prepare("SELECT cover FROM tracks WHERE id = ? AND cover IS NOT NULL AND cover != '' AND cover != 'tracks/covers/placeholder.jpg' LIMIT 1");
+        $stmt->execute([$trackId]);
+        $cover = $stmt->fetchColumn();
+        if ($cover) {
+            $normalized = normalize_media_path($cover, '');
+            if ($normalized && $normalized !== './tracks/covers/placeholder.jpg') {
+                return $normalized;
+            }
+        }
+    }
+    
+    // Затем ищем по title и artist (точное совпадение)
+    if ($title && $artist) {
+        $stmt = $db->prepare("SELECT cover FROM tracks WHERE title = ? AND artist = ? AND cover IS NOT NULL AND cover != '' AND cover != 'tracks/covers/placeholder.jpg' LIMIT 1");
+        $stmt->execute([trim($title), trim($artist)]);
+        $cover = $stmt->fetchColumn();
+        if ($cover) {
+            $normalized = normalize_media_path($cover, '');
+            if ($normalized && $normalized !== './tracks/covers/placeholder.jpg') {
+                return $normalized;
+            }
+        }
+    }
+    
+    // Затем ищем по альбому (любой трек из альбома)
+    if ($album) {
+        $stmt = $db->prepare("SELECT cover FROM tracks WHERE album = ? AND cover IS NOT NULL AND cover != '' AND cover != 'tracks/covers/placeholder.jpg' LIMIT 1");
+        $stmt->execute([trim($album)]);
+        $cover = $stmt->fetchColumn();
+        if ($cover) {
+            $normalized = normalize_media_path($cover, '');
+            if ($normalized && $normalized !== './tracks/covers/placeholder.jpg') {
+                return $normalized;
+            }
+        }
+    }
+    
+    // Ищем по артисту (любой трек артиста)
+    if ($artist) {
+        $stmt = $db->prepare("SELECT cover FROM tracks WHERE artist = ? AND cover IS NOT NULL AND cover != '' AND cover != 'tracks/covers/placeholder.jpg' LIMIT 1");
+        $stmt->execute([trim($artist)]);
+        $cover = $stmt->fetchColumn();
+        if ($cover) {
+            $normalized = normalize_media_path($cover, '');
+            if ($normalized && $normalized !== './tracks/covers/placeholder.jpg') {
+                return $normalized;
+            }
+        }
+    }
+    
+    return null;
+}
+
+// Функция для проверки, является ли запись фантомной
+function is_phantom_record($title, $artist): bool {
+    // Проверяем, содержит ли имя артиста цифры в начале (типа "1715771107_K ai Angel")
+    if (preg_match('/^\d+[_\s]/', $artist)) {
+        return true;
+    }
+    // Проверяем, содержит ли название трека только цифры и подчеркивания
+    if (preg_match('/^\d+[_\s]/', $title)) {
+        return true;
+    }
+    // Проверяем на "Неизвестный артист" с подозрительными названиями
+    if ($artist === 'Неизвестный артист' && preg_match('/^\d+[_\s]/', $title)) {
+        return true;
+    }
+    // Фильтруем треки с только цифрами в названии
+    if (preg_match('/^\d+$/', $title)) {
+        return true;
+    }
+    return false;
 }
 
 function save_json(string $path, $data): void {
@@ -68,6 +157,11 @@ function collect_tracks_from_filesystem(): array {
                 $title = trim($maybeTitle);
             }
         }
+        
+        // Пропускаем фантомные записи
+        if (is_phantom_record($title, $artist)) {
+            continue;
+        }
 
         $tracks[] = [
             'id' => $id++,
@@ -99,18 +193,46 @@ if ($db) {
                  FROM tracks ORDER BY created_at DESC';
     $stmt = $db->query($trackSql);
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        // Пропускаем фантомные записи
+        if (is_phantom_record($row['title'], $row['artist'])) {
+            continue;
+        }
+        
         $filePath = normalize_media_path($row['file_path'], '');
-        $coverPath = normalize_media_path($row['cover'], 'tracks/covers/placeholder.jpg');
+        if (!$filePath || $filePath === './') continue; // Пропускаем треки без файла
+        
+        // Ищем обложку трека - сначала проверяем, есть ли она в записи
+        $coverPath = null;
+        if (!empty($row['cover']) && $row['cover'] !== 'tracks/covers/placeholder.jpg') {
+            $coverPath = normalize_media_path($row['cover'], '');
+            // Проверяем, что путь правильный
+            if ($coverPath && $coverPath !== './tracks/covers/placeholder.jpg') {
+                // Обложка найдена в записи
+            } else {
+                $coverPath = null;
+            }
+        }
+        
+        // Если обложки нет, ищем её в БД
+        if (!$coverPath) {
+            $foundCover = find_track_cover($db, (int)$row['id'], $row['title'], $row['artist'], $row['album']);
+            if ($foundCover) {
+                $coverPath = $foundCover;
+            } else {
+                $coverPath = './tracks/covers/placeholder.jpg';
+            }
+        }
+        
         $tracks[] = [
             'id' => (int)$row['id'],
-            'title' => $row['title'],
-            'artist' => $row['artist'],
-            'album' => $row['album'],
+            'title' => trim($row['title']),
+            'artist' => trim($row['artist']),
+            'album' => trim($row['album']),
             'album_type' => $row['album_type'],
             'duration' => (int)($row['duration'] ?? 0),
-            'file_path' => './' . $filePath,
-            'cover' => './' . $coverPath,
-            'src' => './' . $filePath,
+            'file_path' => $filePath,
+            'cover' => $coverPath,
+            'src' => $filePath,
             'video_url' => $row['video_url'] ?? '',
             'explicit' => (int)!empty($row['explicit'])
         ];
@@ -134,13 +256,31 @@ $albumsMap = [];
 $artistsMap = [];
 
 foreach ($tracks as $track) {
-    $albumKey = encode_key(mb_strtolower($track['album']));
+    // Пропускаем фантомные записи при агрегации
+    if (is_phantom_record($track['title'], $track['artist'])) {
+        continue;
+    }
+    
+    // Используем оригинальное имя для кодирования, чтобы соответствовать JavaScript
+    $albumKey = encode_key($track['album']);
+    
     if (!isset($albumsMap[$albumKey])) {
+        // Ищем обложку альбома
+        $albumCover = $track['cover'];
+        if ($albumCover === './tracks/covers/placeholder.jpg' && $db) {
+            $stmt = $db->prepare("SELECT cover FROM tracks WHERE album = ? AND cover IS NOT NULL AND cover != '' AND cover != 'tracks/covers/placeholder.jpg' LIMIT 1");
+            $stmt->execute([$track['album']]);
+            $foundCover = $stmt->fetchColumn();
+            if ($foundCover) {
+                $albumCover = './' . normalize_media_path($foundCover, '');
+            }
+        }
+        
         $albumsMap[$albumKey] = [
             'title' => $track['album'],
             'artist' => $track['artist'],
             'album_type' => $track['album_type'],
-            'cover' => $track['cover'],
+            'cover' => $albumCover,
             'tracks' => [],
             'total_duration' => 0
         ];
@@ -157,11 +297,23 @@ foreach ($tracks as $track) {
     ];
     $albumsMap[$albumKey]['total_duration'] += $track['duration'];
 
-    $artistKey = encode_key(mb_strtolower($track['artist']));
+    // Используем оригинальное имя артиста для кодирования
+    $artistKey = encode_key($track['artist']);
     if (!isset($artistsMap[$artistKey])) {
+        // Ищем обложку артиста
+        $artistCover = $track['cover'];
+        if ($artistCover === './tracks/covers/placeholder.jpg' && $db) {
+            $stmt = $db->prepare("SELECT cover FROM tracks WHERE artist = ? AND cover IS NOT NULL AND cover != '' AND cover != 'tracks/covers/placeholder.jpg' LIMIT 1");
+            $stmt->execute([$track['artist']]);
+            $foundCover = $stmt->fetchColumn();
+            if ($foundCover) {
+                $artistCover = './' . normalize_media_path($foundCover, '');
+            }
+        }
+        
         $artistsMap[$artistKey] = [
             'name' => $track['artist'],
-            'cover' => $track['cover'],
+            'cover' => $artistCover,
             'total_tracks' => 0,
             'albums' => [],
             'tracks' => []
@@ -179,7 +331,7 @@ foreach ($tracks as $track) {
     ];
     $artistsMap[$artistKey]['albums'][$albumKey] = [
         'title' => $track['album'],
-        'cover' => $track['cover'],
+        'cover' => $albumsMap[$albumKey]['cover'],
         'track_count' => isset($artistsMap[$artistKey]['albums'][$albumKey])
             ? $artistsMap[$artistKey]['albums'][$albumKey]['track_count'] + 1
             : 1
@@ -255,12 +407,11 @@ $searchData = [
 save_json($targetDir . '/search.json', $searchData);
 
 // Дополнительные статичные файлы
-save_json($targetDir . '/likes.json', ['likes' => []]);
-save_json($targetDir . '/windows_likes.json', ['likes' => []]);
+save_json($targetDir . '/likes.json', ['tracks' => [], 'albums' => []]);
+save_json($targetDir . '/windows_likes.json', ['tracks' => [], 'albums' => []]);
 save_json($targetDir . '/user.json', ['user' => null, 'authenticated' => false]);
 save_json($targetDir . '/windows_auth.json', ['user' => null, 'authenticated' => false]);
 save_json($targetDir . '/login.json', ['success' => false, 'error' => 'Авторизация недоступна в офлайн-режиме']);
-save_json($targetDir . '/logout.json', ['success' => true]);
 save_json($targetDir . '/playlists.json', ['playlists' => []]);
 save_json($targetDir . '/library.json', [
     'tracks' => $tracks,
@@ -269,5 +420,3 @@ save_json($targetDir . '/library.json', [
 ]);
 
 echo "Офлайн JSON успешно сгенерирован.\n";
-
-

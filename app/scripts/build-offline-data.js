@@ -28,7 +28,11 @@ function slugify(value) {
 }
 
 function encodeKey(value) {
-  return encodeURIComponent(value).replace(/%/g, '_');
+  // Используем стандартное URL-кодирование без замены % на _
+  // Это соответствует encodeURIComponent в JavaScript
+  return encodeURIComponent(value);
+}
+  return encodeURIComponent(value);
 }
 
 function findCover(album, artist) {
@@ -40,9 +44,27 @@ function findCover(album, artist) {
   for (const guess of guesses) {
     const slug = slugify(guess);
     for (const ext of COVER_EXT) {
-      const candidate = path.join(coversRoot, `${slug}${ext}`);
+        // Нормализуем путь: убираем относительные пути и оставляем только tracks/covers/...
+        let rel = path.relative(path.join(appDir, 'content'), candidate).replace(/\\/g, '/');
+        // Убираем относительные пути типа ../../ или ../
+        rel = rel.replace(/\.\.\/+/g, '');
+        // Убираем начальные ./ и /
+        rel = rel.replace(/^\.?\//, '');
+        // Если путь не начинается с tracks/, добавляем tracks/covers/
+        if (!rel.startsWith('tracks/')) {
+          rel = 'tracks/covers/' + path.basename(candidate);
+        }
       if (fs.existsSync(candidate)) {
-        const rel = path.relative(path.join(appDir, 'content'), candidate).replace(/\\/g, '/');
+      }
+    }
+  }
+  return './tracks/covers/placeholder.jpg';
+}
+
+function walkAudioFiles(root) {
+  const results = [];
+  if (!fs.existsSync(root)) {
+    return results;
         return './' + rel;
       }
     }
@@ -62,6 +84,23 @@ function walkAudioFiles(root) {
     if (stat.isDirectory()) {
       fs.readdirSync(current).forEach(entry => {
         stack.push(path.join(current, entry));
+// Функция для проверки, является ли запись фантомной
+function isPhantomRecord(title, artist) {
+  // Проверяем, содержит ли имя артиста цифры в начале (типа "1715771107_K ai Angel")
+  if (/^\d+[_\s]/.test(artist)) {
+    return true;
+  }
+  // Проверяем, содержит ли название трека только цифры и подчеркивания
+  if (/^\d+[_\s]/.test(title)) {
+    return true;
+  }
+  // Проверяем на "Неизвестный артист" с подозрительными названиями
+  if (artist === 'Неизвестный артист' && /^\d+[_\s]/.test(title)) {
+    return true;
+  }
+  return false;
+}
+
       });
     } else if (stat.isFile()) {
       const ext = path.extname(current).toLowerCase();
@@ -81,6 +120,11 @@ function parseMetadata(fullPath) {
   const parentFolder = folders.length > 1 ? folders[folders.length - 2] : '';
 
   let artist = 'Неизвестный артист';
+  // Пропускаем фантомные записи
+  if (isPhantomRecord(title, artist)) {
+    return null;
+  }
+
   let title = baseName;
   if (baseName.includes(' - ')) {
     const parts = baseName.split(' - ');
@@ -98,6 +142,7 @@ function parseMetadata(fullPath) {
   return {
     artist,
     title,
+    if (!meta) return null; // Пропускаем фантомные записи
     album,
     cover,
     filePath
@@ -111,7 +156,7 @@ function collectTracks() {
     const meta = parseMetadata(file);
     return {
       id: id++,
-      title: meta.title,
+  }).filter(t => t !== null); // Удаляем null записи title: meta.title,
       artist: meta.artist,
       album: meta.album,
       album_type: 'album',
@@ -134,6 +179,11 @@ function buildOfflineData() {
   const tracks = collectTracks();
   if (!tracks.length) {
     console.warn('Не найдено ни одного аудиофайла в tracks/music — офлайн данные не созданы.');
+    // Пропускаем фантомные записи при агрегации
+    if (isPhantomRecord(track.title, track.artist)) {
+      return;
+    }
+    
     return false;
   }
 
@@ -284,7 +334,16 @@ function buildOfflineData() {
     artists: artistCards
   });
 
-  console.log(`Офлайн данные сгенерированы из ${tracks.length} треков`);
+  return true;
+}
+
+module.exports = buildOfflineData;
+
+if (require.main === module) {
+  buildOfflineData();
+}
+
+
   return true;
 }
 

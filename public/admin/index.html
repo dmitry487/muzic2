@@ -68,7 +68,8 @@ const API = {
   artists: '/muzic2/public/admin/api/artists.php',
   albums:  '/muzic2/public/admin/api/albums.php',
   tracks:  '/muzic2/public/admin/api/tracks.php',
-  upload:  '/muzic2/public/upload_cover.php'
+  upload:  '/muzic2/public/upload_cover.php',
+  uploadVideo: '/muzic2/public/upload_video.php'
 };
 
 // DOM
@@ -145,11 +146,28 @@ function closeModal(){ modal.style.display='none'; current=null; }
 closeBtn.onclick = closeModal;
 
 async function upload(file){ const fd=new FormData(); fd.append('cover', file); const r=await fetch(API.upload,{method:'POST',body:fd}); const j=await r.json(); if(!r.ok||!j.success) throw new Error(j.message||'Ошибка загрузки'); return j.path; }
+async function uploadVideo(file){ const fd=new FormData(); fd.append('video', file); const r=await fetch(API.uploadVideo,{method:'POST',body:fd}); const j=await r.json(); if(!r.ok||!j.success) throw new Error(j.message||'Ошибка загрузки'); return j.path; }
 
-function editArtist(a){
+async function editArtist(a){
+  // Load artist tracks for promo track selection
+  let tracksOptions = '<option value="">— Не выбран —</option>';
+  try {
+    const tracksRes = await fetch(`${API.tracks}?q=${encodeURIComponent(a.artist||'')}`);
+    const tracksData = await tracksRes.json();
+    if (tracksData.success && Array.isArray(tracksData.data)) {
+      tracksData.data.forEach(t => {
+        const selected = a.promo_track_id && t.id == a.promo_track_id ? 'selected' : '';
+        tracksOptions += `<option value="${t.id}" ${selected}>${esc(t.title||'Без названия')}${t.album ? ' — ' + esc(t.album) : ''}</option>`;
+      });
+    }
+  } catch(e) {
+    console.warn('Failed to load tracks:', e);
+  }
   openModal('Изменить артиста', `
     <div class='field'><label>Имя</label><input id='f-name' value='${esc(a.artist||'')}'></div>
     <div class='field'><label>Фото (путь или загрузите)</label><div style='display:flex;gap:8px'><input id='f-cover' value='${esc(a.artist_cover||a.track_cover||'')}' style='flex:1'><input id='f-file' type='file' accept='image/*' style='flex:1'></div></div>
+    <div class='field'><label>Видео-промо/Интро (путь или загрузите)</label><div style='display:flex;gap:8px'><input id='f-promo-video' value='${esc(a.promo_video||'')}' style='flex:1' placeholder='tracks/videos/promo.mp4'><input id='f-video-file' type='file' accept='video/*' style='flex:1'></div><div style='font-size:12px;color:var(--muted);margin-top:4px'>Поддерживаются: MP4, WEBM, MOV, AVI (до 100 МБ)</div></div>
+    <div class='field'><label>Трек для промо (отображается в интро)</label><select id='f-promo-track' style='width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);background:#0f1113;color:#fff'>${tracksOptions}</select><div style='font-size:12px;color:var(--muted);margin-top:4px'>Выберите трек, который будет показан в промо-видео</div></div>
     <div class='field'><label>Био</label><textarea id='f-bio' rows='4'>${esc(a.bio||'')}</textarea></div>
   `, a);
   saveBtn.onclick = async ()=>{
@@ -158,7 +176,11 @@ function editArtist(a){
       let cover = document.getElementById('f-cover').value.trim();
       const file = document.getElementById('f-file').files[0];
       if (file){ cover = await upload(file); document.getElementById('f-cover').value = cover; }
-      const payload = { action:'update', name: a.artist, name_new: document.getElementById('f-name').value.trim(), cover, bio: document.getElementById('f-bio').value.trim() };
+      let promoVideo = document.getElementById('f-promo-video').value.trim();
+      const videoFile = document.getElementById('f-video-file').files[0];
+      if (videoFile){ promoVideo = await uploadVideo(videoFile); document.getElementById('f-promo-video').value = promoVideo; }
+      const promoTrackId = document.getElementById('f-promo-track').value || null;
+      const payload = { action:'update', name: a.artist, name_new: document.getElementById('f-name').value.trim(), cover, bio: document.getElementById('f-bio').value.trim(), promo_video: promoVideo, promo_track_id: promoTrackId };
       const r = await fetch(API.artists, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
       const j = await r.json(); if(!j.success) throw new Error(j.message||'Ошибка');
       closeModal(); load();
@@ -236,9 +258,9 @@ async function delAlbum(al){
   if (j.success){ ok('Альбом удалён'); load(); } else { err(j.message||'Ошибка') }
 }
 
-add.onclick = ()=>{
+add.onclick = async ()=>{
   if (tab==='artists'){
-    editArtist({artist:'',artist_cover:'',bio:''});
+    await editArtist({artist:'',artist_cover:'',bio:'',promo_video:'',promo_track_id:null});
     document.getElementById('f-name').value = '';
     saveBtn.onclick = async ()=>{
       try{
@@ -246,7 +268,11 @@ add.onclick = ()=>{
         let cover = document.getElementById('f-cover').value.trim();
         const file = document.getElementById('f-file').files[0];
         if (file){ cover = await upload(file); document.getElementById('f-cover').value = cover; }
-        const payload = { action:'create', name: document.getElementById('f-name').value.trim(), cover, bio: document.getElementById('f-bio').value.trim() };
+        let promoVideo = document.getElementById('f-promo-video').value.trim();
+        const videoFile = document.getElementById('f-video-file').files[0];
+        if (videoFile){ promoVideo = await uploadVideo(videoFile); document.getElementById('f-promo-video').value = promoVideo; }
+        const promoTrackId = document.getElementById('f-promo-track') ? (document.getElementById('f-promo-track').value || null) : null;
+        const payload = { action:'create', name: document.getElementById('f-name').value.trim(), cover, bio: document.getElementById('f-bio').value.trim(), promo_video: promoVideo, promo_track_id: promoTrackId };
         const r = await fetch(API.artists, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
         const j = await r.json(); if(!j.success) throw new Error(j.message||'Ошибка');
         closeModal(); load();

@@ -16,8 +16,22 @@ if (isset($_GET['api'])) {
     name VARCHAR(255) NOT NULL UNIQUE,
     cover VARCHAR(255),
     bio TEXT,
+    promo_video VARCHAR(500),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )');
+  
+  // Add promo_video column if it doesn't exist
+  try {
+    $db->exec("ALTER TABLE artists ADD COLUMN promo_video VARCHAR(500) DEFAULT NULL");
+  } catch (Throwable $e) {
+    // Column already exists, ignore
+  }
+  // Add promo_track_id column if it doesn't exist
+  try {
+    $db->exec("ALTER TABLE artists ADD COLUMN promo_track_id INT DEFAULT NULL");
+  } catch (Throwable $e) {
+    // Column already exists, ignore
+  }
   // Feats mapping table (idempotent)
   $db->exec("CREATE TABLE IF NOT EXISTS track_artists (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -42,11 +56,11 @@ if (isset($_GET['api'])) {
         $q = trim((string)($_GET['q'] ?? ''));
         if ($q !== '') {
           // Include artists without tracks
-          $st = $db->prepare("SELECT a.name AS artist, a.cover AS artist_cover, a.bio AS bio, COUNT(t.id) AS tracks, MIN(t.cover) AS track_cover FROM artists a LEFT JOIN tracks t ON TRIM(LOWER(a.name))=TRIM(LOWER(t.artist)) WHERE a.name LIKE ? GROUP BY a.name, a.cover, a.bio ORDER BY a.name ASC LIMIT 500");
+          $st = $db->prepare("SELECT a.name AS artist, a.cover AS artist_cover, a.bio AS bio, a.promo_video AS promo_video, a.promo_track_id AS promo_track_id, COUNT(t.id) AS tracks, MIN(t.cover) AS track_cover FROM artists a LEFT JOIN tracks t ON TRIM(LOWER(a.name))=TRIM(LOWER(t.artist)) WHERE a.name LIKE ? GROUP BY a.name, a.cover, a.bio, a.promo_video, a.promo_track_id ORDER BY a.name ASC LIMIT 500");
           $st->execute(['%'.$q.'%']);
           $rows = $st->fetchAll();
         } else {
-          $rows = $db->query("SELECT a.name AS artist, a.cover AS artist_cover, a.bio AS bio, COUNT(t.id) AS tracks, MIN(t.cover) AS track_cover FROM artists a LEFT JOIN tracks t ON TRIM(LOWER(a.name))=TRIM(LOWER(t.artist)) GROUP BY a.name, a.cover, a.bio ORDER BY a.name ASC LIMIT 200")->fetchAll();
+          $rows = $db->query("SELECT a.name AS artist, a.cover AS artist_cover, a.bio AS bio, a.promo_video AS promo_video, a.promo_track_id AS promo_track_id, COUNT(t.id) AS tracks, MIN(t.cover) AS track_cover FROM artists a LEFT JOIN tracks t ON TRIM(LOWER(a.name))=TRIM(LOWER(t.artist)) GROUP BY a.name, a.cover, a.bio, a.promo_video, a.promo_track_id ORDER BY a.name ASC LIMIT 200")->fetchAll();
         }
         echo json_encode(['success'=>true,'data'=>$rows], JSON_UNESCAPED_UNICODE); exit;
       }
@@ -55,9 +69,11 @@ if (isset($_GET['api'])) {
         $name = trim((string)($body['name'] ?? ''));
         $cover = trim((string)($body['cover'] ?? ''));
         $bio = trim((string)($body['bio'] ?? ''));
+        $promoVideo = trim((string)($body['promo_video'] ?? ''));
+        $promoTrackId = isset($body['promo_track_id']) && $body['promo_track_id'] !== '' && $body['promo_track_id'] !== null ? (int)$body['promo_track_id'] : null;
         if ($name==='') throw new Exception('Введите имя');
-        $st=$db->prepare('INSERT INTO artists (name, cover, bio) VALUES (?,?,?) ON DUPLICATE KEY UPDATE cover=VALUES(cover), bio=VALUES(bio)');
-        $st->execute([$name,$cover,$bio]);
+        $st=$db->prepare('INSERT INTO artists (name, cover, bio, promo_video, promo_track_id) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE cover=VALUES(cover), bio=VALUES(bio), promo_video=VALUES(promo_video), promo_track_id=VALUES(promo_track_id)');
+        $st->execute([$name,$cover,$bio,$promoVideo,$promoTrackId]);
         echo json_encode(['success'=>true]); exit;
       }
       if ($action === 'update') {
@@ -65,14 +81,16 @@ if (isset($_GET['api'])) {
         $name_new = trim((string)($body['name_new'] ?? $name));
         $cover = trim((string)($body['cover'] ?? ''));
         $bio = trim((string)($body['bio'] ?? ''));
+        $promoVideo = trim((string)($body['promo_video'] ?? ''));
+        $promoTrackId = isset($body['promo_track_id']) && $body['promo_track_id'] !== '' ? (int)$body['promo_track_id'] : null;
         if ($name==='') throw new Exception('Введите имя');
         $db->beginTransaction();
         if (strcasecmp($name, $name_new)!==0) {
           $st=$db->prepare('UPDATE tracks SET artist=? WHERE TRIM(LOWER(artist))=TRIM(LOWER(?))');
           $st->execute([$name_new,$name]);
         }
-        $st=$db->prepare('INSERT INTO artists (name, cover, bio) VALUES (?,?,?) ON DUPLICATE KEY UPDATE cover=VALUES(cover), bio=VALUES(bio)');
-        $st->execute([$name_new,$cover,$bio]);
+        $st=$db->prepare('INSERT INTO artists (name, cover, bio, promo_video, promo_track_id) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE cover=VALUES(cover), bio=VALUES(bio), promo_video=VALUES(promo_video), promo_track_id=VALUES(promo_track_id)');
+        $st->execute([$name_new,$cover,$bio,$promoVideo,$promoTrackId]);
         $db->commit();
         echo json_encode(['success'=>true]); exit;
       }
@@ -353,7 +371,66 @@ function openModal(title, html, it){ mtitle.textContent=title; mbody.innerHTML=h
 function closeModal(){ modal.style.display='none'; current=null; }
 closeBtn.onclick=closeModal;
 async function upload(file){ const fd=new FormData(); fd.append('cover', file); const r=await fetch('../upload_cover.php',{method:'POST',body:fd}); const j=await r.json(); if(!r.ok||!j.success) throw new Error(j.message||'Ошибка загрузки'); return j.path; }
-function editArtist(a){ openModal('Изменить артиста', `<div class='field'><label>Имя</label><input id='f-name' value='${esc(a.artist||'')}'></div><div class='field'><label>Фото (путь или загрузите)</label><div style='display:flex;gap:8px'><input id='f-cover' value='${esc(a.artist_cover||a.track_cover||'')}' style='flex:1'><input id='f-file' type='file' accept='image/*' style='flex:1'></div></div><div class='field'><label>Био</label><textarea id='f-bio' rows='4'>${esc(a.bio||'')}</textarea></div>` , a); saveBtn.onclick=async()=>{ try{ mok('Сохранение...'); let cover=document.getElementById('f-cover').value.trim(); const file=document.getElementById('f-file').files[0]; if(file){ cover=await upload(file); document.getElementById('f-cover').value=cover; } const payload={action:'update', name:a.artist, name_new:document.getElementById('f-name').value.trim(), cover, bio:document.getElementById('f-bio').value.trim()}; const r=await fetch(`${api}&entity=artists`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const j=await r.json(); if(!j.success) throw new Error(j.message||'Ошибка'); closeModal(); load(); }catch(e){ merr(e.message) } } }
+async function uploadVideo(file){ const fd=new FormData(); fd.append('video', file); const r=await fetch('../upload_video.php',{method:'POST',body:fd}); const j=await r.json(); if(!r.ok||!j.success) throw new Error(j.message||'Ошибка загрузки'); return j.path; }
+async function editArtist(a){
+  let tracksOptions = `<option value="">— Не выбран —</option>`;
+  try {
+    const q = a.artist ? encodeURIComponent(a.artist) : '';
+    const res = await fetch(`${api}&entity=tracks${q ? `&q=${q}` : ''}`);
+    const data = await res.json();
+    if (data.success && Array.isArray(data.data)) {
+      data.data
+        .filter(t => {
+          if (!a.artist) return true;
+          return String(t.artist || '').toLowerCase().includes(String(a.artist || '').toLowerCase());
+        })
+        .slice(0, 200)
+        .forEach(t => {
+          const selected = a.promo_track_id && Number(a.promo_track_id) === Number(t.id) ? 'selected' : '';
+          tracksOptions += `<option value="${t.id}" ${selected}>${esc(t.title||'Без названия')} — ${esc(t.artist||'')}</option>`;
+        });
+    }
+  } catch (err) {
+    console.warn('Не удалось загрузить треки артиста', err);
+  }
+  openModal('Изменить артиста', `
+    <div class='field'><label>Имя</label><input id='f-name' value='${esc(a.artist||'')}'></div>
+    <div class='field'><label>Фото (путь или загрузите)</label><div style='display:flex;gap:8px'><input id='f-cover' value='${esc(a.artist_cover||a.track_cover||'')}' style='flex:1'><input id='f-file' type='file' accept='image/*' style='flex:1'></div></div>
+    <div class='field'><label>Видео-промо/Интро (путь или загрузите)</label><div style='display:flex;gap:8px'><input id='f-promo-video' value='${esc(a.promo_video||'')}' style='flex:1' placeholder='tracks/videos/promo.mp4'><input id='f-video-file' type='file' accept='video/*' style='flex:1'></div><div style='font-size:12px;color:var(--muted);margin-top:4px'>Поддерживаются: MP4, WEBM, MOV, AVI (до 100 МБ)</div></div>
+    <div class='field'><label>Трек для промо (отображается в интро)</label><select id='f-promo-track'>${tracksOptions}</select><div style='font-size:12px;color:var(--muted);margin-top:4px'>Эта информация появится поверх видео</div></div>
+    <div class='field'><label>Био</label><textarea id='f-bio' rows='4'>${esc(a.bio||'')}</textarea></div>
+  ` , a);
+  saveBtn.onclick=async()=>{
+    try{
+      mok('Сохранение...');
+      let cover=document.getElementById('f-cover').value.trim();
+      const file=document.getElementById('f-file').files[0];
+      if(file){
+        cover=await upload(file);
+        document.getElementById('f-cover').value=cover;
+      }
+      let promoVideo=document.getElementById('f-promo-video').value.trim();
+      const videoFile=document.getElementById('f-video-file').files[0];
+      if(videoFile){
+        promoVideo=await uploadVideo(videoFile);
+        document.getElementById('f-promo-video').value=promoVideo;
+      }
+      const promoTrackId = document.getElementById('f-promo-track').value || null;
+      const payload={
+        action:'update',
+        name:a.artist,
+        name_new:document.getElementById('f-name').value.trim(),
+        cover,
+        bio:document.getElementById('f-bio').value.trim(),
+        promo_video:promoVideo,
+        promo_track_id:promoTrackId
+      };
+      const r=await fetch(`${api}&entity=artists`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const j=await r.json(); if(!j.success) throw new Error(j.message||'Ошибка');
+      closeModal(); load();
+    }catch(e){ merr(e.message) }
+  }
+}
 function editAlbum(al){ openModal(al.album ? 'Изменить альбом' : 'Создать альбом', `
   <div class='field'><label>Альбом</label><input id='f-album' value='${esc(al.album||'')}'></div>
   <div class='field'><label>Артист</label><input id='f-artist' value='${esc(al.artist||'')}'></div>
@@ -422,9 +499,45 @@ async function editLyrics(t){
 }
 async function delTrack(t){ if(!confirm(`Удалить трек "${t.title}"?`)) return; const r=await fetch(`${api}&entity=tracks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',id:t.id})}); const j=await r.json(); if(j.success){ ok('Трек удалён'); load(); } else { err(j.message||'Ошибка') } }
 async function delArtist(a){ if(!confirm(`Удалить артиста "${a.artist}"?`)) return; const r=await fetch(`${api}&entity=artists`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',name:a.artist})}); const j=await r.json(); if(j.success){ ok('Артист удалён'); load(); } else { err(j.message||'Ошибка') } }
- add.onclick=()=>{ if(tab==='artists'){ editArtist({artist:'',artist_cover:'',bio:''}); document.getElementById('f-name').value=''; saveBtn.onclick = async ()=>{ try{ mok('Сохранение...'); let cover=document.getElementById('f-cover').value.trim(); const file=document.getElementById('f-file').files[0]; if(file){ cover=await upload(file); document.getElementById('f-cover').value=cover; } const payload={action:'create', name:document.getElementById('f-name').value.trim(), cover, bio:document.getElementById('f-bio').value.trim()}; const r=await fetch(`${api}&entity=artists`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const j=await r.json(); if(!j.success) throw new Error(j.message||'Ошибка'); closeModal(); load(); }catch(e){ merr(e.message) } } }
- else if(tab==='albums'){ editAlbum({album:'',artist:'',album_type:'album',cover:''}); }
- else if(tab==='tracks'){ editTrack({id:0,title:'',artist:'',feats:'',album:'',album_type:'album',file_path:'',cover:'',duration:0, explicit:0}); const originalHandler = saveBtn.onclick; saveBtn.onclick = async ()=>{ try{ // override to create when id is 0
+add.onclick = async () => {
+  if (tab === 'artists') {
+    await editArtist({ artist: '', artist_cover: '', bio: '', promo_video: '', promo_track_id: null });
+    document.getElementById('f-name').value = '';
+    saveBtn.onclick = async () => {
+      try {
+        mok('Сохранение...');
+        let cover = document.getElementById('f-cover').value.trim();
+        const file = document.getElementById('f-file').files[0];
+        if (file) {
+          cover = await upload(file);
+          document.getElementById('f-cover').value = cover;
+        }
+        let promoVideo = document.getElementById('f-promo-video').value.trim();
+        const videoFile = document.getElementById('f-video-file').files[0];
+        if (videoFile) {
+          promoVideo = await uploadVideo(videoFile);
+          document.getElementById('f-promo-video').value = promoVideo;
+        }
+        const promoTrackId = document.getElementById('f-promo-track').value || null;
+        const payload = {
+          action: 'create',
+          name: document.getElementById('f-name').value.trim(),
+          cover,
+          bio: document.getElementById('f-bio').value.trim(),
+          promo_video: promoVideo,
+          promo_track_id: promoTrackId
+        };
+        const r = await fetch(`${api}&entity=artists`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const j = await r.json();
+        if (!j.success) throw new Error(j.message || 'Ошибка');
+        closeModal();
+        load();
+      } catch (e) { merr(e.message); }
+    };
+  } else if (tab === 'albums') {
+    editAlbum({ album: '', artist: '', album_type: 'album', cover: '' });
+  } else if (tab === 'tracks') {
+    editTrack({ id:0,title:'',artist:'',feats:'',album:'',album_type:'album',file_path:'',cover:'',duration:0, explicit:0}); const originalHandler = saveBtn.onclick; saveBtn.onclick = async ()=>{ try{ // override to create when id is 0
       mok('Сохранение...');
       let cover=document.getElementById('f-cover').value.trim();
       const file=document.getElementById('f-file2').files[0];

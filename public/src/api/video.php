@@ -11,7 +11,8 @@ if (strpos($rel, '%') !== false) { $rel = urldecode($rel); }
 $rel = str_replace(['\\', '..'], ['/', ''], $rel);
 // Remove leading slashes
 while (isset($rel[0]) && ($rel[0] === '/')) { $rel = substr($rel, 1); }
-if ($rel === '' || (strpos($rel, 'tracks/video/') !== 0 && strpos($rel, 'tracks/music/') !== 0)) {
+// Allow tracks/video, tracks/videos, and tracks/music directories
+if ($rel === '' || (strpos($rel, 'tracks/video/') !== 0 && strpos($rel, 'tracks/videos/') !== 0 && strpos($rel, 'tracks/music/') !== 0)) {
   http_response_code(400);
   echo 'Bad request';
   exit;
@@ -20,7 +21,8 @@ if ($rel === '' || (strpos($rel, 'tracks/video/') !== 0 && strpos($rel, 'tracks/
 $root = realpath(__DIR__ . '/../../..');
 $file = realpath($root . '/' . $rel);
 // Fallback for Unicode normalization differences (e.g., macOS NFD vs NFC)
-if (!$file || !is_file($file) || strpos($file, $root . '/tracks/') !== 0) {
+// Allow tracks/video, tracks/videos, and tracks/music
+if (!$file || !is_file($file) || (strpos($file, $root . '/tracks/video/') !== 0 && strpos($file, $root . '/tracks/videos/') !== 0 && strpos($file, $root . '/tracks/music/') !== 0)) {
   $candidate = $root . '/' . $rel;
   $dir = dirname($candidate);
   $base = basename($candidate);
@@ -52,8 +54,15 @@ if (!$file || !is_file($file) || strpos($file, $root . '/tracks/') !== 0) {
 $size = filesize($file);
 $mime = 'video/mp4';
 $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
-if ($ext === 'webm') { $mime = 'video/webm'; }
-if ($ext === 'm4v') { $mime = 'video/mp4'; }
+if ($ext === 'webm') { 
+    $mime = 'video/webm'; 
+} else if ($ext === 'm4v') { 
+    $mime = 'video/mp4'; 
+} else if ($ext === 'mov') { 
+    $mime = 'video/quicktime'; // MOV files use QuickTime MIME type
+} else if ($ext === 'avi') { 
+    $mime = 'video/x-msvideo'; 
+}
 
 header('Content-Type: ' . $mime);
 header('Accept-Ranges: bytes');

@@ -21,52 +21,148 @@
 .artist-hero::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     background: var(--artist-bg, url('/muzic2/tracks/covers/m1000x1000.jpeg')) center/cover no-repeat;
-    filter: brightness(0.35);
+    filter: brightness(0.25) blur(5px);
     z-index: 0;
 }
 
-
-/* Enhanced background with better overlay */
 .artist-hero::after {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(
-        180deg,
-        rgba(0, 0, 0, 0.4) 0%,
-        rgba(0, 0, 0, 0.2) 50%,
-        rgba(0, 0, 0, 0.6) 100%
-    );
-    z-index: 1;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.25) 45%, rgba(0, 0, 0, 0.7) 100%);
+    z-index: 2;
 }
 
+.artist-hero-video-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    overflow: hidden;
+}
+
+.artist-hero-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scale(1.08);
+    filter: blur(10px) brightness(0.55) saturate(1.1);
+    pointer-events: none;
+}
+
+.artist-hero-video-bg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.15) 0%, transparent 45%);
+    mix-blend-mode: screen;
+    opacity: 0.4;
+}
+
+
 .artist-avatar-container {
-    display: none;
+    position: relative;
+    z-index: 4;
+    width: 280px;
+    height: 280px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.artist-avatar-wrapper {
+    position: relative;
+    width: 280px;
+    height: 280px;
+    border-radius: 50%;
+    overflow: visible;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    isolation: isolate;
+}
+
+.artist-avatar-wrapper::before {
+    content: '';
+    position: absolute;
+    inset: -14px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.35), transparent 65%);
+    filter: blur(30px);
+    opacity: 0.4;
+    z-index: 0;
+}
+
+.artist-avatar-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 6px solid rgba(255, 255, 255, 0.2);
+    box-shadow:
+        0 20px 40px rgba(0, 0, 0, 0.6),
+        inset 0 0 25px rgba(0, 0, 0, 0.6),
+        0 0 25px rgba(30, 215, 96, 0.2);
+    z-index: 2;
+    pointer-events: none;
+}
+
+.artist-avatar-video {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 110%;
+    height: 110%;
+    object-fit: cover;
+    transform: translate(-50%, -50%) scale(1.05);
+    opacity: 0.9;
+    filter: saturate(1.2) brightness(0.9) contrast(1.05);
+    pointer-events: none;
+    z-index: 1;
+    border-radius: 50%;
+    clip-path: circle(50% at 50% 50%);
+    box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.35);
+}
+
+.artist-avatar-photo {
+    position: relative;
+    width: 92%;
+    height: 92%;
+    border-radius: 50%;
+    overflow: hidden;
+    z-index: 3;
+    border: 4px solid rgba(255, 255, 255, 0.25);
+    box-shadow:
+        inset 0 0 35px rgba(0, 0, 0, 0.6),
+        0 15px 35px rgba(0, 0, 0, 0.7);
+    background: #0e0e0e;
 }
 
 .artist-avatar-large {
-    width: 232px;
-    height: 232px;
+    width: 100%;
+    height: 100%;
     border-radius: 50%;
     object-fit: cover;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-    border: 4px solid rgba(255, 255, 255, 0.1);
-    transition: all 0.3s ease;
-    position: relative;
+    display: block;
+    transform: scale(1);
+    transition: transform 0.35s ease, filter 0.35s ease;
 }
 
-.artist-avatar-large:hover {
+.artist-avatar-wrapper:hover .artist-avatar-large {
+    transform: scale(1.05);
+    filter: saturate(1.05) brightness(1.05);
+}
+
+.artist-avatar-wrapper:hover {
+    box-shadow: 0 16px 56px rgba(30, 215, 96, 0.3);
+    border-color: rgba(30, 215, 96, 0.4);
     transform: scale(1.02);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8);
-    border-color: rgba(30, 215, 96, 0.3);
+    transition: all 0.3s ease;
+}
+
+.artist-avatar-wrapper:hover .artist-avatar-video {
+    opacity: 1;
+    filter: blur(10px) brightness(0.7) saturate(1.5);
 }
 
 /* Special styling for Kai Angel portrait */
@@ -87,7 +183,7 @@
     justify-content: flex-end;
     gap: 0.5rem;
     position: relative;
-    z-index: 2;
+    z-index: 4;
 }
 
 .artist-verified {
@@ -185,6 +281,35 @@
 .shuffle-btn:hover {
     border-color: #fff;
     background: rgba(255, 255, 255, 0.1);
+}
+
+.promo-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    border-radius: 999px;
+    padding: 0.7rem 1.6rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+.promo-btn i {
+    font-size: 0.95rem;
+}
+
+.promo-btn:hover {
+    border-color: #1ed760;
+    color: #1ed760;
+    transform: translateY(-2px);
+    box-shadow: 0 16px 36px rgba(30, 215, 96, 0.25);
 }
 
 .follow-btn {
@@ -609,6 +734,91 @@
     transform: scale(1.15);
 }
 
+.video-card {
+    background: #101010;
+    border-radius: 14px;
+    padding: 0.75rem 0.75rem 1rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.video-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+.video-thumb {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: 12px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.video-thumb-preview {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    filter: brightness(0.92) saturate(1.05);
+    transition: transform 0.25s ease;
+}
+
+.video-card:hover .video-thumb-preview {
+    transform: scale(1.02);
+}
+
+.video-thumb video {
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    position: absolute;
+    pointer-events: none;
+}
+
+.video-play-overlay {
+    position: absolute;
+    inset: 0;
+    border: none;
+    background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,0.45) 100%);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.video-card:hover .video-play-overlay {
+    opacity: 1;
+}
+
+.video-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #fff;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.video-info {
+    font-size: 0.85rem;
+    color: #b3b3b3;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* Responsive Design */
 @media (max-width: 1024px) {
     .artist-hero {
@@ -616,9 +826,14 @@
         gap: 1.5rem;
     }
     
-    .artist-avatar-large {
-        width: 200px;
-        height: 200px;
+    .artist-avatar-container {
+        width: 240px;
+        height: 240px;
+    }
+    
+    .artist-avatar-wrapper {
+        width: 240px;
+        height: 240px;
     }
     
     .artist-controls {
@@ -637,9 +852,15 @@
         gap: 1rem;
     }
     
-    .artist-avatar-large {
-        width: 192px;
-        height: 192px;
+    .artist-avatar-container {
+        width: 200px;
+        height: 200px;
+    }
+    
+    .artist-avatar-wrapper {
+        width: 200px;
+        height: 200px;
+        border-width: 4px;
     }
     
     .artist-name-large {
@@ -725,9 +946,15 @@
         font-size: clamp(1.8rem, 8vw, 2.5rem);
     }
     
-    .artist-avatar-large {
-        width: 160px;
-        height: 160px;
+    .artist-avatar-container {
+        width: 180px;
+        height: 180px;
+    }
+    
+    .artist-avatar-wrapper {
+        width: 180px;
+        height: 180px;
+        border-width: 4px;
     }
     
     .artist-controls {
@@ -815,9 +1042,15 @@
         padding: 0.75rem 0.5rem;
     }
     
-    .artist-avatar-large {
-        width: 140px;
-        height: 140px;
+    .artist-avatar-container {
+        width: 160px;
+        height: 160px;
+    }
+    
+    .artist-avatar-wrapper {
+        width: 160px;
+        height: 160px;
+        border-width: 3px;
     }
     
     .artist-name-large {

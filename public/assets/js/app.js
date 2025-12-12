@@ -2181,14 +2181,221 @@ function showAlbumContextMenu(event, album, albumIndex) {
 			const data = await res.json();
 			if (data.error) { mainContent.innerHTML = '<div class="error">Артист не найден</div>'; return; }
 			
+			// DEBUG: Log full API response
+			console.log('🔍 Artist API Response:', {
+				name: data.name,
+				promo_video: data.promo_video,
+				promo_video_type: typeof data.promo_video,
+				promo_video_length: data.promo_video ? data.promo_video.length : 0,
+				cover: data.cover,
+				fullData: JSON.stringify(data, null, 2)
+			});
+			
+			// ВАЖНО: Проверяем, что promo_video не содержит audio.php
+			if (data.promo_video && data.promo_video.includes('audio.php')) {
+				console.error('❌ CRITICAL: API returned promo_video with audio.php!', data.promo_video);
+				// Извлекаем реальный путь
+				const match = data.promo_video.match(/audio\.php\?f=([^&]+)/);
+				if (match) {
+					const decoded = decodeURIComponent(match[1]);
+					data.promo_video = decoded.replace(/^\/+/, '');
+					console.log('✅ Fixed promo_video from API:', data.promo_video);
+				}
+			}
+			
 			// Calculate monthly listeners (random for demo)
 			const monthlyListeners = Math.floor(Math.random() * 5000000) + 1000000;
 			
+			// Формируем путь к видео промо
+			let promoVideoUrl = null;
+			let finalVideoUrl = null;
+			let videoType = 'video/mp4';
+			let videoExt = null;
+			let cleanPathForVideo = null;
+			let heroVideoHTML = '';
+			const promoVideoSources = [];
+			let promoVideoSourcesHTML = '';
+			let promoPosterDataUrl = '';
+			
+			if (data.promo_video && data.promo_video.trim()) {
+				const promoPath = data.promo_video.trim();
+				// Убираем лишние слеши в начале
+				let cleanPath = promoPath.replace(/^\/+/, '');
+				
+				// Сохраняем cleanPath для использования в video.php прокси
+				cleanPathForVideo = cleanPath;
+				
+				// Если путь уже содержит tracks/video, используем его напрямую
+				if (cleanPath.startsWith('tracks/video') || cleanPath.startsWith('tracks/videos')) {
+					// Используем прямой путь к файлу, НЕ через audio.php
+					promoVideoUrl = `/muzic2/${cleanPath}`;
+				} else if (promoPath.startsWith('http')) {
+					promoVideoUrl = promoPath;
+				} else {
+					// Если путь относительный, добавляем tracks/video если нужно
+					if (!cleanPath.includes('tracks/')) {
+						cleanPath = `tracks/video/${cleanPath}`;
+						cleanPathForVideo = cleanPath;
+					}
+					// Используем прямой путь к файлу
+					promoVideoUrl = `/muzic2/${cleanPath}`;
+				}
+				
+				// Убеждаемся, что это НЕ путь через audio.php - ВАЖНО!
+				if (promoVideoUrl.includes('audio.php')) {
+					console.error('❌ ERROR: Video path contains audio.php! Fixing...', promoVideoUrl);
+					// Извлекаем реальный путь из audio.php
+					const match = promoVideoUrl.match(/audio\.php\?f=([^&]+)/);
+					if (match) {
+						const decoded = decodeURIComponent(match[1]);
+						cleanPathForVideo = decoded.replace(/^\/+/, '');
+						// Убеждаемся, что путь правильный
+						if (!cleanPathForVideo.startsWith('tracks/video') && !cleanPathForVideo.startsWith('tracks/videos')) {
+							cleanPathForVideo = `tracks/video/${cleanPathForVideo}`;
+						}
+						promoVideoUrl = `/muzic2/${cleanPathForVideo}`;
+						console.log('✅ Fixed video URL (removed audio.php):', promoVideoUrl);
+					}
+				}
+				
+				// Дополнительная проверка - если путь все еще содержит audio.php, используем cleanPath напрямую
+				if (promoVideoUrl.includes('audio.php')) {
+					console.error('❌ Still contains audio.php, using cleanPath directly');
+					promoVideoUrl = `/muzic2/${cleanPathForVideo || cleanPath}`;
+				}
+				
+				// Финальная проверка - убеждаемся, что URL правильный
+				if (promoVideoUrl.includes('audio.php')) {
+					console.error('❌ CRITICAL: Video URL still contains audio.php! Using fallback');
+					// Используем cleanPath напрямую
+					const fallbackPath = cleanPathForVideo || cleanPath || data.promo_video.trim().replace(/^\/+/, '');
+					promoVideoUrl = `/muzic2/${fallbackPath}`;
+				}
+				
+				// Определяем тип видео по расширению
+				videoExt = promoPath.toLowerCase().split('.').pop();
+				if (videoExt === 'webm') {
+					videoType = 'video/webm';
+				} else if (videoExt === 'mov') {
+					videoType = 'video/quicktime'; // MOV files use QuickTime MIME type
+				} else if (videoExt === 'avi') {
+					videoType = 'video/x-msvideo';
+				} else if (videoExt === 'mp4' || videoExt === 'm4v') {
+					videoType = 'video/mp4';
+				} else {
+					videoType = 'video/mp4'; // Default fallback
+				}
+				
+				console.log('🎬 Promo video found:', {
+					original: data.promo_video,
+					cleanPath: cleanPath,
+					finalUrl: promoVideoUrl,
+					type: videoType,
+					ext: videoExt
+				});
+			} else {
+				console.warn('⚠️ No promo video for artist:', data.name);
+				console.log('Full data object:', JSON.stringify(data, null, 2));
+			}
+			
+			const coverUrl = data.cover ? (data.cover.startsWith('http') ? data.cover : `/muzic2/${data.cover}`) : '/muzic2/tracks/covers/placeholder.jpg';
+			
+			if (promoVideoUrl) {
+				const videoProxyUrl = cleanPathForVideo ? `/muzic2/public/src/api/video.php?f=${encodeURIComponent(cleanPathForVideo)}` : null;
+				
+				console.log('📹 Video URLs:', {
+					direct: promoVideoUrl,
+					proxy: videoProxyUrl,
+					cleanPath: cleanPathForVideo
+				});
+				
+				// ВАЖНО: Убеждаемся, что URL не содержит audio.php
+				let resolvedVideoUrl = promoVideoUrl;
+				if (resolvedVideoUrl && resolvedVideoUrl.includes('audio.php')) {
+					console.error('❌ Video URL contains audio.php! Fixing...', resolvedVideoUrl);
+					const match = resolvedVideoUrl.match(/audio\.php\?f=([^&]+)/);
+					if (match) {
+						const decoded = decodeURIComponent(match[1]);
+						const fixedPath = decoded.replace(/^\/+/, '');
+						// Убеждаемся, что путь правильный
+						if (!fixedPath.startsWith('tracks/video') && !fixedPath.startsWith('tracks/videos')) {
+							resolvedVideoUrl = `/muzic2/tracks/video/${fixedPath}`;
+						} else {
+							resolvedVideoUrl = `/muzic2/${fixedPath}`;
+						}
+						console.log('✅ Fixed promo video URL:', resolvedVideoUrl);
+					} else {
+						// Fallback - используем cleanPathForVideo
+						const fallbackPath = cleanPathForVideo || cleanPath;
+						if (fallbackPath && !fallbackPath.startsWith('tracks/video') && !fallbackPath.startsWith('tracks/videos')) {
+							resolvedVideoUrl = `/muzic2/tracks/video/${fallbackPath}`;
+						} else {
+							resolvedVideoUrl = `/muzic2/${fallbackPath}`;
+						}
+					}
+				}
+				// Финальная проверка - убеждаемся, что finalVideoUrl не содержит audio.php
+				if (resolvedVideoUrl && resolvedVideoUrl.includes('audio.php')) {
+					console.error('❌ CRITICAL: finalVideoUrl still contains audio.php! Using cleanPath directly');
+					resolvedVideoUrl = `/muzic2/${cleanPathForVideo || cleanPath || data.promo_video.trim().replace(/^\/+/, '')}`;
+				}
+				const finalProxyUrl = videoProxyUrl && !videoProxyUrl.includes('audio.php') ? videoProxyUrl : null;
+				
+				console.log('📹 Final video URLs (no audio.php):', {
+					direct: resolvedVideoUrl,
+					proxy: finalProxyUrl,
+					original: promoVideoUrl
+				});
+				
+				const addPromoVideoSource = (src, type) => {
+					if (!src) return;
+					const normalizedType = type || videoType || 'video/mp4';
+					const last = promoVideoSources[promoVideoSources.length - 1];
+					if (last && last.src === src && last.type === normalizedType) return;
+					promoVideoSources.push({ src, type: normalizedType });
+				};
+				
+				if (videoExt === 'mov') {
+					addPromoVideoSource(resolvedVideoUrl, 'video/quicktime');
+					if (finalProxyUrl) addPromoVideoSource(finalProxyUrl, 'video/quicktime');
+					addPromoVideoSource(resolvedVideoUrl, 'video/mp4');
+				} else {
+					addPromoVideoSource(resolvedVideoUrl, videoType);
+					if (finalProxyUrl) addPromoVideoSource(finalProxyUrl, videoType);
+				}
+				
+				promoVideoSourcesHTML = promoVideoSources
+					.map(srcObj => `<source src="${srcObj.src}" type="${srcObj.type || 'video/mp4'}">`)
+					.join('\n');
+				
+				finalVideoUrl = resolvedVideoUrl;
+				
+				heroVideoHTML = `
+					<div class="artist-hero-video-bg">
+						<video class="artist-hero-video" autoplay muted loop playsinline preload="auto" crossorigin="anonymous">
+							${promoVideoSourcesHTML}
+						</video>
+					</div>
+				`;
+			} else {
+				console.error('❌ No promo video URL generated!', {
+					promo_video: data.promo_video,
+					hasPromoVideo: !!data.promo_video,
+					data: data
+				});
+			}
+			
 			mainContent.innerHTML = `
 				<div class="artist-page">
-					<div class="artist-hero" style="--artist-bg: url('/muzic2/${data.cover||'tracks/covers/placeholder.jpg'}')">
+					<div class="artist-hero" style="--artist-bg: url('${coverUrl}')">
+						${heroVideoHTML || ''}
 						<div class="artist-avatar-container">
-							<img class="artist-avatar-large" loading="lazy" src="/muzic2/${data.cover||'tracks/covers/placeholder.jpg'}" alt="Artist Avatar">
+							<div class="artist-avatar-wrapper">
+								<div class="artist-avatar-ring"></div>
+								<div class="artist-avatar-photo">
+									<img class="artist-avatar-large" loading="lazy" src="${coverUrl}" alt="Artist Avatar" onerror="this.onerror=null;this.src='/muzic2/tracks/covers/placeholder.jpg'">
+								</div>
+							</div>
 						</div>
 						<div class="artist-info">
 							<div class="artist-verified">
@@ -2207,6 +2414,11 @@ function showAlbumContextMenu(event, album, albumIndex) {
 						<button class="shuffle-btn" id="shuffle-btn">
 							<i class="fas fa-random"></i>
 						</button>
+						${promoVideoSourcesHTML ? `
+						<button class="promo-btn" id="promo-video-btn">
+							<i class="fas fa-video"></i> Смотреть промо
+						</button>
+						` : ''}
 						<button class="follow-btn" id="follow-btn">
 							Уже подписаны
 						</button>
@@ -2371,7 +2583,70 @@ function showAlbumContextMenu(event, album, albumIndex) {
 				showMoreBtn.style.display = 'none';
 			}
 			
+			// Ensure hero background video autoplays
+			const heroVideoEl = document.querySelector('.artist-hero-video');
+			if (heroVideoEl) {
+				const tryPlayHeroVideo = () => {
+					heroVideoEl.play().catch(err => {
+						console.warn('⚠️ Hero video autoplay prevented:', err);
+						document.addEventListener('click', () => heroVideoEl.play().catch(() => {}), { once: true });
+					});
+				};
+				heroVideoEl.addEventListener('loadeddata', tryPlayHeroVideo, { once: true });
+				heroVideoEl.load();
+				tryPlayHeroVideo();
+			}
+			
+			if (promoVideoSources.length) {
+				const captureHeroPoster = () => {
+					if (!heroVideoEl || promoPosterDataUrl) return;
+					try {
+						const vw = heroVideoEl.videoWidth || 0;
+						const vh = heroVideoEl.videoHeight || 0;
+						if (!vw || !vh) return;
+						const canvas = document.createElement('canvas');
+						canvas.width = vw;
+						canvas.height = vh;
+						const ctx = canvas.getContext('2d');
+						ctx.drawImage(heroVideoEl, 0, 0, vw, vh);
+						promoPosterDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+					} catch (err) {
+						console.warn('⚠️ Не удалось сохранить первый кадр promo видео', err);
+					}
+				};
+				if (heroVideoEl) {
+					if (heroVideoEl.readyState >= 2) {
+						captureHeroPoster();
+					} else {
+						heroVideoEl.addEventListener('loadeddata', captureHeroPoster, { once: true });
+					}
+				}
+				const promoBtn = document.getElementById('promo-video-btn');
+				if (promoBtn) {
+					promoBtn.addEventListener('click', async () => {
+						if (!promoPosterDataUrl) {
+							try { captureHeroPoster(); } catch(_) {}
+						}
+						const payload = {
+							title: data.name ? `${data.name} — Промо` : 'Видео-промо',
+							artist: data.name || '',
+							sources: promoVideoSources,
+							poster: promoPosterDataUrl || coverUrl,
+							cover: coverUrl,
+							background: coverUrl,
+							promo_track: data.promo_track || null
+						};
+						if (typeof window.openArtistPromoFromSPA === 'function') {
+							window.openArtistPromoFromSPA(payload);
+						} else {
+							console.warn('⚠️ Promo overlay entry point is not available');
+						}
+					});
+				}
+			}
+			
 			// Play all button
+			
 			document.getElementById('play-all-btn').onclick=()=>{ 
 				const q=(data.top_tracks||[]).map(tt=>{
 					const s = tt.file_path || '';
@@ -2424,35 +2699,70 @@ function showAlbumContextMenu(event, album, albumIndex) {
 			videosList.innerHTML = '';
 			items.forEach(v => {
 				const card = document.createElement('div');
-				card.className = 'album-card';
-				const cover = v.cover || 'tracks/covers/placeholder.jpg';
+				card.className = 'video-card';
+				const coverPath = v.cover ? (String(v.cover).startsWith('http') ? v.cover : `/muzic2/${String(v.cover).replace(/^\/+/, '')}`) : '/muzic2/tracks/covers/placeholder.jpg';
+				const videoSrc = v.src && v.src.startsWith('http') ? v.src : `${v.src}`;
+				const videoExt = (videoSrc.split('.').pop() || '').toLowerCase();
+				const videoType = videoExt === 'mov' ? 'video/quicktime'
+					: videoExt === 'webm' ? 'video/webm'
+					: videoExt === 'avi' ? 'video/x-msvideo'
+					: 'video/mp4';
+				const titleText = v.title || v.track_title || 'Видео';
+				const artistText = v.artist || artistName || 'Видео';
 				card.innerHTML = `
-					<img class="album-cover" src="/muzic2/${cover}" alt="${escapeHtml(v.title||'')}" loading="lazy">
-					<div class="album-title">${escapeHtml(v.title||'')}</div>
-					<div class="album-info">Видео</div>
-					<button class="album-play-btn"><i class="fas fa-play"></i></button>
+					<div class="video-thumb">
+						<div class="video-thumb-preview" style="background-image:url('${coverPath}')"></div>
+						<video preload="metadata" playsinline muted>
+							<source src="${videoSrc}" type="${videoType}">
+						</video>
+						<button class="video-play-overlay" title="Смотреть видео">
+							<i class="fas fa-play"></i>
+						</button>
+					</div>
+					<div class="video-title">${escapeHtml(titleText)}</div>
+					<div class="video-info">${escapeHtml(artistText)}</div>
 				`;
-				const img = card.querySelector('img.album-cover');
-				if (img) {
-					img.addEventListener('error', () => {
-						img.src = '/muzic2/tracks/covers/placeholder.jpg';
-					}, { once: true });
-				}
-				const btn = card.querySelector('.album-play-btn');
-				if (btn) {
-					btn.addEventListener('click', (e) => {
-						e.stopPropagation();
-						if (window.playTrack) {
-							window.playTrack({
-								src: v.src,
-								title: v.title || '',
-								artist: artistName || '',
-								cover: '/muzic2/' + cover,
-								duration: v.duration || 0,
-								video_url: v.src
-							});
+				const videoEl = card.querySelector('video');
+				const previewEl = card.querySelector('.video-thumb-preview');
+				if (videoEl && previewEl) {
+					const captureFrame = () => {
+						try {
+							const canvas = document.createElement('canvas');
+							canvas.width = videoEl.videoWidth || 640;
+							canvas.height = videoEl.videoHeight || 360;
+							const ctx = canvas.getContext('2d');
+							ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+							const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+							previewEl.style.backgroundImage = `url('${dataUrl}')`;
+						} catch (err) {
+							console.warn('Не удалось получить первый кадр видео', err);
+						} finally {
+							try { videoEl.pause(); videoEl.remove(); } catch (_) {}
 						}
-					});
+					};
+					if (videoEl.readyState >= 2) {
+						captureFrame();
+					} else {
+						videoEl.addEventListener('loadeddata', captureFrame, { once: true });
+					}
+				}
+				const handlePlay = (e) => {
+					e.stopPropagation();
+					if (window.playTrack) {
+						window.playTrack({
+							src: videoSrc,
+							title: titleText,
+							artist: artistText,
+							cover: coverPath,
+							duration: v.duration || 0,
+							video_url: videoSrc
+						});
+					}
+				};
+				card.addEventListener('click', handlePlay);
+				const overlayBtn = card.querySelector('.video-play-overlay');
+				if (overlayBtn) {
+					overlayBtn.addEventListener('click', handlePlay);
 				}
 				videosList.appendChild(card);
 			});

@@ -92,21 +92,21 @@ function getArtistTracksFromiTunes($artist, $maxResults = 1000) {
         ]);
         
         $url = "https://itunes.apple.com/search?$query";
-        
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 20);
-        curl_setopt($ch, CURLOPT_USERAGENT, 'Muzic2/1.0');
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        
-        if ($httpCode !== 200 || !$response) {
+    curl_setopt($ch, CURLOPT_USERAGENT, 'Muzic2/1.0');
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($httpCode !== 200 || !$response) {
             break;
-        }
-        
-        $data = json_decode($response, true);
+    }
+    
+    $data = json_decode($response, true);
         $results = $data['results'] ?? [];
         if (empty($results)) {
             break;
@@ -118,7 +118,7 @@ function getArtistTracksFromiTunes($artist, $maxResults = 1000) {
                 continue;
             }
             
-            $resultArtist = mb_strtolower($result['artistName'] ?? '', 'UTF-8');
+        $resultArtist = mb_strtolower($result['artistName'] ?? '', 'UTF-8');
             if (strpos($resultArtist, $artistLower) === false && strpos($artistLower, $resultArtist) === false) {
                 continue;
             }
