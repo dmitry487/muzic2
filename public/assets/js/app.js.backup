@@ -329,6 +329,7 @@ window.API_ORIGIN = API_ORIGIN;
 					<div id="user-menu-popover" class="popover" style="display:none; position:absolute; right:12px; top:52px; background:#1a1a1a; border:1px solid #333; border-radius:12px; padding:12px; min-width:240px; z-index:1000; box-shadow:0 8px 24px rgba(0,0,0,.4)">
 						<div style="padding:8px 4px; color:#b3b3b3">${escapeHtml(currentUser.username || '')}</div>
 						<hr style="border:0;border-top:1px solid #2a2a2a; margin:8px 0">
+						<button id="wrapper-btn" class="btn" style="width:100%; background:#1db954; color:#fff; border:0; padding:.6rem 1rem; border-radius:8px; cursor:pointer; margin-bottom:8px;">Статистика</button>
 						<button id="logout-btn" class="btn" style="width:100%; background:#2a2f34; color:#fff; border:0; padding:.6rem 1rem; border-radius:8px; cursor:pointer;">Выйти</button>
 					</div>
 				</div>
@@ -338,6 +339,8 @@ window.API_ORIGIN = API_ORIGIN;
 			if (btn && pop) {
 				btn.onclick = (e) => { e.stopPropagation(); pop.style.display = pop.style.display==='none'?'block':'none'; };
 				document.addEventListener('click', (e)=>{ if(pop.style.display==='block' && !e.target.closest('#user-menu-popover') && e.target!==btn){ pop.style.display='none'; } });
+				const wrapperBtn = document.getElementById('wrapper-btn');
+				if (wrapperBtn) { wrapperBtn.onclick = () => { pop.style.display='none'; showWrapper(); } }
 				const logoutBtn = document.getElementById('logout-btn');
                 if (logoutBtn){ logoutBtn.onclick = async ()=>{ try{ await fetch(api('/muzic2/src/api/logout.php'),{ method:'POST', credentials:'include' }); }catch(_){} try{ localStorage.removeItem('currentUser'); }catch(_){} location.reload(); } }
 			}
@@ -1875,7 +1878,67 @@ function showAlbumContextMenu(event, album, albumIndex) {
 			const data = await res.json();
 			if (data.error) { mainContent.innerHTML = '<div class="error">Альбом не найден</div>'; return; }
 			// Inject album page styles (from album.html) for correct layout
-			const albumStyles = `<style>/* Стили альбома загружаются из album-page.css */</style>`;
+			const albumStyles = `
+			<style>
+			.album-header{display:flex;align-items:flex-end;gap:2.5rem;margin-top:2.5rem;margin-bottom:2.5rem}
+			.album-cover{width:220px;height:220px;border-radius:18px;object-fit:cover;box-shadow:0 8px 32px rgba(30,185,84,0.18);background:#181818}
+			.album-meta{display:flex;flex-direction:column;gap:1.2rem}
+			.album-title{font-size:3.2rem;font-weight:900;color:#fff;margin-bottom:0.5rem}
+			.album-artist{font-size:1.3rem;color:#b3b3b3;font-weight:600}
+			.album-info{font-size:1.1rem;color:#b3b3b3;margin-top:0.5rem}
+			.album-controls{display:flex;align-items:center;gap:1.2rem;margin-bottom:1.5rem}
+			.album-play-btn{background:#1db954;color:#fff;border:none;border-radius:50%;width:64px;height:64px;font-size:2.5rem;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px rgba(30,185,84,0.15);transition:background 0.18s,transform 0.18s}
+			.album-play-btn:hover{background:#17a74a;transform:scale(1.06)}
+			.album-like-btn{background:transparent;border:1px solid #535353;color:#bbb;border-radius:50%;width:48px;height:48px;font-size:1.5rem;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s}
+			.album-like-btn:hover{border-color:#fff;transform:scale(1.05)}
+			.album-like-btn.liked{background:#1db954;border-color:#1db954;color:#fff}
+			.tracks-table{width:100%;border-collapse:collapse;margin-bottom:2rem}
+			.tracks-table th,.tracks-table td{padding:0.7rem 1rem;text-align:left;color:#fff;font-size:1.08rem}
+			.tracks-table th{color:#b3b3b3;font-weight:600;font-size:1.02rem;border-bottom:1px solid #232323}
+			.tracks-table tr{transition:background 0.15s;cursor:pointer;position:relative}
+			.tracks-table tr:hover{background:#232323}
+			.track-play-btn{display:none;position:absolute;left:1.1rem;top:50%;transform:translateY(-50%);background:#1db954 !important;color:#000 !important;border:none;border-radius:50%;width:32px;height:32px;font-size:1.3rem;align-items:center;justify-content:center;cursor:pointer;z-index:10;box-shadow:0 2px 8px rgba(30,185,84,0.10);transition:background 0.18s,transform 0.18s}
+			.tracks-table tr:hover .track-play-btn{display:flex}
+			.track-play-btn.playing{background:#1db954 !important;color:#000 !important;}
+			.tracks-table tr:hover .track-num{visibility:hidden}
+			.tracks-table td.track-num{color:#b3b3b3;width:2.5rem;font-size:1.02rem}
+			.tracks-table td.track-title{font-weight:700;color:#fff}
+			.tracks-table td.track-title .track-artist{color:#b3b3b3;font-size:1.01rem;font-weight:400;margin-top:0.2rem}
+			.tracks-table td.track-duration{color:#b3b3b3;font-size:1.01rem;text-align:center;width:4.5rem;vertical-align:middle}
+			.tracks-table td.track-like{text-align:center;width:3rem;vertical-align:middle}
+			.tracks-table .heart-btn{background:transparent;border:none;color:#bbb;cursor:pointer;padding:4px;border-radius:50%;font-size:16px;transition:color 0.2s}
+			.tracks-table .heart-btn.liked{color:#1ed760}
+			.track-item-numbered{display:flex;align-items:center;gap:1rem;padding:0.5rem;border-radius:4px;cursor:pointer;transition:background 0.2s}
+			.track-item-numbered:hover{background:#232323}
+			.track-item-numbered .track-like{flex-shrink:0}
+			.track-item-numbered .heart-btn{background:transparent;border:none;color:#bbb;cursor:pointer;padding:4px;border-radius:50%;font-size:16px;transition:color 0.2s}
+			.track-item-numbered .heart-btn.liked{color:#1ed760}
+			.album-card{position:relative}
+			.album-heart-btn{position:absolute;right:0.5rem;bottom:0.5rem;background:#222;border:1px solid #333;color:#bbb;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:14px;transition:all 0.2s}
+			.album-heart-btn.liked{background:#1db954;border-color:#1db954;color:#fff}
+			.exp-badge{display:inline-block;width:16px;height:16px;line-height:16px;text-align:center;margin:0 6px 0 0;border:0;border-radius:3px;font-size:10px;font-weight:800;color:#2b2b2b;background:#cfcfcf;vertical-align:middle}
+			/* Mobile adjustments */
+			@media (max-width: 768px){
+			  .album-header{gap:1rem;margin-top:1rem;margin-bottom:1rem;align-items:center}
+			  .album-cover{width:120px;height:120px;border-radius:14px}
+			  .album-title{font-size:2rem;line-height:1.15;margin:0}
+			  .album-artist{font-size:1rem}
+			  .album-info{font-size:0.9rem;margin-top:0.25rem}
+			  .album-controls{gap:0.8rem;margin:0.8rem 0 1rem}
+			  .album-play-btn{width:56px;height:56px;font-size:2.1rem}
+			  .album-like-btn{width:40px;height:40px}
+			  .tracks-table th,.tracks-table td{padding:0.6rem 0.7rem;font-size:0.98rem}
+			  .tracks-table td.track-title .track-artist{font-size:0.92rem}
+			}
+			@media (max-width: 480px){
+			  .album-cover{width:104px;height:104px}
+			  .album-title{font-size:1.7rem}
+			  .album-artist{font-size:0.95rem}
+			  .album-info{font-size:0.86rem}
+			  .tracks-table th:nth-child(1), .tracks-table td.track-num{width:2rem}
+			  .tracks-table th:nth-child(3), .tracks-table td.track-duration{width:3.6rem}
+			}
+			</style>`;
 			// Calculate album duration and track count
 			const trackCount = (data.tracks || []).length;
 			const totalDuration = (data.tracks || []).reduce((sum, track) => sum + (parseInt(track.duration) || 0), 0);
@@ -3642,5 +3705,153 @@ if (window.matchMedia('(display-mode: standalone)').matches ||
 	window.navigator.standalone === true) {
 	console.log('[PWA] Running as installed app');
 	document.body.classList.add('pwa-installed');
+}
+
+// Функция для отображения Wrapper статистики
+async function showWrapper() {
+	try {
+		const year = new Date().getFullYear();
+		const response = await fetch(api(`/muzic2/src/api/wrapper.php?year=${year}`), {
+			credentials: 'include'
+		});
+		
+		if (!response.ok) {
+			throw new Error('Ошибка загрузки статистики');
+		}
+		
+		const data = await response.json();
+		
+		if (data.error) {
+			alert('Ошибка: ' + data.error);
+			return;
+		}
+		
+		// Создаем модальное окно для отображения статистики
+		const modal = document.createElement('div');
+		modal.id = 'wrapper-modal';
+		modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:10000;display:flex;align-items:center;justify-content:center;overflow-y:auto;padding:20px;';
+		
+		const formatTime = (seconds) => {
+			const hours = Math.floor(seconds / 3600);
+			const minutes = Math.floor((seconds % 3600) / 60);
+			if (hours > 0) {
+				return `${hours} ч ${minutes} мин`;
+			}
+			return `${minutes} мин`;
+		};
+		
+		const formatDuration = (seconds) => {
+			const mins = Math.floor(seconds / 60);
+			const secs = seconds % 60;
+			return `${mins}:${secs.toString().padStart(2, '0')}`;
+		};
+		
+		let html = `
+			<div style="background:#121212;border-radius:16px;max-width:900px;width:100%;padding:40px;color:#fff;position:relative;max-height:90vh;overflow-y:auto;">
+				<button id="close-wrapper" style="position:absolute;top:20px;right:20px;background:transparent;border:none;color:#fff;font-size:28px;cursor:pointer;width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:50%;transition:background 0.2s;" onmouseover="this.style.background='#2a2a2a'" onmouseout="this.style.background='transparent'">×</button>
+				<h1 style="font-size:48px;font-weight:900;margin:0 0 10px 0;background:linear-gradient(135deg,#1db954,#1ed760);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Ваша статистика ${data.year}</h1>
+				<p style="color:#b3b3b3;font-size:18px;margin-bottom:40px;">Ваш музыкальный год в цифрах</p>
+				
+				<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;margin-bottom:40px;">
+					<div style="background:#1a1a1a;padding:24px;border-radius:12px;text-align:center;">
+						<div style="font-size:36px;font-weight:700;color:#1db954;margin-bottom:8px;">${formatTime(data.summary?.total_seconds || 0)}</div>
+						<div style="color:#b3b3b3;font-size:14px;">Время прослушивания</div>
+					</div>
+					<div style="background:#1a1a1a;padding:24px;border-radius:12px;text-align:center;">
+						<div style="font-size:36px;font-weight:700;color:#1db954;margin-bottom:8px;">${data.summary?.total_plays || 0}</div>
+						<div style="color:#b3b3b3;font-size:14px;">Прослушиваний</div>
+					</div>
+					<div style="background:#1a1a1a;padding:24px;border-radius:12px;text-align:center;">
+						<div style="font-size:36px;font-weight:700;color:#1db954;margin-bottom:8px;">${data.summary?.unique_tracks || 0}</div>
+						<div style="color:#b3b3b3;font-size:14px;">Уникальных треков</div>
+					</div>
+					<div style="background:#1a1a1a;padding:24px;border-radius:12px;text-align:center;">
+						<div style="font-size:36px;font-weight:700;color:#1db954;margin-bottom:8px;">${data.summary?.unique_artists || 0}</div>
+						<div style="color:#b3b3b3;font-size:14px;">Уникальных артистов</div>
+					</div>
+				</div>
+		`;
+		
+		// Топ артистов
+		if (data.top_artists && data.top_artists.length > 0) {
+			html += `
+				<h2 style="font-size:28px;font-weight:700;margin:40px 0 20px 0;">Топ артистов</h2>
+				<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:20px;margin-bottom:40px;">
+			`;
+			data.top_artists.forEach((artist, idx) => {
+				const cover = artist.cover ? `/muzic2/${artist.cover}` : '/muzic2/tracks/covers/placeholder.jpg';
+				html += `
+					<div style="text-align:center;">
+						<img src="${cover}" style="width:100%;aspect-ratio:1;border-radius:12px;object-fit:cover;margin-bottom:12px;" alt="${escapeHtml(artist.name)}">
+						<div style="font-weight:600;margin-bottom:4px;">${escapeHtml(artist.name)}</div>
+						<div style="color:#b3b3b3;font-size:14px;">${artist.play_count || 0} прослушиваний</div>
+					</div>
+				`;
+			});
+			html += `</div>`;
+		}
+		
+		// Топ треков
+		if (data.top_tracks && data.top_tracks.length > 0) {
+			html += `
+				<h2 style="font-size:28px;font-weight:700;margin:40px 0 20px 0;">Топ треков</h2>
+				<div style="background:#1a1a1a;border-radius:12px;overflow:hidden;">
+			`;
+			data.top_tracks.forEach((track, idx) => {
+				const cover = track.cover ? `/muzic2/${track.cover}` : '/muzic2/tracks/covers/placeholder.jpg';
+				html += `
+					<div style="display:flex;align-items:center;gap:16px;padding:12px;transition:background 0.2s;" onmouseover="this.style.background='#2a2a2a'" onmouseout="this.style.background='transparent'" onclick="if(window.playTrack){window.playTrack(${track.track_id || 'null'})}">
+						<div style="width:50px;height:50px;flex-shrink:0;">
+							<img src="${cover}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;" alt="${escapeHtml(track.title)}">
+						</div>
+						<div style="flex:1;min-width:0;">
+							<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(track.title)}</div>
+							<div style="color:#b3b3b3;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(track.artist || '')}</div>
+						</div>
+						<div style="color:#b3b3b3;font-size:14px;margin-left:auto;">${track.play_count || 0} раз</div>
+					</div>
+				`;
+			});
+			html += `</div>`;
+		}
+		
+		// Интересные факты
+		if (data.insights) {
+			html += `<h2 style="font-size:28px;font-weight:700;margin:40px 0 20px 0;">Интересные факты</h2><div style="display:flex;flex-direction:column;gap:16px;">`;
+			if (data.insights.most_active_month) {
+				html += `<div style="background:#1a1a1a;padding:20px;border-radius:12px;"><div style="font-weight:600;margin-bottom:4px;">Самый активный месяц</div><div style="color:#1db954;font-size:20px;">${escapeHtml(data.insights.most_active_month.month)}</div><div style="color:#b3b3b3;font-size:14px;margin-top:4px;">${data.insights.most_active_month.plays || 0} прослушиваний</div></div>`;
+			}
+			if (data.insights.most_active_hour) {
+				html += `<div style="background:#1a1a1a;padding:20px;border-radius:12px;"><div style="font-weight:600;margin-bottom:4px;">Самый активный час</div><div style="color:#1db954;font-size:20px;">${data.insights.most_active_hour.hour || 0}:00</div><div style="color:#b3b3b3;font-size:14px;margin-top:4px;">${data.insights.most_active_hour.plays || 0} прослушиваний</div></div>`;
+			}
+			if (data.insights.avg_minutes_per_day) {
+				html += `<div style="background:#1a1a1a;padding:20px;border-radius:12px;"><div style="font-weight:600;margin-bottom:4px;">Среднее время в день</div><div style="color:#1db954;font-size:20px;">${data.insights.avg_minutes_per_day || 0} минут</div></div>`;
+			}
+			html += `</div>`;
+		}
+		
+		html += `</div>`;
+		
+		modal.innerHTML = html;
+		document.body.appendChild(modal);
+		
+		// Закрытие модального окна
+		const closeBtn = document.getElementById('close-wrapper');
+		if (closeBtn) {
+			closeBtn.onclick = () => {
+				document.body.removeChild(modal);
+			};
+		}
+		
+		modal.onclick = (e) => {
+			if (e.target === modal) {
+				document.body.removeChild(modal);
+			}
+		};
+		
+	} catch (error) {
+		console.error('Error loading wrapper:', error);
+		alert('Ошибка загрузки статистики: ' + error.message);
+	}
 }
 

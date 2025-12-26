@@ -1,0 +1,650 @@
+/* ============================================
+   СТРАНИЦА АЛЬБОМА/СИНГЛА/EP
+   Современный стильный дизайн без градиентов
+   ============================================ */
+
+/* Общий контейнер страницы альбома */
+#main-content:has(.album-header) {
+  padding-bottom: 140px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Единый контейнер для заголовка и таблицы */
+.album-header,
+.album-controls,
+.tracks-table {
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.album-header {
+  border-radius: 12px 12px 0 0;
+}
+
+.tracks-table {
+  border-radius: 0 0 12px 12px;
+}
+
+/* Если есть controls между header и table */
+.album-controls {
+  border-radius: 0;
+}
+
+/* ============================================
+   ЗАГОЛОВОК АЛЬБОМА - В СТИЛЕ ТАБЛИЦЫ ТРЕКОВ
+   ============================================ */
+.album-header {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-top: 2rem;
+  margin-bottom: 0;
+  padding: 0.75rem 1rem;
+  padding-left: 1.5rem;
+  position: relative;
+  background: rgba(255, 255, 255, 0.01);
+  border-radius: 12px 12px 0 0;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  transition: background 0.15s ease;
+}
+
+.album-header:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.album-cover {
+  width: 80px;
+  height: 80px;
+  border-radius: 6px;
+  object-fit: cover;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  background: #181818;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  margin-right: 1rem;
+}
+
+.album-cover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.album-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+}
+
+.album-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #fff;
+  line-height: 1.4;
+  margin: 0;
+  word-wrap: break-word;
+}
+
+.album-artist {
+  font-size: 0.85rem;
+  color: #b3b3b3;
+  font-weight: 400;
+  margin-top: 0.15rem;
+  display: block;
+}
+
+.album-artist:hover {
+  color: #fff;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.album-info {
+  font-size: 0.75rem;
+  color: #b3b3b3;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.2rem;
+}
+
+.album-genre {
+  font-size: 0.7rem;
+  color: #1ed760;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.15rem 0.5rem;
+  background: rgba(30, 215, 96, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(30, 215, 96, 0.2);
+}
+
+.album-desc {
+  font-size: 0.8rem;
+  color: #b3b3b3;
+  line-height: 1.4;
+  max-width: 600px;
+  margin-top: 0.4rem;
+}
+
+/* ============================================
+   КОНТРОЛЫ АЛЬБОМА - В СТИЛЕ ТАБЛИЦЫ ТРЕКОВ
+   ============================================ */
+.album-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0;
+  padding: 0.75rem 1rem;
+  padding-left: 3.5rem;
+  background: rgba(255, 255, 255, 0.01);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  transition: background 0.15s ease;
+}
+
+.album-controls:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.album-play-btn {
+  background: #1ed760;
+  color: #000;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(30, 215, 96, 0.3);
+  transition: all 0.2s ease;
+  font-weight: 900;
+  padding-left: 1px;
+}
+
+.album-play-btn:hover {
+  background: #1db954;
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(30, 215, 96, 0.4);
+}
+
+.album-play-btn:active {
+  transform: scale(0.95);
+}
+
+.album-like-btn {
+  background: transparent;
+  border: none;
+  color: #b3b3b3;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.album-like-btn:hover {
+  color: #fff;
+  transform: scale(1.1);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.album-like-btn.liked {
+  color: #1ed760;
+}
+
+.album-like-btn.liked:hover {
+  background: rgba(30, 215, 96, 0.1);
+  transform: scale(1.15);
+}
+
+/* ============================================
+   ТАБЛИЦА ТРЕКОВ - СОВРЕМЕННЫЙ ДИЗАЙН
+   ============================================ */
+.tracks-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-bottom: 2rem;
+  padding: 0 2rem;
+  background: rgba(255, 255, 255, 0.01);
+  border-radius: 0 0 12px 12px;
+  overflow: hidden;
+  margin-top: 0;
+}
+
+.tracks-table th,
+.tracks-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  color: #fff;
+  font-size: 0.95rem;
+  background: transparent;
+}
+
+.tracks-table th {
+  color: #b3b3b3;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 0.75rem;
+  padding-top: 1rem;
+  position: sticky;
+  top: 0;
+  background: rgba(18, 18, 18, 0.98);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  z-index: 5;
+}
+
+.tracks-table th:first-child {
+  padding-left: 3.5rem;
+  width: 3rem;
+}
+
+.tracks-table th:nth-child(2) {
+  width: auto;
+}
+
+.tracks-table th:nth-child(3) {
+  text-align: right;
+  padding-right: 1.5rem;
+  width: 4rem;
+}
+
+.tracks-table th:nth-child(4) {
+  text-align: center;
+  width: 3.5rem;
+}
+
+.tracks-table tbody {
+  background: transparent;
+}
+
+.tracks-table tr {
+  transition: all 0.15s ease;
+  cursor: pointer;
+  position: relative;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.tracks-table tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateX(4px);
+}
+
+.tracks-table tr:active {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.tracks-table tr:last-child {
+  border-bottom: none;
+}
+
+.track-num {
+  color: #b3b3b3;
+  width: 3rem;
+  font-size: 0.9rem;
+  text-align: center;
+  font-weight: 500;
+  transition: opacity 0.15s ease;
+  font-variant-numeric: tabular-nums;
+  padding-left: 1.5rem;
+}
+
+.tracks-table tr:hover .track-num {
+  opacity: 0;
+}
+
+.track-title {
+  font-weight: 500;
+  color: #fff;
+  font-size: 0.95rem;
+  padding-right: 1rem;
+  line-height: 1.5;
+  transition: color 0.2s ease;
+}
+
+.tracks-table tr:hover .track-title {
+  color: #fff;
+}
+
+.track-title .track-artist {
+  color: #b3b3b3;
+  font-size: 0.85rem;
+  font-weight: 400;
+  margin-top: 0.25rem;
+  display: block;
+  transition: color 0.2s ease;
+}
+
+.tracks-table tr:hover .track-title .track-artist {
+  color: #d3d3d3;
+}
+
+.track-duration {
+  color: #b3b3b3;
+  font-size: 0.9rem;
+  text-align: right;
+  width: 4rem;
+  font-variant-numeric: tabular-nums;
+  padding-right: 1.5rem;
+}
+
+.track-like {
+  text-align: center;
+  width: 3.5rem;
+}
+
+.track-play-btn {
+  display: none;
+  position: absolute;
+  left: 1.5rem;
+  top: 50%;
+  transform: translateY(-50%) scale(0.9);
+  background: #1ed760 !important;
+  color: #000 !important;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(30, 215, 96, 0.3);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 900;
+  padding-left: 1px;
+  opacity: 0;
+}
+
+.tracks-table tr:hover .track-play-btn {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+
+.track-play-btn:hover {
+  transform: translateY(-50%) scale(1.15);
+  box-shadow: 0 4px 16px rgba(30, 215, 96, 0.5);
+  background: #1db954 !important;
+}
+
+.track-play-btn.playing {
+  background: #1ed760 !important;
+  color: #000 !important;
+}
+
+.heart-btn {
+  background: transparent;
+  border: none;
+  color: #b3b3b3;
+  cursor: pointer;
+  padding: 0.4rem;
+  border-radius: 50%;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.heart-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  transform: scale(1.1);
+}
+
+.heart-btn.liked {
+  color: #1ed760;
+}
+
+.heart-btn.liked:hover {
+  background: rgba(30, 215, 96, 0.1);
+  transform: scale(1.15);
+}
+
+/* ============================================
+   АНИМАЦИЯ ПОЯВЛЕНИЯ
+   ============================================ */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.album-header {
+  animation: fadeInUp 0.4s ease-out;
+}
+
+.album-controls {
+  animation: fadeInUp 0.4s ease-out 0.1s backwards;
+}
+
+.tracks-table {
+  animation: fadeInUp 0.4s ease-out 0.2s backwards;
+}
+
+.tracks-table tbody tr {
+  animation: fadeInUp 0.25s ease-out backwards;
+}
+
+.tracks-table tbody tr:nth-child(1) { animation-delay: 0.25s; }
+.tracks-table tbody tr:nth-child(2) { animation-delay: 0.28s; }
+.tracks-table tbody tr:nth-child(3) { animation-delay: 0.31s; }
+.tracks-table tbody tr:nth-child(4) { animation-delay: 0.34s; }
+.tracks-table tbody tr:nth-child(5) { animation-delay: 0.37s; }
+.tracks-table tbody tr:nth-child(n+6) { animation-delay: 0.4s; }
+
+/* ============================================
+   ДОПОЛНИТЕЛЬНЫЕ СТИЛЬНЫЕ ЭЛЕМЕНТЫ
+   ============================================ */
+
+/* Улучшенная типографика для информации */
+.album-info {
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* Улучшенные кнопки управления */
+.album-controls button {
+  position: relative;
+  overflow: hidden;
+}
+
+.album-controls button::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  transform: translate(-50%, -50%);
+  transition: width 0.4s, height 0.4s;
+}
+
+.album-controls button:hover::after {
+  width: 100px;
+  height: 100px;
+}
+
+/* Активный трек в таблице */
+.tracks-table tr.playing {
+  background: rgba(30, 215, 96, 0.08);
+}
+
+.tracks-table tr.playing .track-title {
+  color: #1ed760;
+  font-weight: 600;
+}
+
+.tracks-table tr.playing .track-num {
+  color: #1ed760;
+  font-weight: 600;
+}
+
+/* Улучшенный скролл для таблицы */
+.tracks-table {
+  max-height: calc(100vh - 400px);
+  overflow-y: auto;
+}
+
+.tracks-table::-webkit-scrollbar {
+  width: 6px;
+}
+
+.tracks-table::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.tracks-table::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ============================================
+   МОБИЛЬНАЯ АДАПТАЦИЯ
+   ============================================ */
+@media (max-width: 768px) {
+  .album-header {
+    flex-direction: row;
+    align-items: center;
+    text-align: left;
+    gap: 0;
+    margin-top: 1.5rem;
+    margin-bottom: 0;
+    padding: 0.75rem 1rem;
+    padding-left: 1.5rem;
+  }
+
+  .album-cover {
+    width: 70px;
+    height: 70px;
+    margin-right: 0.75rem;
+  }
+
+  .album-title {
+    font-size: 0.9rem;
+    line-height: 1.3;
+  }
+
+  .album-artist {
+    font-size: 0.8rem;
+  }
+
+  .album-info {
+    font-size: 0.7rem;
+    justify-content: flex-start;
+  }
+
+  .album-meta {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .album-controls {
+    justify-content: flex-start;
+    padding: 0.75rem 1rem;
+    padding-left: 3rem;
+  }
+
+  .album-play-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 1.2rem;
+  }
+
+  .album-like-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 1rem;
+  }
+
+  .tracks-table {
+    padding: 0 1rem;
+  }
+
+  .tracks-table th,
+  .tracks-table td {
+    padding: 0.7rem 0.8rem;
+    font-size: 0.9rem;
+  }
+
+  .track-title {
+    font-size: 0.9rem;
+  }
+
+  .track-title .track-artist {
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .album-cover {
+    width: 60px;
+    height: 60px;
+  }
+
+  .album-title {
+    font-size: 0.85rem;
+  }
+
+  .album-artist {
+    font-size: 0.75rem;
+  }
+
+  .album-info {
+    font-size: 0.65rem;
+  }
+
+  .tracks-table th,
+  .tracks-table td {
+    padding: 0.65rem 0.6rem;
+    font-size: 0.85rem;
+  }
+
+  .tracks-table th:first-child,
+  .tracks-table td.track-num {
+    width: 2.5rem;
+    padding-left: 1rem;
+  }
+
+  .tracks-table th:nth-child(3),
+  .tracks-table td.track-duration {
+    width: 3.5rem;
+    padding-right: 1rem;
+  }
+
+  .track-title .track-artist {
+    display: none;
+  }
+
+  .album-controls {
+    padding-left: 2.5rem;
+  }
+}
+

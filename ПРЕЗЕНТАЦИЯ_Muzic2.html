@@ -365,3 +365,2220 @@
 </body>
 </html>
 
+
+
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Презентация Muzic2</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #1a1a1a;
+      color: #fff;
+      overflow: hidden;
+    }
+    .presentation {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .slide {
+      width: 90vw;
+      max-width: 1200px;
+      height: 85vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 20px;
+      padding: 60px;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      position: relative;
+    }
+    .slide.active {
+      display: flex;
+    }
+    .slide h1 {
+      font-size: 3.5em;
+      margin-bottom: 30px;
+      text-align: center;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    .slide h2 {
+      font-size: 2.5em;
+      margin-bottom: 40px;
+      text-align: center;
+      color: #ffd700;
+    }
+    .slide h3 {
+      font-size: 2em;
+      margin-bottom: 25px;
+      color: #ffd700;
+    }
+    .slide p {
+      font-size: 1.4em;
+      line-height: 1.8;
+      margin-bottom: 20px;
+      text-align: justify;
+    }
+    .slide ul {
+      font-size: 1.3em;
+      line-height: 2;
+      margin-left: 40px;
+      margin-bottom: 20px;
+    }
+    .slide li {
+      margin-bottom: 15px;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 30px;
+      margin-top: 30px;
+    }
+    .feature-card {
+      background: rgba(255,255,255,0.1);
+      padding: 25px;
+      border-radius: 15px;
+      backdrop-filter: blur(10px);
+    }
+    .feature-card h3 {
+      font-size: 1.6em;
+      margin-bottom: 15px;
+      color: #ffd700;
+    }
+    .tech-stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+      margin-top: 30px;
+    }
+    .tech-badge {
+      background: rgba(255,255,255,0.2);
+      padding: 15px 30px;
+      border-radius: 25px;
+      font-size: 1.2em;
+      backdrop-filter: blur(10px);
+    }
+    .slide-number {
+      position: absolute;
+      bottom: 20px;
+      right: 30px;
+      font-size: 1.2em;
+      opacity: 0.7;
+    }
+    .controls {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 20px;
+      z-index: 1000;
+    }
+    .btn {
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+      border: 2px solid rgba(255,255,255,0.5);
+      padding: 12px 30px;
+      border-radius: 25px;
+      cursor: pointer;
+      font-size: 1.1em;
+      backdrop-filter: blur(10px);
+      transition: all 0.3s;
+    }
+    .btn:hover {
+      background: rgba(255,255,255,0.3);
+      transform: scale(1.05);
+    }
+    .highlight {
+      color: #ffd700;
+      font-weight: bold;
+    }
+    .architecture-diagram {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      margin: 40px 0;
+      font-size: 1.2em;
+    }
+    .arch-box {
+      background: rgba(255,255,255,0.15);
+      padding: 20px 40px;
+      border-radius: 15px;
+      backdrop-filter: blur(10px);
+    }
+    .arrow {
+      font-size: 2em;
+      color: #ffd700;
+    }
+  </style>
+</head>
+<body>
+  <div class="presentation">
+    <!-- Слайд 1: Титульный -->
+    <div class="slide active">
+      <h1>Muzic2</h1>
+      <h2>Веб-приложение для воспроизведения музыки<br>с функционалом караоке и статистики</h2>
+      <p style="text-align: center; margin-top: 60px; font-size: 1.6em;">
+        Музыкальный сервис нового поколения
+      </p>
+      <div class="slide-number">1 / 9</div>
+    </div>
+
+    <!-- Слайд 2: О проекте -->
+    <div class="slide">
+      <h2>О проекте</h2>
+      <p>Muzic2 — это полнофункциональный музыкальный веб-сервис, объединяющий:</p>
+      <ul>
+        <li><span class="highlight">Караоке-режим</span> с точной синхронизацией текста (LRC)</li>
+        <li><span class="highlight">Детальную статистику</span> прослушиваний и аналитику</li>
+        <li><span class="highlight">Умные рекомендации</span> и подборки по настроению</li>
+        <li><span class="highlight">Кроссплатформенность</span> — веб, PWA, macOS, iOS</li>
+        <li><span class="highlight">Офлайн-режим</span> для работы без интернета</li>
+      </ul>
+      <div class="slide-number">2 / 9</div>
+    </div>
+
+    <!-- Слайд 3: Основные функции -->
+    <div class="slide">
+      <h2>Основные функции</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>🎵 Плеер</h3>
+          <p>Воспроизведение MP3, FLAC, M4A<br>Очередь треков<br>Кроссфейд между композициями</p>
+        </div>
+        <div class="feature-card">
+          <h3>🎤 Караоке</h3>
+          <p>LRC-синхронизация (±50 мс)<br>Визуальные эффекты<br>AR-режим с камерой</p>
+        </div>
+        <div class="feature-card">
+          <h3>📊 Статистика</h3>
+          <p>Топ артистов и треков<br>Графики активности<br>Суммарные метрики</p>
+        </div>
+        <div class="feature-card">
+          <h3>📁 Плейлисты</h3>
+          <p>Создание и управление<br>Публичные плейлисты<br>Поиск по каталогу</p>
+        </div>
+      </div>
+      <div class="slide-number">3 / 9</div>
+    </div>
+
+    <!-- Слайд 4: Технологии -->
+    <div class="slide">
+      <h2>Технологический стек</h2>
+      <div class="tech-stack">
+        <div class="tech-badge">HTML5</div>
+        <div class="tech-badge">CSS3</div>
+        <div class="tech-badge">JavaScript ES6+</div>
+        <div class="tech-badge">PHP 7.4+</div>
+        <div class="tech-badge">MySQL 8</div>
+        <div class="tech-badge">Web Audio API</div>
+        <div class="tech-badge">Service Worker</div>
+        <div class="tech-badge">Electron</div>
+        <div class="tech-badge">Swift</div>
+        <div class="tech-badge">REST API</div>
+      </div>
+      <p style="margin-top: 50px; text-align: center; font-size: 1.3em;">
+        Современные веб-технологии для максимальной производительности и удобства
+      </p>
+      <div class="slide-number">4 / 9</div>
+    </div>
+
+    <!-- Слайд 5: Архитектура -->
+    <div class="slide">
+      <h2>Архитектура системы</h2>
+      <div class="architecture-diagram">
+        <div class="arch-box">Клиент<br>(SPA/PWA)</div>
+        <span class="arrow">→</span>
+        <div class="arch-box">REST API<br>(PHP)</div>
+        <span class="arrow">→</span>
+        <div class="arch-box">База данных<br>(MySQL)</div>
+      </div>
+      <ul style="margin-top: 40px;">
+        <li><span class="highlight">Клиентский слой:</span> Single Page Application с навигацией без перезагрузок</li>
+        <li><span class="highlight">Серверный слой:</span> RESTful API для всех операций</li>
+        <li><span class="highlight">Хранение данных:</span> MySQL с оптимизированными индексами</li>
+        <li><span class="highlight">Кэширование:</span> Service Worker для офлайн-режима</li>
+      </ul>
+      <div class="slide-number">5 / 9</div>
+    </div>
+
+    <!-- Слайд 6: Караоке -->
+    <div class="slide">
+      <h2>Караоке-режим</h2>
+      <h3>Ключевые особенности:</h3>
+      <ul>
+        <li><span class="highlight">LRC-формат:</span> поддержка стандартных файлов синхронизации</li>
+        <li><span class="highlight">Точность:</span> синхронизация текста с музыкой до ±50 миллисекунд</li>
+        <li><span class="highlight">Визуальные эффекты:</span> подсветка активной строки, particle-эффекты</li>
+        <li><span class="highlight">AR-режим:</span> наложение текста на видео с камеры в реальном времени</li>
+        <li><span class="highlight">Автоматический скролл:</span> плавное перемещение по тексту</li>
+      </ul>
+      <p style="margin-top: 30px; text-align: center; font-size: 1.3em;">
+        Уникальная технология синхронизации обеспечивает комфортное пение
+      </p>
+      <div class="slide-number">6 / 9</div>
+    </div>
+
+    <!-- Слайд 7: Статистика и рекомендации -->
+    <div class="slide">
+      <h2>Статистика и рекомендации</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>📈 Сбор данных</h3>
+          <p>Каждое прослушивание фиксируется<br>Агрегация в реальном времени<br>Оптимизированные запросы</p>
+        </div>
+        <div class="feature-card">
+          <h3>🎯 Рекомендации</h3>
+          <p>На основе топ-артистов<br>Похожие треки<br>Умные подборки</p>
+        </div>
+        <div class="feature-card">
+          <h3>😊 Mood Mixes</h3>
+          <p>Подборки по настроению<br>Весёлые, грустные, энергичные<br>Персонализированный контент</p>
+        </div>
+        <div class="feature-card">
+          <h3>📊 Визуализация</h3>
+          <p>Графики активности<br>Топы артистов и треков<br>История прослушиваний</p>
+        </div>
+      </div>
+      <div class="slide-number">7 / 9</div>
+    </div>
+
+    <!-- Слайд 8: Нативные приложения -->
+    <div class="slide">
+      <h2>Кроссплатформенность</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>💻 macOS (Electron)</h3>
+          <p>Нативное приложение<br>Локальный сервер<br>Полный офлайн-режим<br>Автоматические обновления</p>
+        </div>
+        <div class="feature-card">
+          <h3>📱 iOS (Swift)</h3>
+          <p>WKWebView интеграция<br>Работа через file://<br>Все функции веб-версии<br>Управление в фоне</p>
+        </div>
+        <div class="feature-card">
+          <h3>🌐 PWA</h3>
+          <p>Установка на рабочий стол<br>Офлайн-кэш<br>Push-уведомления<br>Адаптивный дизайн</p>
+        </div>
+        <div class="feature-card">
+          <h3>🔄 Единая кодовая база</h3>
+          <p>Один фронтенд для всех платформ<br>Минимум дублирования<br>Быстрое обновление<br>Снижение затрат</p>
+        </div>
+      </div>
+      <div class="slide-number">8 / 9</div>
+    </div>
+
+    <!-- Слайд 9: Заключение -->
+    <div class="slide">
+      <h2>Результаты</h2>
+      <ul style="font-size: 1.5em;">
+        <li>✅ Полнофункциональный музыкальный сервис</li>
+        <li>✅ Уникальный караоке-режим с высокой точностью</li>
+        <li>✅ Детальная статистика и умные рекомендации</li>
+        <li>✅ Работа на всех платформах (веб, macOS, iOS)</li>
+        <li>✅ Офлайн-режим и производительность</li>
+      </ul>
+      <h2 style="margin-top: 60px; color: #ffd700;">Спасибо за внимание!</h2>
+      <div class="slide-number">9 / 9</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" onclick="previousSlide()">← Назад</button>
+    <button class="btn" onclick="nextSlide()">Вперёд →</button>
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+
+    function showSlide(n) {
+      slides[currentSlide].classList.remove('active');
+      currentSlide = (n + totalSlides) % totalSlides;
+      slides[currentSlide].classList.add('active');
+    }
+
+    function nextSlide() {
+      showSlide(currentSlide + 1);
+    }
+
+    function previousSlide() {
+      showSlide(currentSlide - 1);
+    }
+
+    // Клавиатурная навигация
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        previousSlide();
+      }
+    });
+
+    // Автоматическое переключение слайдов (опционально, для демо)
+    // setInterval(() => {
+    //   if (currentSlide < totalSlides - 1) {
+    //     nextSlide();
+    //   }
+    // }, 30000); // 30 секунд на слайд
+  </script>
+</body>
+</html>
+
+
+
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Презентация Muzic2</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #1a1a1a;
+      color: #fff;
+      overflow: hidden;
+    }
+    .presentation {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .slide {
+      width: 90vw;
+      max-width: 1200px;
+      height: 85vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 20px;
+      padding: 60px;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      position: relative;
+    }
+    .slide.active {
+      display: flex;
+    }
+    .slide h1 {
+      font-size: 3.5em;
+      margin-bottom: 30px;
+      text-align: center;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    .slide h2 {
+      font-size: 2.5em;
+      margin-bottom: 40px;
+      text-align: center;
+      color: #ffd700;
+    }
+    .slide h3 {
+      font-size: 2em;
+      margin-bottom: 25px;
+      color: #ffd700;
+    }
+    .slide p {
+      font-size: 1.4em;
+      line-height: 1.8;
+      margin-bottom: 20px;
+      text-align: justify;
+    }
+    .slide ul {
+      font-size: 1.3em;
+      line-height: 2;
+      margin-left: 40px;
+      margin-bottom: 20px;
+    }
+    .slide li {
+      margin-bottom: 15px;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 30px;
+      margin-top: 30px;
+    }
+    .feature-card {
+      background: rgba(255,255,255,0.1);
+      padding: 25px;
+      border-radius: 15px;
+      backdrop-filter: blur(10px);
+    }
+    .feature-card h3 {
+      font-size: 1.6em;
+      margin-bottom: 15px;
+      color: #ffd700;
+    }
+    .tech-stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+      margin-top: 30px;
+    }
+    .tech-badge {
+      background: rgba(255,255,255,0.2);
+      padding: 15px 30px;
+      border-radius: 25px;
+      font-size: 1.2em;
+      backdrop-filter: blur(10px);
+    }
+    .slide-number {
+      position: absolute;
+      bottom: 20px;
+      right: 30px;
+      font-size: 1.2em;
+      opacity: 0.7;
+    }
+    .controls {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 20px;
+      z-index: 1000;
+    }
+    .btn {
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+      border: 2px solid rgba(255,255,255,0.5);
+      padding: 12px 30px;
+      border-radius: 25px;
+      cursor: pointer;
+      font-size: 1.1em;
+      backdrop-filter: blur(10px);
+      transition: all 0.3s;
+    }
+    .btn:hover {
+      background: rgba(255,255,255,0.3);
+      transform: scale(1.05);
+    }
+    .highlight {
+      color: #ffd700;
+      font-weight: bold;
+    }
+    .architecture-diagram {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      margin: 40px 0;
+      font-size: 1.2em;
+    }
+    .arch-box {
+      background: rgba(255,255,255,0.15);
+      padding: 20px 40px;
+      border-radius: 15px;
+      backdrop-filter: blur(10px);
+    }
+    .arrow {
+      font-size: 2em;
+      color: #ffd700;
+    }
+  </style>
+</head>
+<body>
+  <div class="presentation">
+    <!-- Слайд 1: Титульный -->
+    <div class="slide active">
+      <h1>Muzic2</h1>
+      <h2>Веб-приложение для воспроизведения музыки<br>с функционалом караоке и статистики</h2>
+      <p style="text-align: center; margin-top: 60px; font-size: 1.6em;">
+        Музыкальный сервис нового поколения
+      </p>
+      <div class="slide-number">1 / 9</div>
+    </div>
+
+    <!-- Слайд 2: О проекте -->
+    <div class="slide">
+      <h2>О проекте</h2>
+      <p>Muzic2 — это полнофункциональный музыкальный веб-сервис, объединяющий:</p>
+      <ul>
+        <li><span class="highlight">Караоке-режим</span> с точной синхронизацией текста (LRC)</li>
+        <li><span class="highlight">Детальную статистику</span> прослушиваний и аналитику</li>
+        <li><span class="highlight">Умные рекомендации</span> и подборки по настроению</li>
+        <li><span class="highlight">Кроссплатформенность</span> — веб, PWA, macOS, iOS</li>
+        <li><span class="highlight">Офлайн-режим</span> для работы без интернета</li>
+      </ul>
+      <div class="slide-number">2 / 9</div>
+    </div>
+
+    <!-- Слайд 3: Основные функции -->
+    <div class="slide">
+      <h2>Основные функции</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>🎵 Плеер</h3>
+          <p>Воспроизведение MP3, FLAC, M4A<br>Очередь треков<br>Кроссфейд между композициями</p>
+        </div>
+        <div class="feature-card">
+          <h3>🎤 Караоке</h3>
+          <p>LRC-синхронизация (±50 мс)<br>Визуальные эффекты<br>AR-режим с камерой</p>
+        </div>
+        <div class="feature-card">
+          <h3>📊 Статистика</h3>
+          <p>Топ артистов и треков<br>Графики активности<br>Суммарные метрики</p>
+        </div>
+        <div class="feature-card">
+          <h3>📁 Плейлисты</h3>
+          <p>Создание и управление<br>Публичные плейлисты<br>Поиск по каталогу</p>
+        </div>
+      </div>
+      <div class="slide-number">3 / 9</div>
+    </div>
+
+    <!-- Слайд 4: Технологии -->
+    <div class="slide">
+      <h2>Технологический стек</h2>
+      <div class="tech-stack">
+        <div class="tech-badge">HTML5</div>
+        <div class="tech-badge">CSS3</div>
+        <div class="tech-badge">JavaScript ES6+</div>
+        <div class="tech-badge">PHP 7.4+</div>
+        <div class="tech-badge">MySQL 8</div>
+        <div class="tech-badge">Web Audio API</div>
+        <div class="tech-badge">Service Worker</div>
+        <div class="tech-badge">Electron</div>
+        <div class="tech-badge">Swift</div>
+        <div class="tech-badge">REST API</div>
+      </div>
+      <p style="margin-top: 50px; text-align: center; font-size: 1.3em;">
+        Современные веб-технологии для максимальной производительности и удобства
+      </p>
+      <div class="slide-number">4 / 9</div>
+    </div>
+
+    <!-- Слайд 5: Архитектура -->
+    <div class="slide">
+      <h2>Архитектура системы</h2>
+      <div class="architecture-diagram">
+        <div class="arch-box">Клиент<br>(SPA/PWA)</div>
+        <span class="arrow">→</span>
+        <div class="arch-box">REST API<br>(PHP)</div>
+        <span class="arrow">→</span>
+        <div class="arch-box">База данных<br>(MySQL)</div>
+      </div>
+      <ul style="margin-top: 40px;">
+        <li><span class="highlight">Клиентский слой:</span> Single Page Application с навигацией без перезагрузок</li>
+        <li><span class="highlight">Серверный слой:</span> RESTful API для всех операций</li>
+        <li><span class="highlight">Хранение данных:</span> MySQL с оптимизированными индексами</li>
+        <li><span class="highlight">Кэширование:</span> Service Worker для офлайн-режима</li>
+      </ul>
+      <div class="slide-number">5 / 9</div>
+    </div>
+
+    <!-- Слайд 6: Караоке -->
+    <div class="slide">
+      <h2>Караоке-режим</h2>
+      <h3>Ключевые особенности:</h3>
+      <ul>
+        <li><span class="highlight">LRC-формат:</span> поддержка стандартных файлов синхронизации</li>
+        <li><span class="highlight">Точность:</span> синхронизация текста с музыкой до ±50 миллисекунд</li>
+        <li><span class="highlight">Визуальные эффекты:</span> подсветка активной строки, particle-эффекты</li>
+        <li><span class="highlight">AR-режим:</span> наложение текста на видео с камеры в реальном времени</li>
+        <li><span class="highlight">Автоматический скролл:</span> плавное перемещение по тексту</li>
+      </ul>
+      <p style="margin-top: 30px; text-align: center; font-size: 1.3em;">
+        Уникальная технология синхронизации обеспечивает комфортное пение
+      </p>
+      <div class="slide-number">6 / 9</div>
+    </div>
+
+    <!-- Слайд 7: Статистика и рекомендации -->
+    <div class="slide">
+      <h2>Статистика и рекомендации</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>📈 Сбор данных</h3>
+          <p>Каждое прослушивание фиксируется<br>Агрегация в реальном времени<br>Оптимизированные запросы</p>
+        </div>
+        <div class="feature-card">
+          <h3>🎯 Рекомендации</h3>
+          <p>На основе топ-артистов<br>Похожие треки<br>Умные подборки</p>
+        </div>
+        <div class="feature-card">
+          <h3>😊 Mood Mixes</h3>
+          <p>Подборки по настроению<br>Весёлые, грустные, энергичные<br>Персонализированный контент</p>
+        </div>
+        <div class="feature-card">
+          <h3>📊 Визуализация</h3>
+          <p>Графики активности<br>Топы артистов и треков<br>История прослушиваний</p>
+        </div>
+      </div>
+      <div class="slide-number">7 / 9</div>
+    </div>
+
+    <!-- Слайд 8: Нативные приложения -->
+    <div class="slide">
+      <h2>Кроссплатформенность</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>💻 macOS (Electron)</h3>
+          <p>Нативное приложение<br>Локальный сервер<br>Полный офлайн-режим<br>Автоматические обновления</p>
+        </div>
+        <div class="feature-card">
+          <h3>📱 iOS (Swift)</h3>
+          <p>WKWebView интеграция<br>Работа через file://<br>Все функции веб-версии<br>Управление в фоне</p>
+        </div>
+        <div class="feature-card">
+          <h3>🌐 PWA</h3>
+          <p>Установка на рабочий стол<br>Офлайн-кэш<br>Push-уведомления<br>Адаптивный дизайн</p>
+        </div>
+        <div class="feature-card">
+          <h3>🔄 Единая кодовая база</h3>
+          <p>Один фронтенд для всех платформ<br>Минимум дублирования<br>Быстрое обновление<br>Снижение затрат</p>
+        </div>
+      </div>
+      <div class="slide-number">8 / 9</div>
+    </div>
+
+    <!-- Слайд 9: Заключение -->
+    <div class="slide">
+      <h2>Результаты</h2>
+      <ul style="font-size: 1.5em;">
+        <li>✅ Полнофункциональный музыкальный сервис</li>
+        <li>✅ Уникальный караоке-режим с высокой точностью</li>
+        <li>✅ Детальная статистика и умные рекомендации</li>
+        <li>✅ Работа на всех платформах (веб, macOS, iOS)</li>
+        <li>✅ Офлайн-режим и производительность</li>
+      </ul>
+      <h2 style="margin-top: 60px; color: #ffd700;">Спасибо за внимание!</h2>
+      <div class="slide-number">9 / 9</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" onclick="previousSlide()">← Назад</button>
+    <button class="btn" onclick="nextSlide()">Вперёд →</button>
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+
+    function showSlide(n) {
+      slides[currentSlide].classList.remove('active');
+      currentSlide = (n + totalSlides) % totalSlides;
+      slides[currentSlide].classList.add('active');
+    }
+
+    function nextSlide() {
+      showSlide(currentSlide + 1);
+    }
+
+    function previousSlide() {
+      showSlide(currentSlide - 1);
+    }
+
+    // Клавиатурная навигация
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        previousSlide();
+      }
+    });
+
+    // Автоматическое переключение слайдов (опционально, для демо)
+    // setInterval(() => {
+    //   if (currentSlide < totalSlides - 1) {
+    //     nextSlide();
+    //   }
+    // }, 30000); // 30 секунд на слайд
+  </script>
+</body>
+</html>
+
+
+
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Презентация Muzic2</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #1a1a1a;
+      color: #fff;
+      overflow: hidden;
+    }
+    .presentation {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .slide {
+      width: 90vw;
+      max-width: 1200px;
+      height: 85vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 20px;
+      padding: 60px;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      position: relative;
+    }
+    .slide.active {
+      display: flex;
+    }
+    .slide h1 {
+      font-size: 3.5em;
+      margin-bottom: 30px;
+      text-align: center;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    .slide h2 {
+      font-size: 2.5em;
+      margin-bottom: 40px;
+      text-align: center;
+      color: #ffd700;
+    }
+    .slide h3 {
+      font-size: 2em;
+      margin-bottom: 25px;
+      color: #ffd700;
+    }
+    .slide p {
+      font-size: 1.4em;
+      line-height: 1.8;
+      margin-bottom: 20px;
+      text-align: justify;
+    }
+    .slide ul {
+      font-size: 1.3em;
+      line-height: 2;
+      margin-left: 40px;
+      margin-bottom: 20px;
+    }
+    .slide li {
+      margin-bottom: 15px;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 30px;
+      margin-top: 30px;
+    }
+    .feature-card {
+      background: rgba(255,255,255,0.1);
+      padding: 25px;
+      border-radius: 15px;
+      backdrop-filter: blur(10px);
+    }
+    .feature-card h3 {
+      font-size: 1.6em;
+      margin-bottom: 15px;
+      color: #ffd700;
+    }
+    .tech-stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+      margin-top: 30px;
+    }
+    .tech-badge {
+      background: rgba(255,255,255,0.2);
+      padding: 15px 30px;
+      border-radius: 25px;
+      font-size: 1.2em;
+      backdrop-filter: blur(10px);
+    }
+    .slide-number {
+      position: absolute;
+      bottom: 20px;
+      right: 30px;
+      font-size: 1.2em;
+      opacity: 0.7;
+    }
+    .controls {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 20px;
+      z-index: 1000;
+    }
+    .btn {
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+      border: 2px solid rgba(255,255,255,0.5);
+      padding: 12px 30px;
+      border-radius: 25px;
+      cursor: pointer;
+      font-size: 1.1em;
+      backdrop-filter: blur(10px);
+      transition: all 0.3s;
+    }
+    .btn:hover {
+      background: rgba(255,255,255,0.3);
+      transform: scale(1.05);
+    }
+    .highlight {
+      color: #ffd700;
+      font-weight: bold;
+    }
+    .architecture-diagram {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      margin: 40px 0;
+      font-size: 1.2em;
+    }
+    .arch-box {
+      background: rgba(255,255,255,0.15);
+      padding: 20px 40px;
+      border-radius: 15px;
+      backdrop-filter: blur(10px);
+    }
+    .arrow {
+      font-size: 2em;
+      color: #ffd700;
+    }
+  </style>
+</head>
+<body>
+  <div class="presentation">
+    <!-- Слайд 1: Титульный -->
+    <div class="slide active">
+      <h1>Muzic2</h1>
+      <h2>Веб-приложение для воспроизведения музыки<br>с функционалом караоке и статистики</h2>
+      <p style="text-align: center; margin-top: 60px; font-size: 1.6em;">
+        Музыкальный сервис нового поколения
+      </p>
+      <div class="slide-number">1 / 9</div>
+    </div>
+
+    <!-- Слайд 2: О проекте -->
+    <div class="slide">
+      <h2>О проекте</h2>
+      <p>Muzic2 — это полнофункциональный музыкальный веб-сервис, объединяющий:</p>
+      <ul>
+        <li><span class="highlight">Караоке-режим</span> с точной синхронизацией текста (LRC)</li>
+        <li><span class="highlight">Детальную статистику</span> прослушиваний и аналитику</li>
+        <li><span class="highlight">Умные рекомендации</span> и подборки по настроению</li>
+        <li><span class="highlight">Кроссплатформенность</span> — веб, PWA, macOS, iOS</li>
+        <li><span class="highlight">Офлайн-режим</span> для работы без интернета</li>
+      </ul>
+      <div class="slide-number">2 / 9</div>
+    </div>
+
+    <!-- Слайд 3: Основные функции -->
+    <div class="slide">
+      <h2>Основные функции</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>🎵 Плеер</h3>
+          <p>Воспроизведение MP3, FLAC, M4A<br>Очередь треков<br>Кроссфейд между композициями</p>
+        </div>
+        <div class="feature-card">
+          <h3>🎤 Караоке</h3>
+          <p>LRC-синхронизация (±50 мс)<br>Визуальные эффекты<br>AR-режим с камерой</p>
+        </div>
+        <div class="feature-card">
+          <h3>📊 Статистика</h3>
+          <p>Топ артистов и треков<br>Графики активности<br>Суммарные метрики</p>
+        </div>
+        <div class="feature-card">
+          <h3>📁 Плейлисты</h3>
+          <p>Создание и управление<br>Публичные плейлисты<br>Поиск по каталогу</p>
+        </div>
+      </div>
+      <div class="slide-number">3 / 9</div>
+    </div>
+
+    <!-- Слайд 4: Технологии -->
+    <div class="slide">
+      <h2>Технологический стек</h2>
+      <div class="tech-stack">
+        <div class="tech-badge">HTML5</div>
+        <div class="tech-badge">CSS3</div>
+        <div class="tech-badge">JavaScript ES6+</div>
+        <div class="tech-badge">PHP 7.4+</div>
+        <div class="tech-badge">MySQL 8</div>
+        <div class="tech-badge">Web Audio API</div>
+        <div class="tech-badge">Service Worker</div>
+        <div class="tech-badge">Electron</div>
+        <div class="tech-badge">Swift</div>
+        <div class="tech-badge">REST API</div>
+      </div>
+      <p style="margin-top: 50px; text-align: center; font-size: 1.3em;">
+        Современные веб-технологии для максимальной производительности и удобства
+      </p>
+      <div class="slide-number">4 / 9</div>
+    </div>
+
+    <!-- Слайд 5: Архитектура -->
+    <div class="slide">
+      <h2>Архитектура системы</h2>
+      <div class="architecture-diagram">
+        <div class="arch-box">Клиент<br>(SPA/PWA)</div>
+        <span class="arrow">→</span>
+        <div class="arch-box">REST API<br>(PHP)</div>
+        <span class="arrow">→</span>
+        <div class="arch-box">База данных<br>(MySQL)</div>
+      </div>
+      <ul style="margin-top: 40px;">
+        <li><span class="highlight">Клиентский слой:</span> Single Page Application с навигацией без перезагрузок</li>
+        <li><span class="highlight">Серверный слой:</span> RESTful API для всех операций</li>
+        <li><span class="highlight">Хранение данных:</span> MySQL с оптимизированными индексами</li>
+        <li><span class="highlight">Кэширование:</span> Service Worker для офлайн-режима</li>
+      </ul>
+      <div class="slide-number">5 / 9</div>
+    </div>
+
+    <!-- Слайд 6: Караоке -->
+    <div class="slide">
+      <h2>Караоке-режим</h2>
+      <h3>Ключевые особенности:</h3>
+      <ul>
+        <li><span class="highlight">LRC-формат:</span> поддержка стандартных файлов синхронизации</li>
+        <li><span class="highlight">Точность:</span> синхронизация текста с музыкой до ±50 миллисекунд</li>
+        <li><span class="highlight">Визуальные эффекты:</span> подсветка активной строки, particle-эффекты</li>
+        <li><span class="highlight">AR-режим:</span> наложение текста на видео с камеры в реальном времени</li>
+        <li><span class="highlight">Автоматический скролл:</span> плавное перемещение по тексту</li>
+      </ul>
+      <p style="margin-top: 30px; text-align: center; font-size: 1.3em;">
+        Уникальная технология синхронизации обеспечивает комфортное пение
+      </p>
+      <div class="slide-number">6 / 9</div>
+    </div>
+
+    <!-- Слайд 7: Статистика и рекомендации -->
+    <div class="slide">
+      <h2>Статистика и рекомендации</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>📈 Сбор данных</h3>
+          <p>Каждое прослушивание фиксируется<br>Агрегация в реальном времени<br>Оптимизированные запросы</p>
+        </div>
+        <div class="feature-card">
+          <h3>🎯 Рекомендации</h3>
+          <p>На основе топ-артистов<br>Похожие треки<br>Умные подборки</p>
+        </div>
+        <div class="feature-card">
+          <h3>😊 Mood Mixes</h3>
+          <p>Подборки по настроению<br>Весёлые, грустные, энергичные<br>Персонализированный контент</p>
+        </div>
+        <div class="feature-card">
+          <h3>📊 Визуализация</h3>
+          <p>Графики активности<br>Топы артистов и треков<br>История прослушиваний</p>
+        </div>
+      </div>
+      <div class="slide-number">7 / 9</div>
+    </div>
+
+    <!-- Слайд 8: Нативные приложения -->
+    <div class="slide">
+      <h2>Кроссплатформенность</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>💻 macOS (Electron)</h3>
+          <p>Нативное приложение<br>Локальный сервер<br>Полный офлайн-режим<br>Автоматические обновления</p>
+        </div>
+        <div class="feature-card">
+          <h3>📱 iOS (Swift)</h3>
+          <p>WKWebView интеграция<br>Работа через file://<br>Все функции веб-версии<br>Управление в фоне</p>
+        </div>
+        <div class="feature-card">
+          <h3>🌐 PWA</h3>
+          <p>Установка на рабочий стол<br>Офлайн-кэш<br>Push-уведомления<br>Адаптивный дизайн</p>
+        </div>
+        <div class="feature-card">
+          <h3>🔄 Единая кодовая база</h3>
+          <p>Один фронтенд для всех платформ<br>Минимум дублирования<br>Быстрое обновление<br>Снижение затрат</p>
+        </div>
+      </div>
+      <div class="slide-number">8 / 9</div>
+    </div>
+
+    <!-- Слайд 9: Заключение -->
+    <div class="slide">
+      <h2>Результаты</h2>
+      <ul style="font-size: 1.5em;">
+        <li>✅ Полнофункциональный музыкальный сервис</li>
+        <li>✅ Уникальный караоке-режим с высокой точностью</li>
+        <li>✅ Детальная статистика и умные рекомендации</li>
+        <li>✅ Работа на всех платформах (веб, macOS, iOS)</li>
+        <li>✅ Офлайн-режим и производительность</li>
+      </ul>
+      <h2 style="margin-top: 60px; color: #ffd700;">Спасибо за внимание!</h2>
+      <div class="slide-number">9 / 9</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" onclick="previousSlide()">← Назад</button>
+    <button class="btn" onclick="nextSlide()">Вперёд →</button>
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+
+    function showSlide(n) {
+      slides[currentSlide].classList.remove('active');
+      currentSlide = (n + totalSlides) % totalSlides;
+      slides[currentSlide].classList.add('active');
+    }
+
+    function nextSlide() {
+      showSlide(currentSlide + 1);
+    }
+
+    function previousSlide() {
+      showSlide(currentSlide - 1);
+    }
+
+    // Клавиатурная навигация
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        previousSlide();
+      }
+    });
+
+    // Автоматическое переключение слайдов (опционально, для демо)
+    // setInterval(() => {
+    //   if (currentSlide < totalSlides - 1) {
+    //     nextSlide();
+    //   }
+    // }, 30000); // 30 секунд на слайд
+  </script>
+</body>
+</html>
+
+
+
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Презентация Muzic2</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #1a1a1a;
+      color: #fff;
+      overflow: hidden;
+    }
+    .presentation {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .slide {
+      width: 90vw;
+      max-width: 1200px;
+      height: 85vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 20px;
+      padding: 60px;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      position: relative;
+    }
+    .slide.active {
+      display: flex;
+    }
+    .slide h1 {
+      font-size: 3.5em;
+      margin-bottom: 30px;
+      text-align: center;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    .slide h2 {
+      font-size: 2.5em;
+      margin-bottom: 40px;
+      text-align: center;
+      color: #ffd700;
+    }
+    .slide h3 {
+      font-size: 2em;
+      margin-bottom: 25px;
+      color: #ffd700;
+    }
+    .slide p {
+      font-size: 1.4em;
+      line-height: 1.8;
+      margin-bottom: 20px;
+      text-align: justify;
+    }
+    .slide ul {
+      font-size: 1.3em;
+      line-height: 2;
+      margin-left: 40px;
+      margin-bottom: 20px;
+    }
+    .slide li {
+      margin-bottom: 15px;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 30px;
+      margin-top: 30px;
+    }
+    .feature-card {
+      background: rgba(255,255,255,0.1);
+      padding: 25px;
+      border-radius: 15px;
+      backdrop-filter: blur(10px);
+    }
+    .feature-card h3 {
+      font-size: 1.6em;
+      margin-bottom: 15px;
+      color: #ffd700;
+    }
+    .tech-stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+      margin-top: 30px;
+    }
+    .tech-badge {
+      background: rgba(255,255,255,0.2);
+      padding: 15px 30px;
+      border-radius: 25px;
+      font-size: 1.2em;
+      backdrop-filter: blur(10px);
+    }
+    .slide-number {
+      position: absolute;
+      bottom: 20px;
+      right: 30px;
+      font-size: 1.2em;
+      opacity: 0.7;
+    }
+    .controls {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 20px;
+      z-index: 1000;
+    }
+    .btn {
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+      border: 2px solid rgba(255,255,255,0.5);
+      padding: 12px 30px;
+      border-radius: 25px;
+      cursor: pointer;
+      font-size: 1.1em;
+      backdrop-filter: blur(10px);
+      transition: all 0.3s;
+    }
+    .btn:hover {
+      background: rgba(255,255,255,0.3);
+      transform: scale(1.05);
+    }
+    .highlight {
+      color: #ffd700;
+      font-weight: bold;
+    }
+    .architecture-diagram {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      margin: 40px 0;
+      font-size: 1.2em;
+    }
+    .arch-box {
+      background: rgba(255,255,255,0.15);
+      padding: 20px 40px;
+      border-radius: 15px;
+      backdrop-filter: blur(10px);
+    }
+    .arrow {
+      font-size: 2em;
+      color: #ffd700;
+    }
+  </style>
+</head>
+<body>
+  <div class="presentation">
+    <!-- Слайд 1: Титульный -->
+    <div class="slide active">
+      <h1>Muzic2</h1>
+      <h2>Веб-приложение для воспроизведения музыки<br>с функционалом караоке и статистики</h2>
+      <p style="text-align: center; margin-top: 60px; font-size: 1.6em;">
+        Музыкальный сервис нового поколения
+      </p>
+      <div class="slide-number">1 / 9</div>
+    </div>
+
+    <!-- Слайд 2: О проекте -->
+    <div class="slide">
+      <h2>О проекте</h2>
+      <p>Muzic2 — это полнофункциональный музыкальный веб-сервис, объединяющий:</p>
+      <ul>
+        <li><span class="highlight">Караоке-режим</span> с точной синхронизацией текста (LRC)</li>
+        <li><span class="highlight">Детальную статистику</span> прослушиваний и аналитику</li>
+        <li><span class="highlight">Умные рекомендации</span> и подборки по настроению</li>
+        <li><span class="highlight">Кроссплатформенность</span> — веб, PWA, macOS, iOS</li>
+        <li><span class="highlight">Офлайн-режим</span> для работы без интернета</li>
+      </ul>
+      <div class="slide-number">2 / 9</div>
+    </div>
+
+    <!-- Слайд 3: Основные функции -->
+    <div class="slide">
+      <h2>Основные функции</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>🎵 Плеер</h3>
+          <p>Воспроизведение MP3, FLAC, M4A<br>Очередь треков<br>Кроссфейд между композициями</p>
+        </div>
+        <div class="feature-card">
+          <h3>🎤 Караоке</h3>
+          <p>LRC-синхронизация (±50 мс)<br>Визуальные эффекты<br>AR-режим с камерой</p>
+        </div>
+        <div class="feature-card">
+          <h3>📊 Статистика</h3>
+          <p>Топ артистов и треков<br>Графики активности<br>Суммарные метрики</p>
+        </div>
+        <div class="feature-card">
+          <h3>📁 Плейлисты</h3>
+          <p>Создание и управление<br>Публичные плейлисты<br>Поиск по каталогу</p>
+        </div>
+      </div>
+      <div class="slide-number">3 / 9</div>
+    </div>
+
+    <!-- Слайд 4: Технологии -->
+    <div class="slide">
+      <h2>Технологический стек</h2>
+      <div class="tech-stack">
+        <div class="tech-badge">HTML5</div>
+        <div class="tech-badge">CSS3</div>
+        <div class="tech-badge">JavaScript ES6+</div>
+        <div class="tech-badge">PHP 7.4+</div>
+        <div class="tech-badge">MySQL 8</div>
+        <div class="tech-badge">Web Audio API</div>
+        <div class="tech-badge">Service Worker</div>
+        <div class="tech-badge">Electron</div>
+        <div class="tech-badge">Swift</div>
+        <div class="tech-badge">REST API</div>
+      </div>
+      <p style="margin-top: 50px; text-align: center; font-size: 1.3em;">
+        Современные веб-технологии для максимальной производительности и удобства
+      </p>
+      <div class="slide-number">4 / 9</div>
+    </div>
+
+    <!-- Слайд 5: Архитектура -->
+    <div class="slide">
+      <h2>Архитектура системы</h2>
+      <div class="architecture-diagram">
+        <div class="arch-box">Клиент<br>(SPA/PWA)</div>
+        <span class="arrow">→</span>
+        <div class="arch-box">REST API<br>(PHP)</div>
+        <span class="arrow">→</span>
+        <div class="arch-box">База данных<br>(MySQL)</div>
+      </div>
+      <ul style="margin-top: 40px;">
+        <li><span class="highlight">Клиентский слой:</span> Single Page Application с навигацией без перезагрузок</li>
+        <li><span class="highlight">Серверный слой:</span> RESTful API для всех операций</li>
+        <li><span class="highlight">Хранение данных:</span> MySQL с оптимизированными индексами</li>
+        <li><span class="highlight">Кэширование:</span> Service Worker для офлайн-режима</li>
+      </ul>
+      <div class="slide-number">5 / 9</div>
+    </div>
+
+    <!-- Слайд 6: Караоке -->
+    <div class="slide">
+      <h2>Караоке-режим</h2>
+      <h3>Ключевые особенности:</h3>
+      <ul>
+        <li><span class="highlight">LRC-формат:</span> поддержка стандартных файлов синхронизации</li>
+        <li><span class="highlight">Точность:</span> синхронизация текста с музыкой до ±50 миллисекунд</li>
+        <li><span class="highlight">Визуальные эффекты:</span> подсветка активной строки, particle-эффекты</li>
+        <li><span class="highlight">AR-режим:</span> наложение текста на видео с камеры в реальном времени</li>
+        <li><span class="highlight">Автоматический скролл:</span> плавное перемещение по тексту</li>
+      </ul>
+      <p style="margin-top: 30px; text-align: center; font-size: 1.3em;">
+        Уникальная технология синхронизации обеспечивает комфортное пение
+      </p>
+      <div class="slide-number">6 / 9</div>
+    </div>
+
+    <!-- Слайд 7: Статистика и рекомендации -->
+    <div class="slide">
+      <h2>Статистика и рекомендации</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>📈 Сбор данных</h3>
+          <p>Каждое прослушивание фиксируется<br>Агрегация в реальном времени<br>Оптимизированные запросы</p>
+        </div>
+        <div class="feature-card">
+          <h3>🎯 Рекомендации</h3>
+          <p>На основе топ-артистов<br>Похожие треки<br>Умные подборки</p>
+        </div>
+        <div class="feature-card">
+          <h3>😊 Mood Mixes</h3>
+          <p>Подборки по настроению<br>Весёлые, грустные, энергичные<br>Персонализированный контент</p>
+        </div>
+        <div class="feature-card">
+          <h3>📊 Визуализация</h3>
+          <p>Графики активности<br>Топы артистов и треков<br>История прослушиваний</p>
+        </div>
+      </div>
+      <div class="slide-number">7 / 9</div>
+    </div>
+
+    <!-- Слайд 8: Нативные приложения -->
+    <div class="slide">
+      <h2>Кроссплатформенность</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>💻 macOS (Electron)</h3>
+          <p>Нативное приложение<br>Локальный сервер<br>Полный офлайн-режим<br>Автоматические обновления</p>
+        </div>
+        <div class="feature-card">
+          <h3>📱 iOS (Swift)</h3>
+          <p>WKWebView интеграция<br>Работа через file://<br>Все функции веб-версии<br>Управление в фоне</p>
+        </div>
+        <div class="feature-card">
+          <h3>🌐 PWA</h3>
+          <p>Установка на рабочий стол<br>Офлайн-кэш<br>Push-уведомления<br>Адаптивный дизайн</p>
+        </div>
+        <div class="feature-card">
+          <h3>🔄 Единая кодовая база</h3>
+          <p>Один фронтенд для всех платформ<br>Минимум дублирования<br>Быстрое обновление<br>Снижение затрат</p>
+        </div>
+      </div>
+      <div class="slide-number">8 / 9</div>
+    </div>
+
+    <!-- Слайд 9: Заключение -->
+    <div class="slide">
+      <h2>Результаты</h2>
+      <ul style="font-size: 1.5em;">
+        <li>✅ Полнофункциональный музыкальный сервис</li>
+        <li>✅ Уникальный караоке-режим с высокой точностью</li>
+        <li>✅ Детальная статистика и умные рекомендации</li>
+        <li>✅ Работа на всех платформах (веб, macOS, iOS)</li>
+        <li>✅ Офлайн-режим и производительность</li>
+      </ul>
+      <h2 style="margin-top: 60px; color: #ffd700;">Спасибо за внимание!</h2>
+      <div class="slide-number">9 / 9</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" onclick="previousSlide()">← Назад</button>
+    <button class="btn" onclick="nextSlide()">Вперёд →</button>
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+
+    function showSlide(n) {
+      slides[currentSlide].classList.remove('active');
+      currentSlide = (n + totalSlides) % totalSlides;
+      slides[currentSlide].classList.add('active');
+    }
+
+    function nextSlide() {
+      showSlide(currentSlide + 1);
+    }
+
+    function previousSlide() {
+      showSlide(currentSlide - 1);
+    }
+
+    // Клавиатурная навигация
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        previousSlide();
+      }
+    });
+
+    // Автоматическое переключение слайдов (опционально, для демо)
+    // setInterval(() => {
+    //   if (currentSlide < totalSlides - 1) {
+    //     nextSlide();
+    //   }
+    // }, 30000); // 30 секунд на слайд
+  </script>
+</body>
+</html>
+
+
+
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Презентация Muzic2</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #1a1a1a;
+      color: #fff;
+      overflow: hidden;
+    }
+    .presentation {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .slide {
+      width: 90vw;
+      max-width: 1200px;
+      height: 85vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 20px;
+      padding: 60px;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      position: relative;
+    }
+    .slide.active {
+      display: flex;
+    }
+    .slide h1 {
+      font-size: 3.5em;
+      margin-bottom: 30px;
+      text-align: center;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    .slide h2 {
+      font-size: 2.5em;
+      margin-bottom: 40px;
+      text-align: center;
+      color: #ffd700;
+    }
+    .slide h3 {
+      font-size: 2em;
+      margin-bottom: 25px;
+      color: #ffd700;
+    }
+    .slide p {
+      font-size: 1.4em;
+      line-height: 1.8;
+      margin-bottom: 20px;
+      text-align: justify;
+    }
+    .slide ul {
+      font-size: 1.3em;
+      line-height: 2;
+      margin-left: 40px;
+      margin-bottom: 20px;
+    }
+    .slide li {
+      margin-bottom: 15px;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 30px;
+      margin-top: 30px;
+    }
+    .feature-card {
+      background: rgba(255,255,255,0.1);
+      padding: 25px;
+      border-radius: 15px;
+      backdrop-filter: blur(10px);
+    }
+    .feature-card h3 {
+      font-size: 1.6em;
+      margin-bottom: 15px;
+      color: #ffd700;
+    }
+    .tech-stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+      margin-top: 30px;
+    }
+    .tech-badge {
+      background: rgba(255,255,255,0.2);
+      padding: 15px 30px;
+      border-radius: 25px;
+      font-size: 1.2em;
+      backdrop-filter: blur(10px);
+    }
+    .slide-number {
+      position: absolute;
+      bottom: 20px;
+      right: 30px;
+      font-size: 1.2em;
+      opacity: 0.7;
+    }
+    .controls {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 20px;
+      z-index: 1000;
+    }
+    .btn {
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+      border: 2px solid rgba(255,255,255,0.5);
+      padding: 12px 30px;
+      border-radius: 25px;
+      cursor: pointer;
+      font-size: 1.1em;
+      backdrop-filter: blur(10px);
+      transition: all 0.3s;
+    }
+    .btn:hover {
+      background: rgba(255,255,255,0.3);
+      transform: scale(1.05);
+    }
+    .highlight {
+      color: #ffd700;
+      font-weight: bold;
+    }
+    .architecture-diagram {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      margin: 40px 0;
+      font-size: 1.2em;
+    }
+    .arch-box {
+      background: rgba(255,255,255,0.15);
+      padding: 20px 40px;
+      border-radius: 15px;
+      backdrop-filter: blur(10px);
+    }
+    .arrow {
+      font-size: 2em;
+      color: #ffd700;
+    }
+  </style>
+</head>
+<body>
+  <div class="presentation">
+    <!-- Слайд 1: Титульный -->
+    <div class="slide active">
+      <h1>Muzic2</h1>
+      <h2>Веб-приложение для воспроизведения музыки<br>с функционалом караоке и статистики</h2>
+      <p style="text-align: center; margin-top: 60px; font-size: 1.6em;">
+        Музыкальный сервис нового поколения
+      </p>
+      <div class="slide-number">1 / 9</div>
+    </div>
+
+    <!-- Слайд 2: О проекте -->
+    <div class="slide">
+      <h2>О проекте</h2>
+      <p>Muzic2 — это полнофункциональный музыкальный веб-сервис, объединяющий:</p>
+      <ul>
+        <li><span class="highlight">Караоке-режим</span> с точной синхронизацией текста (LRC)</li>
+        <li><span class="highlight">Детальную статистику</span> прослушиваний и аналитику</li>
+        <li><span class="highlight">Умные рекомендации</span> и подборки по настроению</li>
+        <li><span class="highlight">Кроссплатформенность</span> — веб, PWA, macOS, iOS</li>
+        <li><span class="highlight">Офлайн-режим</span> для работы без интернета</li>
+      </ul>
+      <div class="slide-number">2 / 9</div>
+    </div>
+
+    <!-- Слайд 3: Основные функции -->
+    <div class="slide">
+      <h2>Основные функции</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>🎵 Плеер</h3>
+          <p>Воспроизведение MP3, FLAC, M4A<br>Очередь треков<br>Кроссфейд между композициями</p>
+        </div>
+        <div class="feature-card">
+          <h3>🎤 Караоке</h3>
+          <p>LRC-синхронизация (±50 мс)<br>Визуальные эффекты<br>AR-режим с камерой</p>
+        </div>
+        <div class="feature-card">
+          <h3>📊 Статистика</h3>
+          <p>Топ артистов и треков<br>Графики активности<br>Суммарные метрики</p>
+        </div>
+        <div class="feature-card">
+          <h3>📁 Плейлисты</h3>
+          <p>Создание и управление<br>Публичные плейлисты<br>Поиск по каталогу</p>
+        </div>
+      </div>
+      <div class="slide-number">3 / 9</div>
+    </div>
+
+    <!-- Слайд 4: Технологии -->
+    <div class="slide">
+      <h2>Технологический стек</h2>
+      <div class="tech-stack">
+        <div class="tech-badge">HTML5</div>
+        <div class="tech-badge">CSS3</div>
+        <div class="tech-badge">JavaScript ES6+</div>
+        <div class="tech-badge">PHP 7.4+</div>
+        <div class="tech-badge">MySQL 8</div>
+        <div class="tech-badge">Web Audio API</div>
+        <div class="tech-badge">Service Worker</div>
+        <div class="tech-badge">Electron</div>
+        <div class="tech-badge">Swift</div>
+        <div class="tech-badge">REST API</div>
+      </div>
+      <p style="margin-top: 50px; text-align: center; font-size: 1.3em;">
+        Современные веб-технологии для максимальной производительности и удобства
+      </p>
+      <div class="slide-number">4 / 9</div>
+    </div>
+
+    <!-- Слайд 5: Архитектура -->
+    <div class="slide">
+      <h2>Архитектура системы</h2>
+      <div class="architecture-diagram">
+        <div class="arch-box">Клиент<br>(SPA/PWA)</div>
+        <span class="arrow">→</span>
+        <div class="arch-box">REST API<br>(PHP)</div>
+        <span class="arrow">→</span>
+        <div class="arch-box">База данных<br>(MySQL)</div>
+      </div>
+      <ul style="margin-top: 40px;">
+        <li><span class="highlight">Клиентский слой:</span> Single Page Application с навигацией без перезагрузок</li>
+        <li><span class="highlight">Серверный слой:</span> RESTful API для всех операций</li>
+        <li><span class="highlight">Хранение данных:</span> MySQL с оптимизированными индексами</li>
+        <li><span class="highlight">Кэширование:</span> Service Worker для офлайн-режима</li>
+      </ul>
+      <div class="slide-number">5 / 9</div>
+    </div>
+
+    <!-- Слайд 6: Караоке -->
+    <div class="slide">
+      <h2>Караоке-режим</h2>
+      <h3>Ключевые особенности:</h3>
+      <ul>
+        <li><span class="highlight">LRC-формат:</span> поддержка стандартных файлов синхронизации</li>
+        <li><span class="highlight">Точность:</span> синхронизация текста с музыкой до ±50 миллисекунд</li>
+        <li><span class="highlight">Визуальные эффекты:</span> подсветка активной строки, particle-эффекты</li>
+        <li><span class="highlight">AR-режим:</span> наложение текста на видео с камеры в реальном времени</li>
+        <li><span class="highlight">Автоматический скролл:</span> плавное перемещение по тексту</li>
+      </ul>
+      <p style="margin-top: 30px; text-align: center; font-size: 1.3em;">
+        Уникальная технология синхронизации обеспечивает комфортное пение
+      </p>
+      <div class="slide-number">6 / 9</div>
+    </div>
+
+    <!-- Слайд 7: Статистика и рекомендации -->
+    <div class="slide">
+      <h2>Статистика и рекомендации</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>📈 Сбор данных</h3>
+          <p>Каждое прослушивание фиксируется<br>Агрегация в реальном времени<br>Оптимизированные запросы</p>
+        </div>
+        <div class="feature-card">
+          <h3>🎯 Рекомендации</h3>
+          <p>На основе топ-артистов<br>Похожие треки<br>Умные подборки</p>
+        </div>
+        <div class="feature-card">
+          <h3>😊 Mood Mixes</h3>
+          <p>Подборки по настроению<br>Весёлые, грустные, энергичные<br>Персонализированный контент</p>
+        </div>
+        <div class="feature-card">
+          <h3>📊 Визуализация</h3>
+          <p>Графики активности<br>Топы артистов и треков<br>История прослушиваний</p>
+        </div>
+      </div>
+      <div class="slide-number">7 / 9</div>
+    </div>
+
+    <!-- Слайд 8: Нативные приложения -->
+    <div class="slide">
+      <h2>Кроссплатформенность</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>💻 macOS (Electron)</h3>
+          <p>Нативное приложение<br>Локальный сервер<br>Полный офлайн-режим<br>Автоматические обновления</p>
+        </div>
+        <div class="feature-card">
+          <h3>📱 iOS (Swift)</h3>
+          <p>WKWebView интеграция<br>Работа через file://<br>Все функции веб-версии<br>Управление в фоне</p>
+        </div>
+        <div class="feature-card">
+          <h3>🌐 PWA</h3>
+          <p>Установка на рабочий стол<br>Офлайн-кэш<br>Push-уведомления<br>Адаптивный дизайн</p>
+        </div>
+        <div class="feature-card">
+          <h3>🔄 Единая кодовая база</h3>
+          <p>Один фронтенд для всех платформ<br>Минимум дублирования<br>Быстрое обновление<br>Снижение затрат</p>
+        </div>
+      </div>
+      <div class="slide-number">8 / 9</div>
+    </div>
+
+    <!-- Слайд 9: Заключение -->
+    <div class="slide">
+      <h2>Результаты</h2>
+      <ul style="font-size: 1.5em;">
+        <li>✅ Полнофункциональный музыкальный сервис</li>
+        <li>✅ Уникальный караоке-режим с высокой точностью</li>
+        <li>✅ Детальная статистика и умные рекомендации</li>
+        <li>✅ Работа на всех платформах (веб, macOS, iOS)</li>
+        <li>✅ Офлайн-режим и производительность</li>
+      </ul>
+      <h2 style="margin-top: 60px; color: #ffd700;">Спасибо за внимание!</h2>
+      <div class="slide-number">9 / 9</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" onclick="previousSlide()">← Назад</button>
+    <button class="btn" onclick="nextSlide()">Вперёд →</button>
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+
+    function showSlide(n) {
+      slides[currentSlide].classList.remove('active');
+      currentSlide = (n + totalSlides) % totalSlides;
+      slides[currentSlide].classList.add('active');
+    }
+
+    function nextSlide() {
+      showSlide(currentSlide + 1);
+    }
+
+    function previousSlide() {
+      showSlide(currentSlide - 1);
+    }
+
+    // Клавиатурная навигация
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        previousSlide();
+      }
+    });
+
+    // Автоматическое переключение слайдов (опционально, для демо)
+    // setInterval(() => {
+    //   if (currentSlide < totalSlides - 1) {
+    //     nextSlide();
+    //   }
+    // }, 30000); // 30 секунд на слайд
+  </script>
+</body>
+</html>
+
+
+
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Презентация Muzic2</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #1a1a1a;
+      color: #fff;
+      overflow: hidden;
+    }
+    .presentation {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .slide {
+      width: 90vw;
+      max-width: 1200px;
+      height: 85vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 20px;
+      padding: 60px;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      position: relative;
+    }
+    .slide.active {
+      display: flex;
+    }
+    .slide h1 {
+      font-size: 3.5em;
+      margin-bottom: 30px;
+      text-align: center;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    .slide h2 {
+      font-size: 2.5em;
+      margin-bottom: 40px;
+      text-align: center;
+      color: #ffd700;
+    }
+    .slide h3 {
+      font-size: 2em;
+      margin-bottom: 25px;
+      color: #ffd700;
+    }
+    .slide p {
+      font-size: 1.4em;
+      line-height: 1.8;
+      margin-bottom: 20px;
+      text-align: justify;
+    }
+    .slide ul {
+      font-size: 1.3em;
+      line-height: 2;
+      margin-left: 40px;
+      margin-bottom: 20px;
+    }
+    .slide li {
+      margin-bottom: 15px;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 30px;
+      margin-top: 30px;
+    }
+    .feature-card {
+      background: rgba(255,255,255,0.1);
+      padding: 25px;
+      border-radius: 15px;
+      backdrop-filter: blur(10px);
+    }
+    .feature-card h3 {
+      font-size: 1.6em;
+      margin-bottom: 15px;
+      color: #ffd700;
+    }
+    .tech-stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+      margin-top: 30px;
+    }
+    .tech-badge {
+      background: rgba(255,255,255,0.2);
+      padding: 15px 30px;
+      border-radius: 25px;
+      font-size: 1.2em;
+      backdrop-filter: blur(10px);
+    }
+    .slide-number {
+      position: absolute;
+      bottom: 20px;
+      right: 30px;
+      font-size: 1.2em;
+      opacity: 0.7;
+    }
+    .controls {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 20px;
+      z-index: 1000;
+    }
+    .btn {
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+      border: 2px solid rgba(255,255,255,0.5);
+      padding: 12px 30px;
+      border-radius: 25px;
+      cursor: pointer;
+      font-size: 1.1em;
+      backdrop-filter: blur(10px);
+      transition: all 0.3s;
+    }
+    .btn:hover {
+      background: rgba(255,255,255,0.3);
+      transform: scale(1.05);
+    }
+    .highlight {
+      color: #ffd700;
+      font-weight: bold;
+    }
+    .architecture-diagram {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      margin: 40px 0;
+      font-size: 1.2em;
+    }
+    .arch-box {
+      background: rgba(255,255,255,0.15);
+      padding: 20px 40px;
+      border-radius: 15px;
+      backdrop-filter: blur(10px);
+    }
+    .arrow {
+      font-size: 2em;
+      color: #ffd700;
+    }
+  </style>
+</head>
+<body>
+  <div class="presentation">
+    <!-- Слайд 1: Титульный -->
+    <div class="slide active">
+      <h1>Muzic2</h1>
+      <h2>Веб-приложение для воспроизведения музыки<br>с функционалом караоке и статистики</h2>
+      <p style="text-align: center; margin-top: 60px; font-size: 1.6em;">
+        Музыкальный сервис нового поколения
+      </p>
+      <div class="slide-number">1 / 9</div>
+    </div>
+
+    <!-- Слайд 2: О проекте -->
+    <div class="slide">
+      <h2>О проекте</h2>
+      <p>Muzic2 — это полнофункциональный музыкальный веб-сервис, объединяющий:</p>
+      <ul>
+        <li><span class="highlight">Караоке-режим</span> с точной синхронизацией текста (LRC)</li>
+        <li><span class="highlight">Детальную статистику</span> прослушиваний и аналитику</li>
+        <li><span class="highlight">Умные рекомендации</span> и подборки по настроению</li>
+        <li><span class="highlight">Кроссплатформенность</span> — веб, PWA, macOS, iOS</li>
+        <li><span class="highlight">Офлайн-режим</span> для работы без интернета</li>
+      </ul>
+      <div class="slide-number">2 / 9</div>
+    </div>
+
+    <!-- Слайд 3: Основные функции -->
+    <div class="slide">
+      <h2>Основные функции</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>🎵 Плеер</h3>
+          <p>Воспроизведение MP3, FLAC, M4A<br>Очередь треков<br>Кроссфейд между композициями</p>
+        </div>
+        <div class="feature-card">
+          <h3>🎤 Караоке</h3>
+          <p>LRC-синхронизация (±50 мс)<br>Визуальные эффекты<br>AR-режим с камерой</p>
+        </div>
+        <div class="feature-card">
+          <h3>📊 Статистика</h3>
+          <p>Топ артистов и треков<br>Графики активности<br>Суммарные метрики</p>
+        </div>
+        <div class="feature-card">
+          <h3>📁 Плейлисты</h3>
+          <p>Создание и управление<br>Публичные плейлисты<br>Поиск по каталогу</p>
+        </div>
+      </div>
+      <div class="slide-number">3 / 9</div>
+    </div>
+
+    <!-- Слайд 4: Технологии -->
+    <div class="slide">
+      <h2>Технологический стек</h2>
+      <div class="tech-stack">
+        <div class="tech-badge">HTML5</div>
+        <div class="tech-badge">CSS3</div>
+        <div class="tech-badge">JavaScript ES6+</div>
+        <div class="tech-badge">PHP 7.4+</div>
+        <div class="tech-badge">MySQL 8</div>
+        <div class="tech-badge">Web Audio API</div>
+        <div class="tech-badge">Service Worker</div>
+        <div class="tech-badge">Electron</div>
+        <div class="tech-badge">Swift</div>
+        <div class="tech-badge">REST API</div>
+      </div>
+      <p style="margin-top: 50px; text-align: center; font-size: 1.3em;">
+        Современные веб-технологии для максимальной производительности и удобства
+      </p>
+      <div class="slide-number">4 / 9</div>
+    </div>
+
+    <!-- Слайд 5: Архитектура -->
+    <div class="slide">
+      <h2>Архитектура системы</h2>
+      <div class="architecture-diagram">
+        <div class="arch-box">Клиент<br>(SPA/PWA)</div>
+        <span class="arrow">→</span>
+        <div class="arch-box">REST API<br>(PHP)</div>
+        <span class="arrow">→</span>
+        <div class="arch-box">База данных<br>(MySQL)</div>
+      </div>
+      <ul style="margin-top: 40px;">
+        <li><span class="highlight">Клиентский слой:</span> Single Page Application с навигацией без перезагрузок</li>
+        <li><span class="highlight">Серверный слой:</span> RESTful API для всех операций</li>
+        <li><span class="highlight">Хранение данных:</span> MySQL с оптимизированными индексами</li>
+        <li><span class="highlight">Кэширование:</span> Service Worker для офлайн-режима</li>
+      </ul>
+      <div class="slide-number">5 / 9</div>
+    </div>
+
+    <!-- Слайд 6: Караоке -->
+    <div class="slide">
+      <h2>Караоке-режим</h2>
+      <h3>Ключевые особенности:</h3>
+      <ul>
+        <li><span class="highlight">LRC-формат:</span> поддержка стандартных файлов синхронизации</li>
+        <li><span class="highlight">Точность:</span> синхронизация текста с музыкой до ±50 миллисекунд</li>
+        <li><span class="highlight">Визуальные эффекты:</span> подсветка активной строки, particle-эффекты</li>
+        <li><span class="highlight">AR-режим:</span> наложение текста на видео с камеры в реальном времени</li>
+        <li><span class="highlight">Автоматический скролл:</span> плавное перемещение по тексту</li>
+      </ul>
+      <p style="margin-top: 30px; text-align: center; font-size: 1.3em;">
+        Уникальная технология синхронизации обеспечивает комфортное пение
+      </p>
+      <div class="slide-number">6 / 9</div>
+    </div>
+
+    <!-- Слайд 7: Статистика и рекомендации -->
+    <div class="slide">
+      <h2>Статистика и рекомендации</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>📈 Сбор данных</h3>
+          <p>Каждое прослушивание фиксируется<br>Агрегация в реальном времени<br>Оптимизированные запросы</p>
+        </div>
+        <div class="feature-card">
+          <h3>🎯 Рекомендации</h3>
+          <p>На основе топ-артистов<br>Похожие треки<br>Умные подборки</p>
+        </div>
+        <div class="feature-card">
+          <h3>😊 Mood Mixes</h3>
+          <p>Подборки по настроению<br>Весёлые, грустные, энергичные<br>Персонализированный контент</p>
+        </div>
+        <div class="feature-card">
+          <h3>📊 Визуализация</h3>
+          <p>Графики активности<br>Топы артистов и треков<br>История прослушиваний</p>
+        </div>
+      </div>
+      <div class="slide-number">7 / 9</div>
+    </div>
+
+    <!-- Слайд 8: Нативные приложения -->
+    <div class="slide">
+      <h2>Кроссплатформенность</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>💻 macOS (Electron)</h3>
+          <p>Нативное приложение<br>Локальный сервер<br>Полный офлайн-режим<br>Автоматические обновления</p>
+        </div>
+        <div class="feature-card">
+          <h3>📱 iOS (Swift)</h3>
+          <p>WKWebView интеграция<br>Работа через file://<br>Все функции веб-версии<br>Управление в фоне</p>
+        </div>
+        <div class="feature-card">
+          <h3>🌐 PWA</h3>
+          <p>Установка на рабочий стол<br>Офлайн-кэш<br>Push-уведомления<br>Адаптивный дизайн</p>
+        </div>
+        <div class="feature-card">
+          <h3>🔄 Единая кодовая база</h3>
+          <p>Один фронтенд для всех платформ<br>Минимум дублирования<br>Быстрое обновление<br>Снижение затрат</p>
+        </div>
+      </div>
+      <div class="slide-number">8 / 9</div>
+    </div>
+
+    <!-- Слайд 9: Заключение -->
+    <div class="slide">
+      <h2>Результаты</h2>
+      <ul style="font-size: 1.5em;">
+        <li>✅ Полнофункциональный музыкальный сервис</li>
+        <li>✅ Уникальный караоке-режим с высокой точностью</li>
+        <li>✅ Детальная статистика и умные рекомендации</li>
+        <li>✅ Работа на всех платформах (веб, macOS, iOS)</li>
+        <li>✅ Офлайн-режим и производительность</li>
+      </ul>
+      <h2 style="margin-top: 60px; color: #ffd700;">Спасибо за внимание!</h2>
+      <div class="slide-number">9 / 9</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" onclick="previousSlide()">← Назад</button>
+    <button class="btn" onclick="nextSlide()">Вперёд →</button>
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+
+    function showSlide(n) {
+      slides[currentSlide].classList.remove('active');
+      currentSlide = (n + totalSlides) % totalSlides;
+      slides[currentSlide].classList.add('active');
+    }
+
+    function nextSlide() {
+      showSlide(currentSlide + 1);
+    }
+
+    function previousSlide() {
+      showSlide(currentSlide - 1);
+    }
+
+    // Клавиатурная навигация
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        previousSlide();
+      }
+    });
+
+    // Автоматическое переключение слайдов (опционально, для демо)
+    // setInterval(() => {
+    //   if (currentSlide < totalSlides - 1) {
+    //     nextSlide();
+    //   }
+    // }, 30000); // 30 секунд на слайд
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+

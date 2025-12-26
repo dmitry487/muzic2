@@ -14,15 +14,20 @@
       .player-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
       .cover { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; background: #222; }
       .track-info { min-width: 0; }
-      #track-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      #track-artist { color: #b3b3b3; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #track-title { font-weight: 700; font-size: 1.2rem; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
+      #track-artist { color: #b3b3b3; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; margin-top: 2px; }
       #track-artist .artist-link { color: inherit; cursor: pointer; text-decoration: none; }
       #track-artist .artist-link:hover { text-decoration: underline; }
       #track-status { color: #1ed760; font-size: 0.85rem; }
       .player-center { display: flex; flex-direction: column; gap: 6px; }
       .player-controls { display: flex; align-items: center; justify-content: center; gap: 12px; }
-      .player-controls button { background: transparent; border: none; color: #fff; cursor: pointer; padding: 6px; border-radius: 50%; }
+      .player-controls button { background: transparent; border: none; color: #fff; cursor: pointer; padding: 6px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
       .player-controls button:hover { background: #1f1f1f; }
+      #play-btn { background: #fff !important; color: #000 !important; width: 64px !important; height: 64px !important; border-radius: 50% !important; padding: 0 !important; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+      #play-btn:hover { background: #f0f0f0 !important; }
+      #play-btn svg { width: 24px !important; height: 24px !important; }
+      #pause-icon { width: 24px !important; height: 24px !important; }
+      #prev-btn svg, #next-btn svg { width: 24px; height: 24px; }
       .player-progress { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; }
       #seek-bar { width: 100%; }
       .player-right { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
@@ -298,6 +303,74 @@
       .exp-badge{ display:inline-block; width:16px; height:16px; line-height:16px; text-align:center; margin:0 6px 0 0; border:0; border-radius:3px; font-size:10px; font-weight:800; color:#2b2b2b; background:#cfcfcf; vertical-align:middle }
       #fullscreen-close { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.5); border: none; color: #fff; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
       #fullscreen-back { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.5); border: none; color: #fff; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+      
+      /* Carousel mode - точно по коду из CoverFlow.tsx */
+      #carousel-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: linear-gradient(to bottom, #000000 0%, #111111 100%); z-index: 8000; display: none; overflow: hidden; }
+      #carousel-overlay[style*="display: block"], #carousel-overlay[style*="display:block"] { display: block !important; }
+      #carousel-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+      #carousel-track-wrapper { position: relative; width: 100%; max-width: 80rem; height: 24rem; perspective: 1500px; perspective-origin: center center; display: flex; align-items: center; justify-content: center; overflow: visible; cursor: grab; user-select: none; margin: 0 auto; }
+      #carousel-track-wrapper:active { cursor: grabbing; }
+      #carousel-track { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; transform-style: preserve-3d; }
+      .carousel-cover-wrapper { position: absolute; transform-style: preserve-3d; transform-origin: center center; transition: all 400ms cubic-bezier(0.23, 1, 0.32, 1); cursor: pointer; user-select: none; }
+      .carousel-cover-wrapper.dragging { transition: none; }
+      .carousel-cover-container { position: relative; width: 200px; height: 200px; }
+      .carousel-cover-wrapper.active .carousel-cover-container { width: 200px; height: 200px; }
+      @media (max-width: 768px) {
+        .carousel-cover-container { width: 170px; height: 170px; }
+        .carousel-cover-wrapper.active .carousel-cover-container { width: 170px; height: 170px; }
+      }
+      .carousel-cover { width: 100%; height: 100%; border-radius: 0.625rem; object-fit: cover; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9), 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1); border: 1px solid rgba(55, 65, 81, 0.3); display: block; user-select: none; }
+      .carousel-cover-reflection { position: absolute; top: 100%; left: 0; width: 100%; height: 100%; border-radius: 0.625rem; pointer-events: none; background-size: cover; background-position: center; background-repeat: no-repeat; transform: scaleY(-1) translateY(0px); opacity: 0.75; mask-image: linear-gradient(to top, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.4) 20%, rgba(255, 255, 255, 0.15) 40%, transparent 60%); -webkit-mask-image: linear-gradient(to top, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.4) 20%, rgba(255, 255, 255, 0.15) 40%, transparent 60%); filter: blur(0.5px) brightness(0.6) contrast(1.3); transition: all 500ms; }
+      .carousel-cover-wrapper.active .carousel-cover-reflection { opacity: 0.9; }
+      .carousel-cover-glass { position: absolute; inset: 0; border-radius: 0.625rem; pointer-events: none; background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 25%, transparent 50%, rgba(0,0,0,0.02) 75%, rgba(0,0,0,0.08) 100%); }
+      .carousel-cover-floor { position: absolute; top: 100%; left: 0; width: 100%; height: 12px; border-radius: 0.625rem; pointer-events: none; background: linear-gradient(to bottom, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.12) 40%, transparent 100%); transform: translateY(6px); opacity: 0.35; transition: opacity 1000ms; }
+      .carousel-cover-wrapper.active .carousel-cover-floor { opacity: 0.6; }
+      .carousel-cover-wrapper.active .carousel-cover { border: 1px solid rgba(255, 255, 255, 0.3); }
+      .carousel-cover-border { position: absolute; inset: 0; border-radius: 0.625rem; border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9); pointer-events: none; display: none; }
+      .carousel-cover-wrapper.active .carousel-cover-border { display: block; }
+      .carousel-cover-indicator { position: absolute; top: 12px; right: 12px; width: 10px; height: 10px; background: #fff; border-radius: 50%; opacity: 0.9; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1); display: none; animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+      .carousel-cover-wrapper.active .carousel-cover-indicator { display: block; }
+      .carousel-cover-top-light { position: absolute; top: 0; left: 25%; right: 25%; height: 4px; background: rgba(255, 255, 255, 0.2); border-radius: 9999px; filter: blur(8px); display: none; }
+      .carousel-cover-wrapper.active .carousel-cover-top-light { display: block; }
+      #carousel-close { position: fixed; top: 20px; right: 20px; background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 50%; color: #fff; width: 48px; height: 48px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 2rem; z-index: 10001; transition: all 0.2s; pointer-events: auto; backdrop-filter: blur(12px); font-weight: 300; }
+      #carousel-close:hover { background: rgba(0, 0, 0, 0.8); border-color: rgba(255, 255, 255, 0.25); }
+      #carousel-info { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 2.5rem; z-index: 10000; text-align: center; }
+      #carousel-track-title { font-weight: 700; font-size: 1.2rem; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; max-width: 80vw; }
+      #carousel-track-artist { color: #b3b3b3; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; max-width: 80vw; }
+      #carousel-progress { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; margin-top: 1rem; width: 100%; max-width: 480px; z-index: 10000; box-sizing: border-box; padding: 0; }
+      #carousel-seek-bar-wrapper { position: relative; width: 100%; height: 4px; background: #535353; border-radius: 2px; cursor: pointer; }
+      #carousel-seek-bar-progress { position: absolute; left: 0; top: 0; height: 100%; background: #1ed760; border-radius: 2px; width: 0%; transition: width 0.1s linear; pointer-events: none; }
+      #carousel-seek-bar { position: absolute; left: 0; top: 0; width: 100%; height: 100%; -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; margin: 0; padding: 0; border: none; outline: none; z-index: 2; }
+      #carousel-seek-bar::-webkit-slider-track { background: transparent; height: 4px; }
+      #carousel-seek-bar::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 0; height: 0; background: transparent; border: none; pointer-events: none; }
+      #carousel-seek-bar::-moz-range-track { background: transparent; height: 4px; border: none; }
+      #carousel-seek-bar::-moz-range-thumb { width: 0; height: 0; border: none; background: transparent; pointer-events: none; }
+      #carousel-current-time, #carousel-duration { font-size: 0.95rem; color: #b3b3b3; min-width: 38px; text-align: center; }
+      #carousel-controls { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 1.5rem; z-index: 10000; }
+      #carousel-controls button { background: transparent; border: none; color: #fff; cursor: pointer; padding: 8px; border-radius: 50%; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+      #carousel-controls button:hover { background: rgba(255, 255, 255, 0.1); }
+      #carousel-play-btn { background: #fff !important; color: #000 !important; width: 72px !important; height: 72px !important; border-radius: 50% !important; padding: 0 !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+      #carousel-play-btn:hover { background: #f0f0f0 !important; }
+      #carousel-play-btn svg { width: 28px !important; height: 28px !important; }
+      #carousel-pause-icon { width: 28px !important; height: 28px !important; }
+      #carousel-prev-btn svg, #carousel-next-btn svg { width: 28px; height: 28px; }
+      #carousel-shuffle-btn svg, #carousel-volume-btn svg { width: 22px; height: 22px; }
+      @media (max-width: 768px) {
+        #carousel-info { margin-top: 2rem; }
+        #carousel-track-title { font-size: 1.1rem; max-width: 90vw; }
+        #carousel-track-artist { font-size: 0.9rem; max-width: 90vw; }
+        #carousel-progress { gap: 8px; margin-top: 0.8rem; max-width: 85vw; }
+        #carousel-current-time, #carousel-duration { min-width: 32px; }
+        #carousel-current-time, #carousel-duration { font-size: 0.85rem; }
+        #carousel-controls { gap: 12px; margin-top: 1.2rem; }
+        #carousel-controls button { width: 44px; height: 44px; padding: 6px; }
+        #carousel-play-btn { width: 64px !important; height: 64px !important; }
+        #carousel-play-btn svg { width: 24px !important; height: 24px !important; }
+        #carousel-pause-icon { width: 24px !important; height: 24px !important; }
+        #carousel-prev-btn svg, #carousel-next-btn svg { width: 24px; height: 24px; }
+        #carousel-shuffle-btn svg, #carousel-volume-btn svg { width: 20px; height: 20px; }
+      }
+      @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
       /* Responsive player layout */
       @media (max-width: 900px) {
@@ -411,6 +484,44 @@
         <button id="fullscreen-close">×</button>
       </div>
     </div>
+    <div id="carousel-overlay">
+      <div id="carousel-container">
+        <div id="carousel-track-wrapper">
+          <div id="carousel-track"></div>
+        </div>
+        <div id="carousel-info">
+          <div id="carousel-track-title"></div>
+          <div id="carousel-track-artist"></div>
+        </div>
+        <div id="carousel-progress">
+          <span id="carousel-current-time">0:00</span>
+          <div id="carousel-seek-bar-wrapper">
+            <div id="carousel-seek-bar-progress"></div>
+            <input type="range" id="carousel-seek-bar" min="0" max="100" value="0">
+          </div>
+          <span id="carousel-duration">0:00</span>
+        </div>
+        <div id="carousel-controls">
+          <button id="carousel-shuffle-btn" title="Случайно">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+          </button>
+          <button id="carousel-prev-btn" title="Назад">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+          </button>
+          <button id="carousel-play-btn" title="Воспроизвести">
+            <svg id="carousel-play-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+            <svg id="carousel-pause-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+          </button>
+          <button id="carousel-next-btn" title="Вперёд">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+          </button>
+          <button id="carousel-volume-btn" title="Громкость">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+          </button>
+        </div>
+      </div>
+      <button id="carousel-close">×</button>
+    </div>
     <div id="lyrics-fs-underlay"><img id="lyrics-fs-underlay-img" alt="bg" style="display:none;"><video id="lyrics-fs-underlay-video" playsinline muted loop style="display:none;"></video></div>
     <div id="lyrics-fs">
       <div id="lyrics-fs-bg"><img id="lyrics-fs-bg-img" alt="bg" style="display:none;"><video id="lyrics-fs-bg-video" playsinline muted loop style="display:none;"></video></div>
@@ -505,6 +616,7 @@
   // Elements (scoped to player container to avoid ID conflicts on page)
   const playerContainer = playerRoot.querySelector('#player');
   const audio = playerRoot.querySelector('#audio');
+  
   const playBtn = playerContainer.querySelector('#play-btn');
   const playIcon = playerContainer.querySelector('#play-icon');
   const pauseIcon = playerContainer.querySelector('#pause-icon');
@@ -545,8 +657,36 @@
   const fullscreenArtist = playerRoot.querySelector('#fullscreen-artist');
   const fullscreenClose = playerRoot.querySelector('#fullscreen-close');
   const fullscreenBack = playerRoot.querySelector('#fullscreen-back');
+  const carouselOverlay = playerRoot.querySelector('#carousel-overlay');
+  const carouselTrack = playerRoot.querySelector('#carousel-track');
+  const carouselCurrentCover = playerRoot.querySelector('#carousel-current-cover');
+  const carouselCurrentReflection = playerRoot.querySelector('#carousel-current-reflection');
+  const carouselClose = playerRoot.querySelector('#carousel-close');
+  const carouselShuffle = playerRoot.querySelector('#carousel-shuffle-btn');
+  const carouselPrev = playerRoot.querySelector('#carousel-prev-btn');
+  const carouselNext = playerRoot.querySelector('#carousel-next-btn');
+  const carouselPlay = playerRoot.querySelector('#carousel-play-btn');
+  const carouselPlayIcon = playerRoot.querySelector('#carousel-play-icon');
+  const carouselPauseIcon = playerRoot.querySelector('#carousel-pause-icon');
+  const carouselVolume = playerRoot.querySelector('#carousel-volume-btn');
+  const carouselTrackTitle = playerRoot.querySelector('#carousel-track-title');
+  const carouselTrackArtist = playerRoot.querySelector('#carousel-track-artist');
+  const carouselCurrentTime = playerRoot.querySelector('#carousel-current-time');
+  const carouselDuration = playerRoot.querySelector('#carousel-duration');
+  const carouselSeekBar = playerRoot.querySelector('#carousel-seek-bar');
+  const carouselSeekBarProgress = playerRoot.querySelector('#carousel-seek-bar-progress');
+  let isCarouselMode = false;
+  let carouselCurrentIndex = 0;
+  let carouselIsDragging = false;
+  let carouselDragStartPos = 0;
+  let carouselDragOffset = 0;
+  let carouselVelocity = 0;
+  let carouselLastDragTime = Date.now();
   const lyricsContainer = playerContainer.querySelector('#lyrics-container');
-  const lyricsFs = playerRoot.querySelector('#lyrics-fs');
+  let lyricsFs = playerRoot.querySelector('#lyrics-fs');
+  if (!lyricsFs) {
+    console.warn('⚠️ lyricsFs not found initially, will try again on click');
+  }
   const lyricsFsUnderlay = playerRoot.querySelector('#lyrics-fs-underlay');
   const lyricsFsUnderlayImg = playerRoot.querySelector('#lyrics-fs-underlay-img');
   const lyricsFsUnderlayVideo = playerRoot.querySelector('#lyrics-fs-underlay-video');
@@ -1074,8 +1214,16 @@
 
   async function fetchAndRenderLyricsDirect() {
     try {
-      if (!lyricsContainer) return;
-      lyricsContainer.innerHTML = '<div class="lyric-line">Загрузка…</div>';
+      // Находим актуальный список (может быть создан динамически)
+      const currentLyricsFsList = lyricsFsList || window._lyricsFsList || document.getElementById('lyrics-fs-list');
+      
+      // Показываем загрузку в нужном контейнере
+      if (currentLyricsFsList) {
+        currentLyricsFsList.innerHTML = '<div class="lyric-line">Загрузка…</div>';
+      } else if (lyricsContainer) {
+        lyricsContainer.innerHTML = '<div class="lyric-line">Загрузка…</div>';
+      }
+      
       // Try title+artist first
       const params = new URLSearchParams();
       if (lastTrackTitle) params.set('title', lastTrackTitle);
@@ -1742,9 +1890,13 @@
     if (!playing) {
       playIcon.style.display = '';
       pauseIcon.style.display = 'none';
+      if (carouselPlayIcon) carouselPlayIcon.style.display = '';
+      if (carouselPauseIcon) carouselPauseIcon.style.display = 'none';
     } else {
       playIcon.style.display = 'none';
       pauseIcon.style.display = '';
+      if (carouselPlayIcon) carouselPlayIcon.style.display = 'none';
+      if (carouselPauseIcon) carouselPauseIcon.style.display = '';
     }
   }
   function updateShuffleUI() {
@@ -1753,6 +1905,16 @@
     shuffleBtn.setAttribute('aria-pressed', String(isOn));
     // Force visual state to persist regardless of external styles
     shuffleBtn.style.color = isOn ? '#1ed760' : '';
+    // Update carousel shuffle button
+    if (carouselShuffle) {
+      if (isOn) {
+        carouselShuffle.classList.add('btn-active');
+        carouselShuffle.style.color = '#1ed760';
+      } else {
+        carouselShuffle.classList.remove('btn-active');
+        carouselShuffle.style.color = '';
+      }
+    }
   }
   function updateRepeatUI() {
     // Repurposed: show one-time replay visual state
@@ -1761,6 +1923,16 @@
     repeatBtn.classList.toggle('btn-active', isOn);
     repeatBtn.setAttribute('aria-pressed', String(isOn));
     repeatBtn.style.color = isOn ? '#1ed760' : '';
+    // Update carousel repeat button
+    if (isCarouselMode && carouselRepeat) {
+      if (isOn) {
+        carouselRepeat.classList.add('active');
+        carouselRepeat.style.color = '#1ed760';
+      } else {
+        carouselRepeat.classList.remove('active');
+        carouselRepeat.style.color = '';
+      }
+    }
   }
   
 
@@ -1828,6 +2000,22 @@
       volumeBtn.style.color = '';
       // Change icon to normal speaker
       volumeBtn.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
+    }
+    // Update carousel volume button
+    if (isCarouselMode && carouselVolume) {
+      const volumeIcon = carouselVolume.querySelector('#carousel-volume-icon');
+      if (volumeIcon) {
+        if (isMuted || audio.volume === 0) {
+          carouselVolume.classList.add('muted');
+          volumeIcon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>';
+        } else if (audio.volume < 0.5) {
+          carouselVolume.classList.remove('muted');
+          volumeIcon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>';
+        } else {
+          carouselVolume.classList.remove('muted');
+          volumeIcon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>';
+        }
+      }
     }
   }
 
@@ -2151,7 +2339,14 @@
       const artistHtml = renderArtistInline(combinedArtist);
       trackArtist.innerHTML = (t.explicit ? '<span class="exp-badge" title="Нецензурная лексика">E</span>' : '') + artistHtml;
       bindArtistLinks(trackArtist);
-    } catch(_) { trackArtist.textContent = t.artist || ''; }
+      // Update carousel info
+      if (carouselTrackTitle) carouselTrackTitle.textContent = t.title || '';
+      if (carouselTrackArtist) carouselTrackArtist.textContent = combinedArtist;
+    } catch(_) { 
+      trackArtist.textContent = t.artist || '';
+      if (carouselTrackTitle) carouselTrackTitle.textContent = t.title || '';
+      if (carouselTrackArtist) carouselTrackArtist.textContent = t.artist || '';
+    }
     if (cover) cover.src = t.cover || (cover.src || '');
     currentTrackId = t.id || null;
     lastTrackTitle = String(t.title||'');
@@ -2294,8 +2489,9 @@
   }
 
   // Toggle lyrics button
-  if (lyricsBtn) lyricsBtn.onclick = () => {
-    lyricsVisible = !lyricsVisible;
+  if (lyricsBtn) {
+    lyricsBtn.onclick = () => {
+      lyricsVisible = !lyricsVisible;
     
     // Исправлено: агрессивно очищаем ВСЕ фантомные строки при открытии караоке режима
     if (lyricsVisible) {
@@ -2330,7 +2526,6 @@
         lyricsFs.style.display = lyricsVisible ? 'block' : 'none';
       }
       try { adjustKaraokeBottomOffset && adjustKaraokeBottomOffset(); } catch(_) {}
-      // Ensure player pinned and visible above underlay
       try { pinPlayerForOverlay(lyricsVisible); } catch(_) {}
       // Show underlay background behind player too (fills gray corners) while karaoke open
       try {
@@ -2389,10 +2584,14 @@
           }
         }
       } catch(_) {}
+      
       fetchAndRenderLyricsDirect();
     }
     lyricsBtn.classList.toggle('btn-active', lyricsVisible);
-  };
+    };
+  } else {
+    console.warn('Lyrics button not found!');
+  }
 
   const hideKaraoke = () => {
     const wasPromo = promoModeActive;
@@ -2403,6 +2602,7 @@
       lyricsFs.style.display = 'none';
       lyricsFs.classList.remove('promo-mode');
     }
+    
     try { adjustKaraokeBottomOffset && adjustKaraokeBottomOffset(); } catch(_) {}
     // Unpin player
     try { pinPlayerForOverlay(false); } catch(_) {}
@@ -2520,11 +2720,22 @@
     const current = lyricsFsVideo.currentTime || 0;
     durationEl.textContent = formatTime(duration || 0);
     currentTimeEl.textContent = formatTime(current);
+    if (carouselCurrentTime) carouselCurrentTime.textContent = formatTime(current);
+    if (carouselDuration) carouselDuration.textContent = formatTime(duration || 0);
     if (duration > 0) {
       const progress = (current / duration) * 100;
-      seekBar.value = Math.max(0, Math.min(100, progress));
+      const progressValue = Math.max(0, Math.min(100, progress));
+      seekBar.value = progressValue;
+      if (carouselSeekBar) {
+        carouselSeekBar.value = progressValue;
+        if (carouselSeekBarProgress) carouselSeekBarProgress.style.width = progressValue + '%';
+      }
     } else {
       seekBar.value = 0;
+      if (carouselSeekBar) {
+        carouselSeekBar.value = 0;
+        if (carouselSeekBarProgress) carouselSeekBarProgress.style.width = '0%';
+      }
     }
   }
 
@@ -2794,6 +3005,11 @@
       return;
     }
     queueIndex = idx;
+    // Update carousel if active
+    if (isCarouselMode && carouselCurrentIndex !== idx) {
+      carouselCurrentIndex = idx;
+      updateCarousel();
+    }
     const t = trackQueue[idx];
     console.log('Playing track:', t.title, 'from queue');
     console.log('Track src:', t.src);
@@ -3224,6 +3440,7 @@
     document.getElementById('track-status').textContent = '';
     savePlayerState();
     
+    
     // Reset crossfade state when new track starts
     crossfadeStarted = false;
     
@@ -3257,6 +3474,12 @@
       document.dispatchEvent(new CustomEvent('track:play', { detail: { trackId: currentTrackId } }));
     } catch(_) {}
     
+    // Update carousel if active
+    if (isCarouselMode && carouselCurrentIndex !== queueIndex) {
+      carouselCurrentIndex = queueIndex;
+      updateCarousel();
+    }
+    
     // If video panel is open, let video take over sound and sync time
     if (videoPanel && videoPanel.style.display === 'block' && inlineVideo) {
       try { inlineVideo.currentTime = isNaN(audio.currentTime) ? (inlineVideo.currentTime||0) : (audio.currentTime||0); } catch(_) {}
@@ -3280,6 +3503,7 @@
     updatePlayPauseUI();
     document.getElementById('track-status').textContent = '';
     savePlayerState();
+    
     
     // Update media session playback state
     if (window.updateMediaSessionPlaybackState) {
@@ -3314,8 +3538,14 @@
     if ((videoPanel && videoPanel.style.display === 'block' && inlineVideo && !inlineVideo.ended) || isPromoVideoActive()) {
       return;
     }
-    seekBar.value = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
+    const progress = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
+    seekBar.value = progress;
+    if (carouselSeekBar) {
+      carouselSeekBar.value = progress;
+      if (carouselSeekBarProgress) carouselSeekBarProgress.style.width = progress + '%';
+    }
     currentTimeEl.textContent = formatTime(audio.currentTime);
+    if (carouselCurrentTime) carouselCurrentTime.textContent = formatTime(audio.currentTime);
     savePlayerStateThrottled();
     
     // Check for crossfade trigger
@@ -3403,6 +3633,7 @@
       return;
     }
     durationEl.textContent = formatTime(audio.duration);
+    if (carouselDuration) carouselDuration.textContent = formatTime(audio.duration);
   });
   audio.addEventListener('ended', () => {
     console.log('Audio ended event triggered');
@@ -3442,32 +3673,46 @@
     playNext(true);
   });
 
-  seekBar.oninput = () => {
+  const handleSeekBarInput = (value) => {
     if (isPromoVideoActive() && lyricsFsVideo && Number.isFinite(lyricsFsVideo.duration) && lyricsFsVideo.duration > 0) {
-      const target = (seekBar.value / 100) * lyricsFsVideo.duration;
+      const target = (value / 100) * lyricsFsVideo.duration;
       try { lyricsFsVideo.currentTime = target; } catch(_) {}
       syncPromoVideoUI();
       return;
     }
     if (popupActive) {
       if (popupState.duration) {
-        const t = (seekBar.value / 100) * popupState.duration;
+        const t = (value / 100) * popupState.duration;
         const ok = postToPopup({ cmd: 'seek', currentTime: t }, { retries: 3, delay: 100 });
         if (!ok) {
           // fallback to local if needed
-          if (audio.duration) audio.currentTime = (seekBar.value / 100) * audio.duration;
+          if (audio.duration) audio.currentTime = (value / 100) * audio.duration;
         }
       }
       return;
     }
     if (audio.duration) {
-      audio.currentTime = (seekBar.value / 100) * audio.duration;
+      audio.currentTime = (value / 100) * audio.duration;
     }
     // Sync inline video position when visible
     if (videoPanel && videoPanel.style.display === 'block' && inlineVideo && inlineVideo.duration) {
-      try { inlineVideo.currentTime = (seekBar.value / 100) * inlineVideo.duration; } catch(_) {}
+      try { inlineVideo.currentTime = (value / 100) * inlineVideo.duration; } catch(_) {}
     }
   };
+  
+  seekBar.oninput = () => {
+    handleSeekBarInput(seekBar.value);
+  };
+  
+  if (carouselSeekBar) {
+    carouselSeekBar.oninput = () => {
+      const value = carouselSeekBar.value;
+      if (carouselSeekBarProgress) carouselSeekBarProgress.style.width = value + '%';
+      handleSeekBarInput(value);
+      // Also sync main seek bar
+      seekBar.value = value;
+    };
+  }
   volumeBar.oninput = () => {
     const newVolume = volumeBar.value / 100;
     const promoActive = isPromoVideoActive() && lyricsFsVideo;
@@ -4046,11 +4291,192 @@
     }
   }
 
-  fullscreenBtn.onclick = () => {
-    if (isFullscreen) {
-      exitFullscreen();
+  // Carousel mode functions - точно по коду из CoverFlow.tsx
+  function getCarouselTransform(index) {
+    const baseOffset = index - carouselCurrentIndex;
+    const offset = baseOffset + (carouselIsDragging ? carouselDragOffset / 100 : 0);
+    
+    const isMobile = window.innerWidth <= 768;
+    const SPACING = isMobile ? 120 : 160;
+    const ROTATION = 55;
+    
+    if (Math.abs(offset) < 0.1) {
+      return `translateX(0px) translateZ(300px) rotateY(0deg) scale(1.3)`;
+    } else if (offset < 0) {
+      const distance = Math.abs(offset);
+      const x = -SPACING * distance;
+      const z = -80 * distance;
+      const scale = Math.max(0.8, 1.15 - (distance * 0.04));
+      return `translateX(${x}px) translateZ(${z}px) rotateY(${ROTATION}deg) scale(${scale})`;
     } else {
-      enterFullscreen();
+      const distance = Math.abs(offset);
+      const x = SPACING * distance;
+      const z = -80 * distance;
+      const scale = Math.max(0.8, 1.15 - (distance * 0.04));
+      return `translateX(${x}px) translateZ(${z}px) rotateY(-${ROTATION}deg) scale(${scale})`;
+    }
+  }
+  
+  function getCarouselZIndex(index) {
+    const MAX_ZINDEX = 1000;
+    const offset = Math.abs(index - carouselCurrentIndex);
+    
+    if (offset === 0) return MAX_ZINDEX;
+    if (offset === 1) return 100;
+    if (offset === 2) return 50;
+    if (offset === 3) return 25;
+    if (offset === 4) return 15;
+    return Math.max(1, 10 - offset);
+  }
+  
+  function getCarouselOpacity(index) {
+    const baseOffset = index - carouselCurrentIndex;
+    const offset = Math.abs(baseOffset + (carouselIsDragging ? carouselDragOffset / 100 : 0));
+    
+    if (offset < 0.1) return 1;
+    if (offset <= 1) return 1;
+    if (offset <= 2) return 1;
+    if (offset <= 3) return 0.95;
+    if (offset <= 4) return 0.9;
+    return Math.max(0.8, 0.9 - ((offset - 4) * 0.05));
+  }
+  
+  function updateCarouselInfo() {
+    const currentTrack = trackQueue[carouselCurrentIndex];
+    if (currentTrack && carouselTrackTitle && carouselTrackArtist) {
+      carouselTrackTitle.textContent = currentTrack.title || '';
+      try {
+        const base = (currentTrack && typeof currentTrack.artist === 'string') ? currentTrack.artist.trim() : '';
+        const feats = (currentTrack && typeof currentTrack.feats === 'string') ? currentTrack.feats.trim() : '';
+        const combinedArtist = feats ? (base ? `${base}, ${feats}` : feats) : base;
+        carouselTrackArtist.textContent = combinedArtist;
+      } catch(_) {
+        carouselTrackArtist.textContent = currentTrack.artist || '';
+      }
+    }
+  }
+  
+  function updateCarousel() {
+    const carouselTrackEl = playerRoot.querySelector('#carousel-track');
+    if (!carouselTrackEl || !trackQueue.length) return;
+    
+    carouselTrackEl.innerHTML = '';
+    
+    trackQueue.forEach((track, index) => {
+      if (!track) return;
+    
+      const isActive = index === carouselCurrentIndex;
+      
+      const wrapper = document.createElement('div');
+      wrapper.className = 'carousel-cover-wrapper' + (isActive ? ' active' : '') + (carouselIsDragging ? ' dragging' : '');
+      
+      const container = document.createElement('div');
+      container.className = 'carousel-cover-container';
+      const isMobile = window.innerWidth <= 768;
+      const albumSize = isMobile ? 170 : 200;
+      container.style.width = albumSize + 'px';
+      container.style.height = albumSize + 'px';
+      
+      const cover = document.createElement('img');
+      cover.className = 'carousel-cover';
+      cover.src = track.cover || '';
+      cover.alt = track.title || '';
+      cover.draggable = false;
+      container.appendChild(cover);
+      
+      const glass = document.createElement('div');
+      glass.className = 'carousel-cover-glass';
+      container.appendChild(glass);
+      
+      if (track.cover) {
+      const reflection = document.createElement('div');
+      reflection.className = 'carousel-cover-reflection';
+        reflection.style.backgroundImage = `url(${track.cover})`;
+      container.appendChild(reflection);
+      }
+      
+      const floor = document.createElement('div');
+      floor.className = 'carousel-cover-floor';
+      container.appendChild(floor);
+      
+      if (isActive) {
+        const border = document.createElement('div');
+        border.className = 'carousel-cover-border';
+        container.appendChild(border);
+        
+        const indicator = document.createElement('div');
+        indicator.className = 'carousel-cover-indicator';
+        container.appendChild(indicator);
+        
+        const topLight = document.createElement('div');
+        topLight.className = 'carousel-cover-top-light';
+        container.appendChild(topLight);
+      }
+      
+      wrapper.appendChild(container);
+      
+      wrapper.style.transform = getCarouselTransform(index);
+      wrapper.style.zIndex = getCarouselZIndex(index) + 1000;
+      wrapper.style.opacity = getCarouselOpacity(index);
+      wrapper.style.transformOrigin = 'center center';
+      wrapper.style.transformStyle = 'preserve-3d';
+      wrapper.style.transition = carouselIsDragging ? 'none' : 'all 400ms cubic-bezier(0.23, 1, 0.32, 1)';
+      
+      wrapper.onclick = (e) => {
+        e.stopPropagation();
+        if (!carouselIsDragging && index !== carouselCurrentIndex) {
+          carouselCurrentIndex = index;
+          updateCarousel();
+          if (window.setQueue && window.playFromQueue) {
+            window.setQueue(trackQueue, index);
+            window.playFromQueue(index);
+          }
+        }
+      };
+      
+      carouselTrackEl.appendChild(wrapper);
+    });
+    
+    // Update carousel info after rendering
+    updateCarouselInfo();
+  }
+  
+  function formatTime(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+  
+  function enterCarouselMode() {
+    const overlay = playerRoot.querySelector('#carousel-overlay');
+    if (!overlay) return;
+    if (!trackQueue.length) return;
+    isCarouselMode = true;
+    carouselCurrentIndex = queueIndex || Math.floor(trackQueue.length / 2);
+    carouselIsDragging = false;
+    carouselDragOffset = 0;
+    updateCarousel();
+    overlay.style.display = 'block';
+    overlay.style.setProperty('display', 'block', 'important');
+    document.body.style.overflow = 'hidden';
+    // Sync button states
+    updatePlayPauseUI();
+    updateShuffleUI();
+  }
+  
+  function exitCarouselMode() {
+    const overlay = playerRoot.querySelector('#carousel-overlay');
+    if (!overlay) return;
+    isCarouselMode = false;
+    overlay.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  fullscreenBtn.onclick = () => {
+    if (isCarouselMode) {
+      exitCarouselMode();
+    } else {
+      enterCarouselMode();
     }
   };
   // Like button - single handler
@@ -4070,16 +4496,274 @@
       updatePlayerLikeUI();
       // Broadcast change so hearts update elsewhere
       try { document.dispatchEvent(new CustomEvent('likes:updated', { detail: { trackId: currentTrackId, liked: likedSet.has(currentTrackId) } })); } catch (_) {}
+      // Update carousel if it's open
+      if (isCarouselMode) {
+        updateCarousel();
+      }
     };
   }
 
   fullscreenClose.onclick = () => exitFullscreen();
   fullscreenBack.onclick = () => exitFullscreen();
+  
+  if (carouselClose) {
+    carouselClose.onclick = (e) => {
+      e.stopPropagation();
+      exitCarouselMode();
+    };
+  } else {
+    // Fallback: find button dynamically
+    const closeBtn = playerRoot.querySelector('#carousel-close');
+    if (closeBtn) {
+      closeBtn.onclick = (e) => {
+        e.stopPropagation();
+        exitCarouselMode();
+      };
+    }
+  }
+  
+  if (carouselPrev) {
+    carouselPrev.onclick = (e) => {
+      e.stopPropagation();
+      if (carouselCurrentIndex > 0) {
+        carouselCurrentIndex--;
+        updateCarousel();
+        if (window.setQueue && window.playFromQueue) {
+          window.setQueue(trackQueue, carouselCurrentIndex);
+          window.playFromQueue(carouselCurrentIndex);
+        }
+      }
+    };
+  }
+  
+  if (carouselNext) {
+    carouselNext.onclick = (e) => {
+      e.stopPropagation();
+      if (carouselCurrentIndex < trackQueue.length - 1) {
+        carouselCurrentIndex++;
+        updateCarousel();
+        if (window.setQueue && window.playFromQueue) {
+          window.setQueue(trackQueue, carouselCurrentIndex);
+          window.playFromQueue(carouselCurrentIndex);
+        }
+      }
+    };
+  }
+  
+  if (carouselPlay) {
+    carouselPlay.onclick = (e) => {
+      e.stopPropagation();
+      if (playBtn) playBtn.click();
+    };
+  }
+  
+  if (carouselShuffle) {
+    carouselShuffle.onclick = (e) => {
+      e.stopPropagation();
+      if (shuffleBtn) shuffleBtn.click();
+    };
+  }
+  
+  if (carouselVolume) {
+    carouselVolume.onclick = (e) => {
+      e.stopPropagation();
+      if (volumeBtn) volumeBtn.click();
+    };
+  }
+  
+  // Carousel menu button
+  const carouselMenuBtn = playerRoot.querySelector('#carousel-menu-btn');
+  if (carouselMenuBtn) {
+    carouselMenuBtn.onclick = (e) => {
+      e.stopPropagation();
+      // TODO: Add menu functionality
+      console.log('Menu clicked');
+    };
+  }
+  
+  // Carousel like button
+  const carouselLikeBtn = playerRoot.querySelector('#carousel-like-btn');
+  if (carouselLikeBtn) {
+    carouselLikeBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (likeBtn) likeBtn.click();
+    };
+    
+    // Sync like state
+    if (likeBtn) {
+      const updateCarouselLikeState = () => {
+        if (carouselLikeBtn && likeBtn) {
+          const isLiked = likeBtn.classList.contains('liked') || likeBtn.getAttribute('aria-pressed') === 'true';
+          if (isLiked) {
+            carouselLikeBtn.classList.add('liked');
+          } else {
+            carouselLikeBtn.classList.remove('liked');
+          }
+        }
+      };
+      
+      // Watch for like button changes
+      const likeObserver = new MutationObserver(updateCarouselLikeState);
+      if (likeBtn) {
+        likeObserver.observe(likeBtn, { attributes: true, attributeFilter: ['class', 'aria-pressed'] });
+      }
+      updateCarouselLikeState();
+    }
+  }
+  
 
-  // Handle Escape key to exit fullscreen
+  // Handle Escape key to exit fullscreen and carousel
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && isFullscreen) {
       exitFullscreen();
+    }
+    if (e.key === 'Escape' && isCarouselMode) {
+      exitCarouselMode();
+    }
+  });
+  
+  // Update carousel when track changes
+  audio.addEventListener('play', () => {
+    if (isCarouselMode && carouselCurrentIndex !== queueIndex) {
+      carouselCurrentIndex = queueIndex;
+      updateCarousel();
+    }
+  });
+  
+  // Update carousel when likes change
+  document.addEventListener('likes:updated', (e) => {
+    if (isCarouselMode && e.detail && e.detail.trackId) {
+      const track = trackQueue[carouselCurrentIndex];
+      if (track && track.id === e.detail.trackId) {
+        updateCarousel();
+      }
+    }
+  });
+  
+  // Drag/swipe support - точно по коду из CoverFlow.tsx
+  const carouselTrackWrapper = playerRoot.querySelector('#carousel-track-wrapper');
+  
+  function handleCarouselDragStart(clientX) {
+    if (!isCarouselMode) return;
+    carouselIsDragging = true;
+    carouselDragStartPos = clientX;
+    carouselDragOffset = 0;
+    carouselVelocity = 0;
+    carouselLastDragTime = Date.now();
+    updateCarousel();
+  }
+  
+  function handleCarouselDragMove(clientX) {
+    if (!isCarouselMode || !carouselIsDragging) return;
+    
+    const currentTime = Date.now();
+    const deltaTime = currentTime - carouselLastDragTime;
+    const newOffset = clientX - carouselDragStartPos;
+    const deltaOffset = newOffset - carouselDragOffset;
+    
+    carouselDragOffset = newOffset;
+    carouselVelocity = deltaOffset / Math.max(deltaTime, 1);
+    carouselLastDragTime = currentTime;
+    updateCarousel();
+  }
+  
+  function handleCarouselDragEnd() {
+    if (!isCarouselMode || !carouselIsDragging) return;
+    carouselIsDragging = false;
+    
+    const threshold = 50;
+    const velocityThreshold = 0.5;
+    const highVelocityThreshold = 2.0;
+    
+    let targetIndex = carouselCurrentIndex;
+    const dragDistance = Math.abs(carouselDragOffset);
+    const dragVelocity = Math.abs(carouselVelocity);
+    
+    if (dragDistance > threshold || dragVelocity > velocityThreshold) {
+      let jumpCount = 1;
+      
+      if (dragVelocity > highVelocityThreshold) {
+        jumpCount = Math.min(2, Math.ceil(dragVelocity / 1.5));
+      }
+      
+      if (dragDistance > threshold * 2) {
+        jumpCount = Math.max(jumpCount, Math.floor(dragDistance / (threshold * 1.5)));
+      }
+      
+      if (carouselDragOffset < 0 || carouselVelocity < -velocityThreshold) {
+        targetIndex = Math.min(trackQueue.length - 1, carouselCurrentIndex + jumpCount);
+      } else if (carouselDragOffset > 0 || carouselVelocity > velocityThreshold) {
+        targetIndex = Math.max(0, carouselCurrentIndex - jumpCount);
+      }
+    }
+    
+    carouselCurrentIndex = targetIndex;
+    carouselDragOffset = 0;
+    carouselVelocity = 0;
+    updateCarousel();
+    if (window.setQueue && window.playFromQueue) {
+      window.setQueue(trackQueue, carouselCurrentIndex);
+      window.playFromQueue(carouselCurrentIndex);
+    }
+  }
+  
+  if (carouselTrackWrapper) {
+    carouselTrackWrapper.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      handleCarouselDragStart(e.clientX);
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+      if (!isCarouselMode || !carouselIsDragging) return;
+      handleCarouselDragMove(e.clientX);
+    });
+    
+    document.addEventListener('mouseup', () => {
+      if (!isCarouselMode || !carouselIsDragging) return;
+      handleCarouselDragEnd();
+    });
+    
+    carouselTrackWrapper.addEventListener('touchstart', (e) => {
+      handleCarouselDragStart(e.touches[0].clientX);
+    });
+    
+    carouselTrackWrapper.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      handleCarouselDragMove(e.touches[0].clientX);
+    });
+    
+    carouselTrackWrapper.addEventListener('touchend', () => {
+      handleCarouselDragEnd();
+    });
+  }
+  
+  // Keyboard navigation - точно по коду из CoverFlow.tsx
+  document.addEventListener('keydown', (e) => {
+    if (!isCarouselMode) return;
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      const newIndex = Math.max(0, carouselCurrentIndex - 1);
+      carouselCurrentIndex = newIndex;
+      updateCarousel();
+      if (window.setQueue && window.playFromQueue) {
+        window.setQueue(trackQueue, newIndex);
+        window.playFromQueue(newIndex);
+      }
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      const newIndex = Math.min(trackQueue.length - 1, carouselCurrentIndex + 1);
+      carouselCurrentIndex = newIndex;
+      updateCarousel();
+      if (window.setQueue && window.playFromQueue) {
+        window.setQueue(trackQueue, newIndex);
+        window.playFromQueue(newIndex);
+      }
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (window.setQueue && window.playFromQueue) {
+        window.setQueue(trackQueue, carouselCurrentIndex);
+        window.playFromQueue(carouselCurrentIndex);
+      }
     }
   });
 
