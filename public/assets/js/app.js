@@ -3095,6 +3095,108 @@ function showAlbumContextMenu(event, album, albumIndex) {
 		let currentType = 'all';
 		let searchTimeout;
 
+
+		// Search button handler
+		searchBtn.addEventListener('click', () => {
+			const query = searchInput.value.trim();
+			if (query.length >= 2) {
+				performSearch(query, currentType);
+			}
+		});
+
+		// Filter buttons handler
+		filterBtns.forEach(btn => {
+			btn.addEventListener('click', () => {
+				filterBtns.forEach(b => b.classList.remove('active'));
+				btn.classList.add('active');
+				currentType = btn.dataset.type;
+				
+				const query = searchInput.value.trim();
+				if (query.length >= 2) {
+					performSearch(query, currentType);
+				}
+			});
+		});
+
+		// Enter key handler
+		searchInput.addEventListener('keypress', (e) => {
+			if (e.key === 'Enter') {
+				const query = searchInput.value.trim();
+				if (query.length >= 2) {
+					performSearch(query, currentType);
+				}
+			}
+		});
+
+		async function performSearch(query, type) {
+			searchResults.innerHTML = '<div class="search-loading">Поиск...</div>';
+			
+			try {
+				// Используем быстрый API для Windows
+				const apiUrl = isWindows ? 
+					`/muzic2/src/api/search_windows.php?q=${encodeURIComponent(query)}&type=${type}` :
+					`/muzic2/src/api/search.php?q=${encodeURIComponent(query)}&type=${type}`;
+				
+				const response = await fetch(apiUrl);
+				const data = await response.json();
+				
+				if (data.error) {
+					searchResults.innerHTML = `<div class="search-error">Ошибка: ${data.error}</div>`;
+					return;
+				}
+				
+				displaySearchResults(data, query);
+			} catch (error) {
+				searchResults.innerHTML = '<div class="search-error">Ошибка при поиске</div>';
+			}
+		}
+
+		function displaySearchResults(data, query) {
+			let html = '';
+			
+			if (currentType === 'all') {
+				// Show all results grouped by type
+				if (data.tracks.length > 0) {
+					html += '<div class="search-section"><h4>Треки</h4><div class="search-tracks-list">';
+					html += data.tracks.map(track => createTrackCard(track)).join('');
+					html += '</div></div>';
+				}
+				
+				if (data.artists.length > 0) {
+					html += '<div class="search-section"><h4>Артисты</h4><div class="artist-row search-artists-row">';
+					html += data.artists.map(artist => createArtistCard(artist)).join('');
+					html += '</div></div>';
+				}
+				
+				if (data.albums.length > 0) {
+					html += '<div class="search-section"><h4>Альбомы</h4><div class="tile-row search-albums-row">';
+					html += data.albums.map(album => createAlbumCard(album)).join('');
+					html += '</div></div>';
+				}
+			} else {
+				// Show specific type results
+				const results = data[currentType] || [];
+				if (results.length > 0) {
+					if (currentType === 'tracks') {
+						html = '<div class="search-tracks-list">' + results.map(item => createTrackCard(item)).join('') + '</div>';
+					} else if (currentType === 'artists') {
+						html = '<div class="artist-row search-artists-row">' + results.map(item => createArtistCard(item)).join('') + '</div>';
+					} else if (currentType === 'albums') {
+						html = '<div class="tile-row search-albums-row">' + results.map(item => createAlbumCard(item)).join('') + '</div>';
+					}
+				}
+			}
+			
+			if (!html) {
+				html = '<div class="no-results">Ничего не найдено</div>';
+			}
+			
+			searchResults.innerHTML = html;
+			
+			// Update play buttons after rendering
+			updateSearchTrackButtons();
+		}
+
 		// Search input handler
 		searchInput.addEventListener('input', (e) => {
 			clearTimeout(searchTimeout);
@@ -3141,6 +3243,30 @@ function showAlbumContextMenu(event, album, albumIndex) {
 				}
 			}
 		});
+		
+		// Search input handler
+		searchInput.addEventListener('input', (e) => {
+			clearTimeout(searchTimeout);
+			const query = e.target.value.trim();
+			
+			if (query.length < 2) {
+				showSearchPlaceholder();
+				return;
+			}
+
+			searchTimeout = setTimeout(() => {
+				performSearch(query, currentType);
+			}, 300);
+		});
+		
+		function showSearchPlaceholder() {
+			searchResults.innerHTML = `
+				<div class="search-placeholder">
+					<h3>Начните поиск</h3>
+					<p>Введите название трека, артиста или альбома</p>
+				</div>
+			`;
+		}
 
 		async function performSearch(query, type) {
 			searchResults.innerHTML = '<div class="search-loading">Поиск...</div>';

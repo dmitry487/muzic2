@@ -4452,7 +4452,12 @@
     if (!overlay) return;
     if (!trackQueue.length) return;
     isCarouselMode = true;
-    carouselCurrentIndex = queueIndex || Math.floor(trackQueue.length / 2);
+    // Use current queueIndex, or 0 if not set, ensuring we start with the currently playing track
+    carouselCurrentIndex = (typeof queueIndex === 'number' && queueIndex >= 0) ? queueIndex : 0;
+    // Ensure index is within bounds
+    if (carouselCurrentIndex >= trackQueue.length) {
+      carouselCurrentIndex = 0;
+    }
     carouselIsDragging = false;
     carouselDragOffset = 0;
     updateCarousel();
