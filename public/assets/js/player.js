@@ -23,7 +23,7 @@
       .player-controls { display: flex; align-items: center; justify-content: center; gap: 12px; }
       .player-controls button { background: transparent; border: none; color: #fff; cursor: pointer; padding: 6px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
       .player-controls button:hover { background: #1f1f1f; }
-      #play-btn { background: #fff !important; color: #000 !important; width: 64px !important; height: 64px !important; border-radius: 50% !important; padding: 0 !important; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+      #play-btn { background: #fff !important; color: #000 !important; border-radius: 50% !important; padding: 0 !important; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
       #play-btn:hover { background: #f0f0f0 !important; }
       #play-btn svg { width: 24px !important; height: 24px !important; }
       #pause-icon { width: 24px !important; height: 24px !important; }
@@ -364,7 +364,6 @@
         #carousel-current-time, #carousel-duration { font-size: 0.85rem; }
         #carousel-controls { gap: 12px; margin-top: 1.2rem; }
         #carousel-controls button { width: 44px; height: 44px; padding: 6px; }
-        #carousel-play-btn { width: 64px !important; height: 64px !important; }
         #carousel-play-btn svg { width: 24px !important; height: 24px !important; }
         #carousel-pause-icon { width: 24px !important; height: 24px !important; }
         #carousel-prev-btn svg, #carousel-next-btn svg { width: 24px; height: 24px; }
@@ -5182,6 +5181,23 @@
         postToPopup({ cmd: 'pause' });
       }
     } catch(_) {}
+  };
+  
+  // Global function to get current track ID
+  window.getCurrentTrackId = function() {
+    return currentTrackId;
+  };
+  
+  // Global function to check if player is paused
+  window.isPlayerPaused = function() {
+    try {
+      const playerRoot = document.getElementById('player-root');
+      if (!playerRoot) return true;
+      const audio = playerRoot.querySelector('#audio');
+      return audio ? audio.paused : true;
+    } catch(_) {
+      return true;
+    }
   };
 
   // Set queue function for external use
