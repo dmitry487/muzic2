@@ -112,6 +112,81 @@
         .loading.show {
             display: block;
         }
+        .album-card {
+            background: #0f0f0f;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border: 2px solid #333;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .album-card:hover {
+            border-color: #1db954;
+            background: #1a1a1a;
+        }
+        .album-card.selected {
+            border-color: #1db954;
+            background: #1a2a1a;
+        }
+        .album-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .album-cover-large {
+            width: 120px;
+            height: 120px;
+            border-radius: 8px;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+        .album-info {
+            flex: 1;
+        }
+        .album-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .album-meta {
+            color: #b3b3b3;
+            font-size: 0.9rem;
+        }
+        .album-tracks {
+            margin-top: 1rem;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .track-checkbox {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem;
+            margin: 0.25rem 0;
+            background: #0a0a0a;
+            border-radius: 4px;
+        }
+        .track-checkbox input[type="checkbox"] {
+            margin-right: 0.75rem;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        .track-checkbox label {
+            flex: 1;
+            cursor: pointer;
+            margin: 0;
+        }
+        .album-actions {
+            margin-top: 1rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+        .album-actions button {
+            flex: 1;
+            margin-top: 0;
+        }
     </style>
 </head>
 <body>
@@ -153,11 +228,38 @@
             <div class="result" id="metadataResult">
                 <h3>Результат:</h3>
                 <div id="metadataContent"></div>
-                <div id="metadataActions" style="margin-top: 1rem; display: none;">
+                    <div id="metadataActions" style="margin-top: 1rem; display: none;">
                     <button onclick="saveMetadataAsNew()" style="background: #1db954; margin-right: 0.5rem;">💾 Сохранить как новый трек</button>
                     <button onclick="updateExistingTrack()" style="background: #333; margin-right: 0.5rem;">🔄 Обновить существующий трек</button>
-                    <button onclick="saveArtistFromMetadata()" style="background: #2962ff;">👤 Сохранить артиста (из метаданных)</button>
+                    <button onclick="saveArtistFromMetadata()" style="background: #2962ff; margin-right: 0.5rem;">👤 Сохранить артиста (из метаданных)</button>
+                    <button onclick="addAlbumFromTracks()" style="background: #ff6b00; display: none;" id="addAlbumFromTracksBtn">📀 Добавить альбом из треков</button>
                 </div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>🚀 Быстрое добавление альбома</h2>
+            <p style="color: #666; margin-bottom: 1rem;">
+                Получите все треки артиста (или конкретного альбома), выберите альбом и добавьте его целиком с обложкой и метаданными. Поиск улучшен: можно указать название альбома для более точного результата.
+            </p>
+            <div class="form-group">
+                <label>Артист *</label>
+                <input type="text" id="albumArtist" placeholder="Имя артиста (обязательно)">
+            </div>
+            <div class="form-group">
+                <label>Название альбома (опционально)</label>
+                <input type="text" id="albumName" placeholder="Название альбома - для более точного поиска">
+                <small style="color: #666; display: block; margin-top: 0.25rem;">Если указано, будет искаться конкретный альбом. Если не указано, будут загружены все альбомы артиста.</small>
+            </div>
+            <button onclick="loadAlbumsForArtist()">📀 Загрузить альбомы</button>
+            
+            <div class="result" id="albumListResult" style="display: none;">
+                <h3>Найденные альбомы:</h3>
+                <div id="albumListContent"></div>
+            </div>
+            
+            <div class="result" id="addAlbumResult" style="display: none;">
+                <div id="addAlbumContent"></div>
             </div>
         </div>
         
@@ -285,6 +387,8 @@
         }
         
         let currentMetadata = null;
+        let currentAlbumsData = null; // Хранит данные всех альбомов артиста
+        let allTracksFromMetadata = null; // Хранит все треки из getMetadata для добавления альбома
         
         async function getMetadata() {
             const title = document.getElementById('trackTitle').value.trim();
@@ -321,6 +425,8 @@
                 const data = await response.json();
                 
                 if (data.success && data.tracks && data.tracks.length > 0) {
+                    allTracksFromMetadata = data.tracks; // Сохраняем для добавления альбома
+                    
                     // Если указано название, ищем конкретный трек
                     if (title) {
                         const exactMatch = data.tracks.find(t => 
@@ -353,6 +459,10 @@
                                 </div>
                             `;
                             actions.style.display = 'block';
+                            // Показываем кнопку добавления альбома, если есть альбом
+                            if (exactMatch.album) {
+                                document.getElementById('addAlbumFromTracksBtn').style.display = 'inline-block';
+                            }
                         } else {
                             // Показываем все треки если точного совпадения нет
                             showAllTracks(data.tracks, content, actions);
@@ -395,6 +505,124 @@
                 </div>
             `;
             actions.style.display = 'none';
+            // Показываем кнопку добавления альбома если есть треки с альбомами
+            const hasAlbums = tracks.some(t => t.album);
+            if (hasAlbums) {
+                document.getElementById('addAlbumFromTracksBtn').style.display = 'inline-block';
+            } else {
+                document.getElementById('addAlbumFromTracksBtn').style.display = 'none';
+            }
+        }
+        
+        async function addAlbumFromTracks() {
+            if (!allTracksFromMetadata || allTracksFromMetadata.length === 0) {
+                alert('Сначала получите треки артиста');
+                return;
+            }
+            
+            // Группируем треки по альбомам
+            const albumsMap = {};
+            allTracksFromMetadata.forEach(track => {
+                const albumName = track.album || 'Без альбома';
+                if (!albumsMap[albumName]) {
+                    albumsMap[albumName] = {
+                        name: albumName,
+                        artist: track.artist,
+                        cover: track.cover || '',
+                        year: track.year || '',
+                        tracks: [],
+                        totalDuration: 0
+                    };
+                }
+                albumsMap[albumName].tracks.push(track);
+                albumsMap[albumName].totalDuration += track.duration || 0;
+            });
+            
+            const albums = Object.values(albumsMap);
+            
+            if (albums.length === 0) {
+                alert('Не найдено альбомов в списке треков');
+                return;
+            }
+            
+            // Если один альбом, добавляем его сразу
+            if (albums.length === 1) {
+                await addSingleAlbumFromTracks(albums[0]);
+                return;
+            }
+            
+            // Если несколько альбомов, показываем выбор
+            const albumNames = albums.map(a => a.name).join('\n');
+            const selectedAlbumName = prompt(`Найдено ${albums.length} альбомов:\n\n${albumNames}\n\nВведите название альбома для добавления:`);
+            
+            if (!selectedAlbumName) return;
+            
+            const selectedAlbum = albums.find(a => a.name.toLowerCase() === selectedAlbumName.toLowerCase());
+            if (selectedAlbum) {
+                await addSingleAlbumFromTracks(selectedAlbum);
+            } else {
+                alert('Альбом не найден в списке');
+            }
+        }
+        
+        async function addSingleAlbumFromTracks(album) {
+            const usePlaceholder = confirm(`Добавить альбом "${album.name}"?\n\nТреков: ${album.tracks.length}\nДлительность: ${formatTime(album.totalDuration)}\n\nИспользовать placeholder пути к файлам?`);
+            
+                    const tracks = album.tracks.map(track => ({
+                        title: track.title,
+                        duration: track.duration || 0,
+                        file_path: usePlaceholder ? 'tracks/music/' + track.title.replace(/[^a-zA-Z0-9а-яА-Я\s]/g, '').trim().replace(/\s+/g, '_') + '.mp3' : 'tracks/music/placeholder.mp3',
+                        explicit: track.explicit || 0,
+                        trackNumber: track.trackNumber || null,
+                        discNumber: track.discNumber || null,
+                        genre: track.genre || null,
+                        year: track.year || null,
+                        previewUrl: track.previewUrl || null,
+                        collectionId: track.collectionId || null
+                    }));
+            
+            const albumType = tracks.length <= 3 ? 'single' : (tracks.length <= 7 ? 'ep' : 'album');
+            
+            const result = document.getElementById('metadataResult');
+            const content = document.getElementById('metadataContent');
+            
+            content.innerHTML = '<p>Добавление альбома...</p>';
+            result.classList.add('show');
+            
+            try {
+                const response = await fetch('/muzic2/add_album_api.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        album_name: album.name,
+                        artist_name: album.artist,
+                        album_type: albumType,
+                        selectedCover: album.cover || '',
+                        release_year: album.year || new Date().getFullYear(),
+                        description: '',
+                        tracks: tracks
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    content.innerHTML = `
+                        <div class="result-item">
+                            <strong>✅ Альбом успешно добавлен!</strong><br>
+                            <strong>Название:</strong> ${data.data.album_name}<br>
+                            <strong>Артист:</strong> ${data.data.artist_name}<br>
+                            <strong>Треков:</strong> ${data.data.tracks_count}<br>
+                            <strong>Длительность:</strong> ${data.data.total_duration}
+                        </div>
+                        ${data.data.cover ? `<img src="${data.data.cover}" class="cover-preview" alt="cover">` : ''}
+                    `;
+                } else {
+                    content.innerHTML = '<p style="color: #ff4444;">Ошибка: ' + (data.message || 'Неизвестная ошибка') + '</p>';
+                }
+            } catch (error) {
+                content.innerHTML = '<p style="color: #ff4444;">Ошибка: ' + error.message + '</p>';
+            }
         }
         
         function selectTrackFromList(title, artist, album) {
@@ -419,10 +647,18 @@
                 return;
             }
             
-            const filePath = prompt('Введите путь к файлу трека (например: tracks/music/track.mp3):');
+            // Улучшенный ввод пути к файлу с автозаполнением
+            const defaultPath = 'tracks/music/' + (currentMetadata.title || 'track').replace(/[^a-zA-Z0-9а-яА-Я\s]/g, '').trim().replace(/\s+/g, '_') + '.mp3';
+            const filePath = prompt('Введите путь к файлу трека:', defaultPath);
             if (!filePath) {
                 return;
             }
+            
+            const result = document.getElementById('metadataResult');
+            const content = document.getElementById('metadataContent');
+            
+            content.innerHTML = '<p>Добавление трека...</p>';
+            result.classList.add('show');
             
             try {
                 const response = await fetch('/muzic2/src/api/music_metadata.php', {
@@ -442,18 +678,31 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    alert('✅ Трек успешно добавлен! ID: ' + data.id);
+                    content.innerHTML = `
+                        <div class="result-item">
+                            <strong>✅ Трек успешно добавлен!</strong><br>
+                            <strong>ID:</strong> ${data.id}<br>
+                            <strong>Название:</strong> ${currentMetadata.title}<br>
+                            <strong>Артист:</strong> ${currentMetadata.artist}<br>
+                            <strong>Альбом:</strong> ${currentMetadata.album || 'Не указан'}<br>
+                            <strong>Длительность:</strong> ${currentMetadata.duration ? formatTime(currentMetadata.duration) : 'Неизвестна'}
+                        </div>
+                        ${currentMetadata.cover ? `<img src="${currentMetadata.cover}" class="cover-preview" alt="cover">` : ''}
+                    `;
+                    
                     // Обновляем форму
-                    document.getElementById('trackTitle').value = '';
-                    document.getElementById('trackArtist').value = '';
-                    document.getElementById('trackAlbum').value = '';
-                    document.getElementById('metadataResult').classList.remove('show');
-                    currentMetadata = null;
+                    setTimeout(() => {
+                        document.getElementById('trackTitle').value = '';
+                        document.getElementById('trackArtist').value = '';
+                        document.getElementById('trackAlbum').value = '';
+                        result.classList.remove('show');
+                        currentMetadata = null;
+                    }, 3000);
                 } else {
-                    alert('❌ Ошибка: ' + (data.error || data.message || 'Неизвестная ошибка'));
+                    content.innerHTML = '<p style="color: #ff4444;">Ошибка: ' + (data.error || data.message || 'Неизвестная ошибка') + '</p>';
                 }
             } catch (error) {
-                alert('❌ Ошибка: ' + error.message);
+                content.innerHTML = '<p style="color: #ff4444;">Ошибка: ' + error.message + '</p>';
             }
         }
         
@@ -578,6 +827,13 @@
                     cover: ''
                 };
                 
+                // Если путь не указан, предлагаем автогенерированный
+                let finalFilePath = filePath;
+                if (!filePath || filePath === 'tracks/music/') {
+                    const autoPath = 'tracks/music/' + (metadata.title || title).replace(/[^a-zA-Z0-9а-яА-Я\s]/g, '').trim().replace(/\s+/g, '_') + '.mp3';
+                    finalFilePath = prompt('Путь к файлу:', autoPath) || autoPath;
+                }
+                
                 // Сохраняем трек
                 const saveResponse = await fetch('/muzic2/src/api/music_metadata.php', {
                     method: 'POST',
@@ -589,7 +845,7 @@
                         album: metadata.album || '',
                         duration: metadata.duration || 0,
                         cover: metadata.cover || '',
-                        file_path: filePath
+                        file_path: finalFilePath
                     })
                 });
                 
@@ -603,19 +859,25 @@
                             <strong>Название:</strong> ${metadata.title || title}<br>
                             <strong>Артист:</strong> ${metadata.artist || artist}<br>
                             <strong>Альбом:</strong> ${metadata.album || 'Не указан'}<br>
-                            <strong>Длительность:</strong> ${metadata.duration ? formatTime(metadata.duration) : 'Неизвестна'}
+                            <strong>Длительность:</strong> ${metadata.duration ? formatTime(metadata.duration) : 'Неизвестна'}<br>
+                            <strong>Путь:</strong> ${finalFilePath}
                         </div>
                         ${metadata.cover ? `
                             <div class="result-item">
                                 <img src="${metadata.cover}" class="cover-preview" alt="cover">
                             </div>
                         ` : ''}
+                        <div style="margin-top: 1rem;">
+                            <button onclick="document.getElementById('trackFilePath').value = '${finalFilePath}'; document.getElementById('newTrackTitle').value = '${metadata.title || title}'; document.getElementById('newTrackArtist').value = '${metadata.artist || artist}';" style="background: #333;">📋 Скопировать данные для следующего трека</button>
+                        </div>
                     `;
                     
-                    // Очищаем форму
-                    document.getElementById('trackFilePath').value = '';
-                    document.getElementById('newTrackTitle').value = '';
-                    document.getElementById('newTrackArtist').value = '';
+                    // Очищаем форму через 3 секунды (чтобы пользователь мог скопировать данные)
+                    setTimeout(() => {
+                        document.getElementById('trackFilePath').value = '';
+                        document.getElementById('newTrackTitle').value = '';
+                        document.getElementById('newTrackArtist').value = '';
+                    }, 5000);
                 } else {
                     content.innerHTML = '<p style="color: #ff4444;">Ошибка: ' + (saveData.error || saveData.message || 'Неизвестная ошибка') + '</p>';
                 }
@@ -763,6 +1025,282 @@
         document.getElementById('searchQuery').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') searchTracks();
         });
+        
+        // Быстрое добавление альбома
+        async function loadAlbumsForArtist() {
+            const artist = document.getElementById('albumArtist').value.trim();
+            const albumName = document.getElementById('albumName').value.trim();
+            
+            if (!artist) {
+                alert('Введите имя артиста');
+                return;
+            }
+            
+            const result = document.getElementById('albumListResult');
+            const content = document.getElementById('albumListContent');
+            
+            content.innerHTML = `<p>Загрузка ${albumName ? 'альбома "' + albumName + '"' : 'альбомов'} артиста "${artist}"...<br><small style="color: #666;">Это может занять некоторое время, загружается до 2500 треков...</small></p>`;
+            result.style.display = 'block';
+            
+            try {
+                // Получаем все треки артиста (или конкретного альбома)
+                const response = await fetch('/muzic2/src/api/music_metadata.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'get_metadata',
+                        artist: artist,
+                        album: albumName,
+                        get_all_tracks: true
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.tracks && data.tracks.length > 0) {
+                    // Группируем треки по альбомам
+                    const albumsMap = {};
+                    data.tracks.forEach(track => {
+                        const albumName = track.album || 'Без альбома';
+                        if (!albumsMap[albumName]) {
+                            albumsMap[albumName] = {
+                                name: albumName,
+                                artist: track.artist,
+                                cover: '', // Инициализируем пустой обложкой
+                                year: track.year || '',
+                                tracks: [],
+                                totalDuration: 0
+                            };
+                        }
+                        // Если у трека есть обложка и у альбома её нет, используем обложку трека
+                        if (track.cover && track.cover.trim() && (!albumsMap[albumName].cover || albumsMap[albumName].cover.trim() === '')) {
+                            albumsMap[albumName].cover = track.cover.trim();
+                        }
+                        albumsMap[albumName].tracks.push(track);
+                        albumsMap[albumName].totalDuration += track.duration || 0;
+                    });
+                    
+                    currentAlbumsData = Object.values(albumsMap);
+                    
+                    // Отображаем альбомы
+                    content.innerHTML = currentAlbumsData.map((album, index) => `
+                        <div class="album-card" id="album-${index}" onclick="selectAlbum(${index})">
+                            <div class="album-header">
+                                ${album.cover ? `<img src="${album.cover}" class="album-cover-large" alt="cover">` : '<div class="album-cover-large" style="background: #333; display: flex; align-items: center; justify-content: center; color: #666;">Нет обложки</div>'}
+                                <div class="album-info">
+                                    <div class="album-title">${album.name}</div>
+                                    <div class="album-meta">
+                                        Артист: ${album.artist}<br>
+                                        Треков: ${album.tracks.length}<br>
+                                        Длительность: ${formatTime(album.totalDuration)}<br>
+                                        ${album.year ? `Год: ${album.year}` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="album-tracks" id="album-tracks-${index}" style="display: none;">
+                                <div style="margin-bottom: 0.5rem;">
+                                    <label style="cursor: pointer;">
+                                        <input type="checkbox" id="select-all-${index}" onchange="toggleAllTracks(${index}, this.checked)" checked>
+                                        Выбрать все (${album.tracks.length} треков)
+                                    </label>
+                                </div>
+                                ${album.tracks.map((track, trackIndex) => `
+                                    <div class="track-checkbox">
+                                        <input type="checkbox" id="track-${index}-${trackIndex}" class="album-track-checkbox" data-album="${index}" data-track="${trackIndex}" checked>
+                                        <label for="track-${index}-${trackIndex}">
+                                            <strong>${track.title}</strong>
+                                            ${track.duration ? ` (${formatTime(track.duration)})` : ''}
+                                        </label>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <div class="album-actions" id="album-actions-${index}" style="display: none;">
+                                <button onclick="event.stopPropagation(); addAlbumQuickly(${index});" style="background: #1db954;">💾 Добавить альбом</button>
+                                <button onclick="event.stopPropagation(); toggleAlbumTracks(${index});" style="background: #333;">📋 Показать треки</button>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    content.innerHTML = '<p style="color: #ff4444;">Альбомы не найдены</p>';
+                    currentAlbumsData = null;
+                }
+            } catch (error) {
+                content.innerHTML = '<p style="color: #ff4444;">Ошибка: ' + error.message + '</p>';
+                currentAlbumsData = null;
+            }
+        }
+        
+        function selectAlbum(index) {
+            // Убираем выделение с других альбомов
+            document.querySelectorAll('.album-card').forEach(card => {
+                card.classList.remove('selected');
+                const cardIndex = parseInt(card.id.split('-')[1]);
+                if (cardIndex !== index) {
+                    document.getElementById(`album-tracks-${cardIndex}`).style.display = 'none';
+                    document.getElementById(`album-actions-${cardIndex}`).style.display = 'none';
+                }
+            });
+            
+            // Выделяем выбранный альбом
+            const albumCard = document.getElementById(`album-${index}`);
+            albumCard.classList.add('selected');
+            
+            // Показываем/скрываем треки и действия
+            toggleAlbumTracks(index);
+        }
+        
+        function toggleAlbumTracks(index) {
+            const tracksDiv = document.getElementById(`album-tracks-${index}`);
+            const actionsDiv = document.getElementById(`album-actions-${index}`);
+            
+            if (tracksDiv.style.display === 'none') {
+                tracksDiv.style.display = 'block';
+                actionsDiv.style.display = 'flex';
+            } else {
+                tracksDiv.style.display = 'none';
+                actionsDiv.style.display = 'none';
+            }
+        }
+        
+        function toggleAllTracks(albumIndex, checked) {
+            const checkboxes = document.querySelectorAll(`input.album-track-checkbox[data-album="${albumIndex}"]`);
+            checkboxes.forEach(cb => cb.checked = checked);
+        }
+        
+        async function addAlbumQuickly(albumIndex) {
+            if (!currentAlbumsData || !currentAlbumsData[albumIndex]) {
+                alert('Данные альбома не загружены');
+                return;
+            }
+            
+            const album = currentAlbumsData[albumIndex];
+            const selectedTracks = [];
+            
+            // Находим обложку из выбранных треков (если у альбома её нет)
+            let albumCover = album.cover || '';
+            if (!albumCover || albumCover.trim() === '') {
+                // Ищем обложку в выбранных треках
+                const checkboxes = document.querySelectorAll(`input.album-track-checkbox[data-album="${albumIndex}"]:checked`);
+                for (let cb of checkboxes) {
+                    const trackIndex = parseInt(cb.getAttribute('data-track'));
+                    if (album.tracks[trackIndex] && album.tracks[trackIndex].cover && album.tracks[trackIndex].cover.trim()) {
+                        albumCover = album.tracks[trackIndex].cover.trim();
+                        break; // Берем первую найденную обложку
+                    }
+                }
+            }
+            
+            // Собираем выбранные треки с расширенными метаданными
+            const checkboxes = document.querySelectorAll(`input.album-track-checkbox[data-album="${albumIndex}"]:checked`);
+            checkboxes.forEach(cb => {
+                const trackIndex = parseInt(cb.getAttribute('data-track'));
+                if (album.tracks[trackIndex]) {
+                    const track = album.tracks[trackIndex];
+                    selectedTracks.push({
+                        title: track.title,
+                        duration: track.duration || 0,
+                        file_path: 'tracks/music/' + track.title.replace(/[^a-zA-Z0-9а-яА-Я\s]/g, '').trim().replace(/\s+/g, '_') + '.mp3',
+                        cover: track.cover || '', // ВАЖНО: передаем обложку трека
+                        explicit: track.explicit || 0,
+                        trackNumber: track.trackNumber || null,
+                        discNumber: track.discNumber || null,
+                        genre: track.genre || null,
+                        year: track.year || null,
+                        previewUrl: track.previewUrl || null,
+                        collectionId: track.collectionId || null
+                    });
+                }
+            });
+            
+            if (selectedTracks.length === 0) {
+                alert('Выберите хотя бы один трек');
+                return;
+            }
+            
+            // Определяем тип альбома
+            const albumType = selectedTracks.length <= 3 ? 'single' : (selectedTracks.length <= 7 ? 'ep' : 'album');
+            
+            // Запрашиваем путь к файлам
+            const usePlaceholder = confirm(`Найдено ${selectedTracks.length} треков.\n\nИспользовать placeholder пути (tracks/music/track.mp3)?\n\nНажмите OK для placeholder, Отмена для ручного ввода.`);
+            
+            if (!usePlaceholder) {
+                const pathsInput = prompt(`Введите пути к файлам через запятую (по одному на строку):\n\n${selectedTracks.map((t, i) => `${i + 1}. ${t.title}`).join('\n')}\n\nИли оставьте пустым для placeholder.`);
+                if (pathsInput !== null) {
+                    const paths = pathsInput.split('\n').map(p => p.trim()).filter(p => p);
+                    if (paths.length === selectedTracks.length) {
+                        selectedTracks.forEach((track, i) => {
+                            track.file_path = paths[i] || track.file_path;
+                        });
+                    }
+                }
+            }
+            
+            const result = document.getElementById('addAlbumResult');
+            const content = document.getElementById('addAlbumContent');
+            
+            content.innerHTML = '<p>Добавление альбома...</p>';
+            result.style.display = 'block';
+            
+            try {
+                // Используем найденную обложку или обложку альбома
+                const finalCover = albumCover || album.cover || '';
+                
+                // Логируем для отладки
+                console.log('Adding album with cover:', finalCover);
+                console.log('Album data:', album);
+                console.log('Selected tracks:', selectedTracks);
+                
+                const response = await fetch('/muzic2/add_album_api.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        album_name: album.name,
+                        artist_name: album.artist,
+                        album_type: albumType,
+                        selectedCover: finalCover,
+                        release_year: album.year || new Date().getFullYear(),
+                        description: '',
+                        tracks: selectedTracks
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    let errorData;
+                    try {
+                        errorData = JSON.parse(errorText);
+                    } catch (e) {
+                        errorData = { message: errorText };
+                    }
+                    throw new Error(errorData.message || `HTTP ${response.status}: ${errorText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    content.innerHTML = `
+                        <div class="result-item">
+                            <strong>✅ Альбом успешно добавлен!</strong><br>
+                            <strong>Название:</strong> ${data.data.album_name}<br>
+                            <strong>Артист:</strong> ${data.data.artist_name}<br>
+                            <strong>Тип:</strong> ${data.data.album_type}<br>
+                            <strong>Треков:</strong> ${data.data.tracks_count}<br>
+                            <strong>Длительность:</strong> ${data.data.total_duration}<br>
+                            ${data.data.cover ? `<img src="${data.data.cover}" class="cover-preview" alt="cover">` : ''}
+                        </div>
+                    `;
+                    
+                    // Очищаем форму
+                    document.getElementById('albumArtist').value = '';
+                    document.getElementById('albumName').value = '';
+                } else {
+                    content.innerHTML = '<p style="color: #ff4444;">Ошибка: ' + (data.message || 'Неизвестная ошибка') + '</p>';
+                }
+            } catch (error) {
+                console.error('Ошибка при добавлении альбома:', error);
+                content.innerHTML = '<p style="color: #ff4444;">Ошибка: ' + error.message + '</p>';
+            }
+        }
     </script>
 </body>
 </html>

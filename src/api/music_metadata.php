@@ -43,7 +43,13 @@ function getMetadataFromiTunes($title, $artist, $limit = 1) {
             'duration' => isset($result['trackTimeMillis']) ? round($result['trackTimeMillis'] / 1000) : 0,
             'genre' => $result['primaryGenreName'] ?? '',
             'year' => isset($result['releaseDate']) ? date('Y', strtotime($result['releaseDate'])) : '',
-            'source' => 'iTunes'
+            'source' => 'iTunes',
+            'trackNumber' => $result['trackNumber'] ?? null,
+            'discNumber' => $result['discNumber'] ?? null,
+            'collectionId' => $result['collectionId'] ?? null,
+            'explicit' => isset($result['trackExplicitness']) && $result['trackExplicitness'] === 'explicit' ? 1 : 0,
+            'previewUrl' => $result['previewUrl'] ?? '',
+            'itunesUrl' => $result['trackViewUrl'] ?? ''
         ];
     }
     
@@ -60,7 +66,12 @@ function getMetadataFromiTunes($title, $artist, $limit = 1) {
             'year' => isset($result['releaseDate']) ? date('Y', strtotime($result['releaseDate'])) : '',
             'source' => 'iTunes',
             'trackId' => $result['trackId'] ?? null,
-            'previewUrl' => $result['previewUrl'] ?? ''
+            'trackNumber' => $result['trackNumber'] ?? null,
+            'discNumber' => $result['discNumber'] ?? null,
+            'collectionId' => $result['collectionId'] ?? null,
+            'explicit' => isset($result['trackExplicitness']) && $result['trackExplicitness'] === 'explicit' ? 1 : 0,
+            'previewUrl' => $result['previewUrl'] ?? '',
+            'itunesUrl' => $result['trackViewUrl'] ?? ''
         ];
     }
     
@@ -70,7 +81,7 @@ function getMetadataFromiTunes($title, $artist, $limit = 1) {
 /**
  * Получить все треки артиста из iTunes API
  */
-function getArtistTracksFromiTunes($artist, $maxResults = 1000) {
+function getArtistTracksFromiTunes($artist, $maxResults = 2000, $albumName = '') {
     $artistLower = mb_strtolower($artist, 'UTF-8');
     $tracks = [];
     $trackIds = [];
@@ -80,13 +91,16 @@ function getArtistTracksFromiTunes($artist, $maxResults = 1000) {
     $page = 0;
     $maxPages = max(1, ceil($maxResults / $perPage));
     
+    // Формируем поисковый запрос: если указан альбом, ищем по артисту и альбому
+    $searchTerm = $albumName ? "$artist $albumName" : $artist;
+    
     while ($page < $maxPages) {
         $offset = $page * $perPage;
         $query = http_build_query([
-            'term' => $artist,
+            'term' => $searchTerm,
             'media' => 'music',
             'entity' => 'song',
-            'attribute' => 'artistTerm',
+            'attribute' => $albumName ? 'allArtistTerm' : 'artistTerm',
             'limit' => $perPage,
             'offset' => $offset
         ]);
@@ -107,10 +121,10 @@ function getArtistTracksFromiTunes($artist, $maxResults = 1000) {
     }
     
     $data = json_decode($response, true);
-        $results = $data['results'] ?? [];
-        if (empty($results)) {
-            break;
-        }
+    $results = $data['results'] ?? [];
+    if (empty($results)) {
+        break;
+    }
         
         foreach ($results as $result) {
             // Берем только треки
@@ -128,6 +142,15 @@ function getArtistTracksFromiTunes($artist, $maxResults = 1000) {
                 continue; // дубликат
             }
             
+            // Фильтруем по альбому, если указан
+            if ($albumName) {
+                $resultAlbum = mb_strtolower($result['collectionName'] ?? '', 'UTF-8');
+                $albumNameLower = mb_strtolower($albumName, 'UTF-8');
+                if (strpos($resultAlbum, $albumNameLower) === false && strpos($albumNameLower, $resultAlbum) === false) {
+                    continue;
+                }
+            }
+            
             $tracks[] = [
                 'title' => $result['trackName'] ?? '',
                 'artist' => $result['artistName'] ?? '',
@@ -138,7 +161,14 @@ function getArtistTracksFromiTunes($artist, $maxResults = 1000) {
                 'year' => isset($result['releaseDate']) ? date('Y', strtotime($result['releaseDate'])) : '',
                 'source' => 'iTunes',
                 'trackId' => $currentTrackId,
-                'previewUrl' => $result['previewUrl'] ?? ''
+                'previewUrl' => $result['previewUrl'] ?? '',
+                'trackNumber' => $result['trackNumber'] ?? null,
+                'discNumber' => $result['discNumber'] ?? null,
+                'collectionId' => $result['collectionId'] ?? null,
+                'collectionPrice' => $result['collectionPrice'] ?? null,
+                'currency' => $result['currency'] ?? null,
+                'country' => $result['country'] ?? null,
+                'explicit' => isset($result['trackExplicitness']) && $result['trackExplicitness'] === 'explicit' ? 1 : 0
             ];
             
             if ($currentTrackId) {
@@ -165,73 +195,107 @@ function getArtistTracksFromiTunes($artist, $maxResults = 1000) {
 /**
  * Получить треки артиста из Deezer (public API, без ключа)
  */
-function getArtistTracksFromDeezer($artist, $maxResults = 300) {
+function getArtistTracksFromDeezer($artist, $maxResults = 500, $albumName = '') {
     $artistLower = mb_strtolower($artist, 'UTF-8');
     $tracks = [];
     $trackIds = [];
     
-    // Deezer поддерживает limit до 300 за запрос
+    // Deezer поддерживает limit до 300 за запрос, но можно делать несколько запросов
     $limit = max(1, min(300, (int)$maxResults));
-    $query = http_build_query([
-        'q' => 'artist:"' . $artist . '"',
-        'limit' => $limit
-    ]);
     
-    $url = "https://api.deezer.com/search?$query";
+    // Формируем поисковый запрос
+    $searchQuery = $albumName ? 'artist:"' . $artist . '" album:"' . $albumName . '"' : 'artist:"' . $artist . '"';
     
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 20);
-    curl_setopt($ch, CURLOPT_USERAGENT, 'Muzic2/1.0');
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    // Делаем несколько запросов для получения большего количества треков
+    $totalFetched = 0;
+    $index = 0;
     
-    if ($httpCode !== 200 || !$response) {
-        return [];
-    }
+    while ($totalFetched < $maxResults && $index < 5) { // Максимум 5 запросов (до 1500 треков)
+        $query = http_build_query([
+            'q' => $searchQuery,
+            'limit' => $limit,
+            'index' => $index * $limit
+        ]);
     
-    $data = json_decode($response, true);
-    if (empty($data['data'])) {
-        return [];
-    }
-    
-    foreach ($data['data'] as $item) {
-        // `artist` и `album` приходят вложенными объектами
-        $resultArtist = isset($item['artist']['name']) ? mb_strtolower($item['artist']['name'], 'UTF-8') : '';
-        if (strpos($resultArtist, $artistLower) === false && strpos($artistLower, $resultArtist) === false) {
-            continue;
-        }
+        $url = "https://api.deezer.com/search?$query";
         
-        $currentTrackId = $item['id'] ?? null;
-        if ($currentTrackId && isset($trackIds[$currentTrackId])) {
-            continue; // пропускаем дубликаты
-        }
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'Muzic2/1.0');
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
         
-        $album = $item['album']['title'] ?? '';
-        $cover = $item['album']['cover_big'] ?? ($item['album']['cover_medium'] ?? ($item['album']['cover'] ?? ''));
-        
-        $tracks[] = [
-            'title' => $item['title'] ?? '',
-            'artist' => $item['artist']['name'] ?? '',
-            'album' => $album,
-            'cover' => $cover,
-            'duration' => isset($item['duration']) ? (int)$item['duration'] : 0,
-            'genre' => '', // Deezer search API не всегда возвращает жанр
-            'year' => '',  // год можно получить через дополнительные запросы, здесь опускаем
-            'source' => 'Deezer',
-            'trackId' => $currentTrackId,
-            'previewUrl' => $item['preview'] ?? ''
-        ];
-        
-        if ($currentTrackId) {
-            $trackIds[$currentTrackId] = true;
-        }
-        
-        if (count($tracks) >= $maxResults) {
+        if ($httpCode !== 200 || !$response) {
             break;
         }
+        
+        $data = json_decode($response, true);
+        if (empty($data['data'])) {
+            break;
+        }
+        
+        foreach ($data['data'] as $item) {
+            // `artist` и `album` приходят вложенными объектами
+            $resultArtist = isset($item['artist']['name']) ? mb_strtolower($item['artist']['name'], 'UTF-8') : '';
+            if (strpos($resultArtist, $artistLower) === false && strpos($artistLower, $resultArtist) === false) {
+                continue;
+            }
+            
+            // Фильтруем по альбому, если указан
+            if ($albumName) {
+                $resultAlbum = mb_strtolower($item['album']['title'] ?? '', 'UTF-8');
+                $albumNameLower = mb_strtolower($albumName, 'UTF-8');
+                if (strpos($resultAlbum, $albumNameLower) === false && strpos($albumNameLower, $resultAlbum) === false) {
+                    continue;
+                }
+            }
+            
+            $currentTrackId = $item['id'] ?? null;
+            if ($currentTrackId && isset($trackIds[$currentTrackId])) {
+                continue; // пропускаем дубликаты
+            }
+            
+            $album = $item['album']['title'] ?? '';
+            $cover = $item['album']['cover_big'] ?? ($item['album']['cover_medium'] ?? ($item['album']['cover'] ?? ''));
+            
+            $tracks[] = [
+                'title' => $item['title'] ?? '',
+                'artist' => $item['artist']['name'] ?? '',
+                'album' => $album,
+                'cover' => $cover,
+                'duration' => isset($item['duration']) ? (int)$item['duration'] : 0,
+                'genre' => $item['genre'] ?? ($item['album']['genre'] ?? ''),
+                'year' => isset($item['release_date']) ? date('Y', strtotime($item['release_date'])) : (isset($item['album']['release_date']) ? date('Y', strtotime($item['album']['release_date'])) : ''),
+                'source' => 'Deezer',
+                'trackId' => $currentTrackId,
+                'previewUrl' => $item['preview'] ?? '',
+                'trackNumber' => $item['track_position'] ?? null,
+                'discNumber' => $item['disk_number'] ?? null,
+                'albumId' => $item['album']['id'] ?? null,
+                'explicit' => isset($item['explicit_lyrics']) && $item['explicit_lyrics'] ? 1 : 0,
+                'bpm' => $item['bpm'] ?? null,
+                'gain' => $item['gain'] ?? null
+            ];
+            
+            if ($currentTrackId) {
+                $trackIds[$currentTrackId] = true;
+            }
+            
+            $totalFetched++;
+            if ($totalFetched >= $maxResults) {
+                break 2;
+            }
+        }
+        
+        // Если вернулось меньше треков, больше данных нет
+        if (count($data['data']) < $limit) {
+            break;
+        }
+        
+        $index++;
     }
     
     return $tracks;
@@ -406,9 +470,10 @@ if ($method === 'POST') {
         // Если запрашиваются все треки артиста
         if ($getAllTracks || empty($title)) {
             // Собираем треки из iTunes и Deezer, затем объединяем и убираем дубликаты
-            $itunesTracks = getArtistTracksFromiTunes($artist, 1000);
-            $deezerTracks = getArtistTracksFromDeezer($artist, 300);
-            $tracks = mergeArtistTracks([$itunesTracks, $deezerTracks], 1000);
+            // Увеличиваем лимиты: iTunes до 2000, Deezer до 500
+            $itunesTracks = getArtistTracksFromiTunes($artist, 2000, $album);
+            $deezerTracks = getArtistTracksFromDeezer($artist, 500, $album);
+            $tracks = mergeArtistTracks([$itunesTracks, $deezerTracks], 2500);
             
             if (!empty($tracks)) {
                 echo json_encode(['success' => true, 'tracks' => $tracks, 'count' => count($tracks)]);
@@ -470,9 +535,13 @@ if ($method === 'POST') {
         }
         
         // Собираем треки из iTunes и Deezer и объединяем
-        $itunesTracks = getArtistTracksFromiTunes($artist, $limit);
-        $deezerTracks = getArtistTracksFromDeezer($artist, min($limit, 300));
-        $tracks = mergeArtistTracks([$itunesTracks, $deezerTracks], $limit);
+        // Увеличиваем лимиты
+        $albumName = trim($input['album'] ?? '');
+        $itunesLimit = max($limit, 2000); // Минимум 2000 для iTunes
+        $deezerLimit = max(min($limit, 500), 500); // Минимум 500 для Deezer
+        $itunesTracks = getArtistTracksFromiTunes($artist, $itunesLimit, $albumName);
+        $deezerTracks = getArtistTracksFromDeezer($artist, $deezerLimit, $albumName);
+        $tracks = mergeArtistTracks([$itunesTracks, $deezerTracks], max($limit, 2500));
         
         if (!empty($tracks)) {
             echo json_encode(['success' => true, 'tracks' => $tracks, 'count' => count($tracks)]);
