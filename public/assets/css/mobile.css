@@ -1,0 +1,125 @@
+/* Muzic2 — мобильная версия (телефон) и удобство на MacBook */
+
+/* Безопасные отступы для вырезов и домашней индикатора (iPhone X+) */
+#app {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+}
+#main-header {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+}
+#player-root,
+#player {
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    padding-left: max(8px, env(safe-area-inset-left));
+    padding-right: max(8px, env(safe-area-inset-right));
+}
+
+/* Минимальный размер зон нажатия для касаний (44px) */
+@media (max-width: 768px) {
+    #main-nav button,
+    .filter-btn,
+    .see-all-btn,
+    .hero-btn {
+        min-height: 44px;
+        min-width: 44px;
+        padding: 0.5rem 1rem;
+    }
+    .track-card,
+    .tile,
+    .card {
+        min-height: 44px;
+    }
+    .track-card *[role="button"],
+    .tile button,
+    .card button {
+        min-height: 44px;
+        min-width: 44px;
+    }
+}
+
+/* Телефон: нижняя навигация для удобства одной рукой */
+@media (max-width: 600px) {
+    #main-header {
+        flex-wrap: wrap;
+        padding-bottom: 0.5rem;
+    }
+    .logo {
+        flex: 1;
+        min-width: 0;
+    }
+    #main-nav {
+        order: 3;
+        width: 100%;
+        margin-top: 0.25rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid rgba(255,255,255,0.08);
+        justify-content: space-around;
+        gap: 0;
+    }
+    #main-nav button {
+        flex: 1;
+        font-size: 0.85rem;
+        padding: 0.5rem 0.25rem;
+    }
+    #user-panel {
+        order: 2;
+    }
+    /* Контент не перекрывается нижней панелью и плеером */
+    #main-content {
+        padding-bottom: 80px;
+    }
+    .main-section {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+    .card-row,
+    .tile-row {
+        gap: 0.75rem;
+    }
+    .tile,
+    .card {
+        min-width: 120px;
+        max-width: 160px;
+    }
+    .tile-cover,
+    .card img {
+        width: 100%;
+        aspect-ratio: 1;
+    }
+}
+
+/* Очень узкий экран (мелкие телефоны) */
+@media (max-width: 380px) {
+    .logo {
+        font-size: 1rem;
+    }
+    #main-nav button {
+        font-size: 0.75rem;
+        padding: 0.4rem 0.2rem;
+    }
+    .tile,
+    .card {
+        min-width: 100px;
+        max-width: 140px;
+    }
+}
+
+/* Уменьшение анимаций для экономии батареи и доступности */
+@media (max-width: 768px) {
+    .spotlight.pulse,
+    .hero-btn,
+    .tile:hover .tile-play {
+        animation-duration: 0.5s;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .spotlight.pulse,
+    .hero-btn,
+    * {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}

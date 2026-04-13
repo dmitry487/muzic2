@@ -1,11 +1,12 @@
-// Service Worker для Muzic2 PWA
-const CACHE_NAME = 'muzic2-v1';
-const RUNTIME_CACHE = 'muzic2-runtime-v1';
+ // Service Worker для Muzic2 PWA
+const CACHE_NAME = 'muzic2-v2';
+const RUNTIME_CACHE = 'muzic2-runtime-v2';
 
-// Ресурсы для кэширования при установке
+// Ресурсы для кэширования при установке (телефон + MacBook)
 const PRECACHE_URLS = [
   '/muzic2/public/index.php',
   '/muzic2/public/assets/css/style.css',
+  '/muzic2/public/assets/css/mobile.css',
   '/muzic2/public/assets/js/app.js',
   '/muzic2/public/assets/js/player.js',
   '/muzic2/public/assets/img/playlist-placeholder.png',

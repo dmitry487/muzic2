@@ -11,6 +11,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <title>Muzic2 — Музыкальный сервис</title>
     <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/mobile.css">
     <link rel="icon" href="../favicon.ico" type="image/x-icon">
     <link rel="manifest" href="/muzic2/public/manifest.json">
     <link rel="apple-touch-icon" href="/muzic2/public/assets/img/icon-192x192.png">
