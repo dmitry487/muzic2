@@ -412,6 +412,23 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
+/* Текущий трек из очереди плеера (в т.ч. после перезагрузки — id в localStorage) */
+.track-item-numbered.track-row-now-playing {
+    background: rgba(30, 215, 96, 0.14);
+    outline: 1px solid rgba(30, 215, 96, 0.45);
+    box-shadow: 0 0 0 1px rgba(30, 215, 96, 0.12) inset;
+}
+
+.track-item-numbered.track-row-now-playing .track-title-primary {
+    color: #1ed760;
+    font-weight: 600;
+}
+
+.track-item-numbered.track-row-now-playing .track-number,
+.track-item-numbered.track-row-now-playing .track-duration {
+    color: #1ed760;
+}
+
 .track-number {
     width: 20px;
     text-align: center;
@@ -549,6 +566,13 @@
 
 .track-item-numbered:hover .track-more-btn {
     opacity: 1;
+}
+
+/* Устройства без hover (тач): иначе «⋯» невидима и кажется, что меню «не работает» */
+@media (hover: none) {
+    .track-more-btn {
+        opacity: 1;
+    }
 }
 
 .track-more-btn:hover {

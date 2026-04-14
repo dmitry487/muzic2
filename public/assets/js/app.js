@@ -2158,6 +2158,237 @@ function showAlbumContextMenu(event, album, albumIndex) {
 		}
 	}
 
+	function removeAnyContextMenu() {
+		try {
+			document.querySelectorAll('.context-menu').forEach((el) => el.remove());
+		} catch (_) {}
+	}
+
+	function positionFixedContextMenu(menu, anchorEl) {
+		document.body.appendChild(menu);
+		const margin = 8;
+		const place = () => {
+			const rect = anchorEl.getBoundingClientRect();
+			const mw = menu.offsetWidth || 200;
+			const mh = menu.offsetHeight || 1;
+			let left = rect.right - mw;
+			if (left < margin) left = rect.left;
+			if (left + mw > window.innerWidth - margin) {
+				left = Math.max(margin, window.innerWidth - margin - mw);
+			}
+			let top = rect.bottom + margin;
+			if (top + mh > window.innerHeight - margin) {
+				top = Math.max(margin, rect.top - mh - margin);
+			}
+			menu.style.position = 'fixed';
+			menu.style.left = left + 'px';
+			menu.style.top = top + 'px';
+			menu.style.zIndex = '20000';
+		};
+		place();
+		requestAnimationFrame(place);
+	}
+
+	function bindDismissContextMenu(menu) {
+		const onClose = (e) => {
+			if (!menu.contains(e.target)) {
+				menu.remove();
+				document.removeEventListener('click', onClose, true);
+				document.removeEventListener('contextmenu', onClose, true);
+				window.removeEventListener('scroll', onClose, true);
+				window.removeEventListener('resize', onClose, true);
+			}
+		};
+		setTimeout(() => {
+			document.addEventListener('click', onClose, true);
+			document.addEventListener('contextmenu', onClose, true);
+			window.addEventListener('scroll', onClose, true);
+			window.addEventListener('resize', onClose, true);
+		}, 0);
+	}
+
+	function openSpaArtistTrackMenu(event, track) {
+		event.preventDefault();
+		event.stopPropagation();
+		const anchor = event.currentTarget || (event.target && event.target.closest && event.target.closest('button'));
+		if (!anchor) return;
+
+		removeAnyContextMenu();
+
+		const menu = document.createElement('div');
+		menu.className = 'context-menu show';
+
+		const isLiked = !!(window.__likedSet && window.__likedSet.has(track.id));
+		const favItem = document.createElement('button');
+		favItem.type = 'button';
+		favItem.className = 'context-menu-item';
+		favItem.innerHTML = `<i class="${isLiked ? 'fas' : 'far'} fa-heart" style="font-size: 0.9rem; color: ${isLiked ? '#1ed760' : '#b3b3b3'};"></i><span>${isLiked ? 'Убрать из избранного' : 'Добавить в избранное'}</span>`;
+		favItem.onclick = async () => {
+			try {
+				if (!window.__likedSet) window.__likedSet = new Set();
+				const likesUrl = getLikesAPI();
+				if (window.__likedSet.has(track.id)) {
+					await fetch(likesUrl, { method: 'DELETE', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ track_id: track.id }) });
+					window.__likedSet.delete(track.id);
+				} else {
+					await fetch(likesUrl, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ track_id: track.id }) });
+					window.__likedSet.add(track.id);
+				}
+			} catch (_) {}
+			try {
+				document.dispatchEvent(new CustomEvent('likes:updated', { detail: { trackId: track.id, liked: window.__likedSet && window.__likedSet.has(track.id) } }));
+			} catch (_) {}
+			menu.remove();
+		};
+		menu.appendChild(favItem);
+
+		const trackArtist = (track && typeof track.artist === 'string') ? track.artist.trim() : '';
+		if (trackArtist) {
+			const goArtist = document.createElement('button');
+			goArtist.type = 'button';
+			goArtist.className = 'context-menu-item';
+			goArtist.innerHTML = '<i class="fas fa-user" style="font-size: 0.9rem; color: #b3b3b3;"></i><span>Перейти к артисту</span>';
+			goArtist.onclick = () => {
+				navigateTo('artist', { artist: trackArtist });
+				menu.remove();
+			};
+			menu.appendChild(goArtist);
+		}
+
+		const trackAlbum = (track && typeof track.album === 'string') ? track.album.trim() : '';
+		if (trackAlbum) {
+			const goAlbum = document.createElement('button');
+			goAlbum.type = 'button';
+			goAlbum.className = 'context-menu-item';
+			goAlbum.innerHTML = '<i class="fas fa-compact-disc" style="font-size: 0.9rem; color: #b3b3b3;"></i><span>Перейти к альбому</span>';
+			goAlbum.onclick = () => {
+				navigateTo('album', { album: trackAlbum });
+				menu.remove();
+			};
+			menu.appendChild(goAlbum);
+		}
+
+		positionFixedContextMenu(menu, anchor);
+		bindDismissContextMenu(menu);
+	}
+
+	function openSpaArtistHeaderMenu(event, artistData) {
+		event.preventDefault();
+		event.stopPropagation();
+		const anchor = event.currentTarget || (event.target && event.target.closest && event.target.closest('button'));
+		if (!anchor) return;
+
+		removeAnyContextMenu();
+
+		const menu = document.createElement('div');
+		menu.className = 'context-menu show';
+
+		const copyLink = document.createElement('button');
+		copyLink.type = 'button';
+		copyLink.className = 'context-menu-item';
+		copyLink.innerHTML = '<i class="fas fa-link" style="font-size: 0.9rem; color: #b3b3b3;"></i><span>Скопировать ссылку</span>';
+		copyLink.onclick = async () => {
+			const url = String(window.location);
+			try {
+				await navigator.clipboard.writeText(url);
+			} catch (_) {
+				try {
+					const ta = document.createElement('textarea');
+					ta.value = url;
+					ta.style.position = 'fixed';
+					ta.style.top = '-1000px';
+					document.body.appendChild(ta);
+					ta.focus();
+					ta.select();
+					document.execCommand('copy');
+					ta.remove();
+				} catch (_) {}
+			}
+			menu.remove();
+		};
+		menu.appendChild(copyLink);
+
+		const copyName = document.createElement('button');
+		copyName.type = 'button';
+		copyName.className = 'context-menu-item';
+		copyName.innerHTML = '<i class="fas fa-copy" style="font-size: 0.9rem; color: #b3b3b3;"></i><span>Скопировать имя</span>';
+		copyName.onclick = async () => {
+			const name = (artistData && artistData.name) ? String(artistData.name) : '';
+			try {
+				await navigator.clipboard.writeText(name);
+			} catch (_) {
+				try {
+					const ta = document.createElement('textarea');
+					ta.value = name;
+					ta.style.position = 'fixed';
+					ta.style.top = '-1000px';
+					document.body.appendChild(ta);
+					ta.focus();
+					ta.select();
+					document.execCommand('copy');
+					ta.remove();
+				} catch (_) {}
+			}
+			menu.remove();
+		};
+		menu.appendChild(copyName);
+
+		positionFixedContextMenu(menu, anchor);
+		bindDismissContextMenu(menu);
+	}
+
+	function spaQueueItemFromTrack(tt, data) {
+		const s = tt.file_path || '';
+		if (!s) return null;
+		const src = /^https?:/i.test(s) ? s : (s.indexOf('tracks/') !== -1 ? '/muzic2/' + s.slice(s.indexOf('tracks/')) : '/muzic2/' + s.replace(/^\/+/, ''));
+		return {
+			id: tt.id,
+			src: encodeURI(src),
+			title: tt.title,
+			artist: tt.artist,
+			feats: tt.feats || '',
+			cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg'),
+			video_url: tt.video_url || '',
+			explicit: !!tt.explicit,
+			file_path: tt.file_path || ''
+		};
+	}
+
+	function getNowPlayingTrackIdForSpaHighlight() {
+		let id = null;
+		try {
+			if (typeof window.getCurrentTrackId === 'function') {
+				id = window.getCurrentTrackId();
+			}
+		} catch (_) {}
+		if (id != null && id !== '') return id;
+		try {
+			const raw = localStorage.getItem('muzic2_player_queue');
+			const idx = parseInt(localStorage.getItem('muzic2_player_queue_index') || '0', 10);
+			const q = raw ? JSON.parse(raw) : [];
+			const cur = q && !isNaN(idx) && q[idx];
+			if (cur && cur.id != null && cur.id !== '') return cur.id;
+		} catch (_) {}
+		return null;
+	}
+
+	function refreshArtistSpaNowPlayingHighlight() {
+		const list = document.getElementById('popular-tracks');
+		if (!list) return;
+		const id = getNowPlayingTrackIdForSpaHighlight();
+		list.querySelectorAll('.track-item-numbered').forEach((el) => {
+			const rowId = el.getAttribute('data-track-id');
+			el.classList.toggle('track-row-now-playing', id != null && rowId != null && String(rowId) === String(id));
+		});
+	}
+
+	if (!window.__muzicSpaArtistPlayingHighlightListeners) {
+		window.__muzicSpaArtistPlayingHighlightListeners = true;
+		const fn = () => { try { refreshArtistSpaNowPlayingHighlight(); } catch (_) {} };
+		document.addEventListener('track:change', fn);
+		document.addEventListener('track:play', fn);
+	}
+
 	async function renderArtistSPA(artistName){
 		mainContent.innerHTML = '<div class="loading">Загрузка артиста...</div>';
 		try {
@@ -2516,7 +2747,8 @@ function showAlbumContextMenu(event, album, albumIndex) {
 			
 			tracksToShow.forEach((t,i)=>{ 
 				const d=document.createElement('div'); 
-				d.className='track-item-numbered'; 
+				d.className='track-item-numbered';
+				if (t.id != null && t.id !== '') d.dataset.trackId = String(t.id);
 				const likedClass = window.__likedSet && window.__likedSet.has(t.id) ? 'liked' : '';
                 const combined = (t.feats && String(t.feats).trim()) ? `${t.artist}, ${t.feats}` : (t.artist||'');
 				d.innerHTML=`
@@ -2534,12 +2766,7 @@ function showAlbumContextMenu(event, album, albumIndex) {
 				`; 
 				d.onclick=(e)=>{
 					if(e.target.closest('.track-like-btn') || e.target.closest('.track-more-btn')) return;
-					const q=(allTracks).map(tt=>{
-						const s = tt.file_path || '';
-						if(!s) return null;
-						const src = /^https?:/i.test(s) ? s : (s.indexOf('tracks/') !== -1 ? '/muzic2/' + s.slice(s.indexOf('tracks/')) : '/muzic2/' + s.replace(/^\/+/, ''));
-						return { src: encodeURI(src), title: tt.title, artist: tt.artist, feats: tt.feats || '', cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg'), video_url: tt.video_url || '' };
-					}).filter(t => t !== null);
+					const q=(allTracks).map(tt => spaQueueItemFromTrack(tt, data)).filter(t => t !== null);
 					if(q.length){ 
 						window.setQueue && window.setQueue(q, i); 
 						window.playFromQueue && window.playFromQueue(i); 
@@ -2565,8 +2792,13 @@ function showAlbumContextMenu(event, album, albumIndex) {
 						}
 					};
 				}
+				const trackMoreBtn = d.querySelector('.track-more-btn');
+				if (trackMoreBtn) {
+					trackMoreBtn.addEventListener('click', (e) => openSpaArtistTrackMenu(e, t));
+				}
 				list.appendChild(d); 
 			});
+			try { refreshArtistSpaNowPlayingHighlight(); } catch (_) {}
 			
 			// Show more button handler
 			const showMoreBtn = document.getElementById('show-more-tracks');
@@ -2576,7 +2808,8 @@ function showAlbumContextMenu(event, album, albumIndex) {
 					const nextBatch = allTracks.slice(visibleTracksCount, visibleTracksCount + 10);
 					nextBatch.forEach((t, idx) => {
 						const d=document.createElement('div'); 
-						d.className='track-item-numbered'; 
+						d.className='track-item-numbered';
+						if (t.id != null && t.id !== '') d.dataset.trackId = String(t.id);
 						const likedClass = window.__likedSet && window.__likedSet.has(t.id) ? 'liked' : '';
 						const combined = (t.feats && String(t.feats).trim()) ? `${t.artist}, ${t.feats}` : (t.artist||'');
 						d.innerHTML=`
@@ -2594,12 +2827,7 @@ function showAlbumContextMenu(event, album, albumIndex) {
 						`;
 						d.onclick=(e)=>{
 							if(e.target.closest('.track-like-btn') || e.target.closest('.track-more-btn')) return;
-							const q=(allTracks).map(tt=>{
-								const s = tt.file_path || '';
-								if(!s) return null;
-								const src = /^https?:/i.test(s) ? s : (s.indexOf('tracks/') !== -1 ? '/muzic2/' + s.slice(s.indexOf('tracks/')) : '/muzic2/' + s.replace(/^\/+/, ''));
-								return { src: encodeURI(src), title: tt.title, artist: tt.artist, feats: tt.feats || '', cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg'), video_url: tt.video_url || '' };
-							}).filter(t => t !== null);
+							const q=(allTracks).map(tt => spaQueueItemFromTrack(tt, data)).filter(t => t !== null);
 							if(q.length){ 
 								window.setQueue && window.setQueue(q, visibleTracksCount + idx); 
 								window.playFromQueue && window.playFromQueue(visibleTracksCount + idx); 
@@ -2624,8 +2852,13 @@ function showAlbumContextMenu(event, album, albumIndex) {
 								}
 							};
 						}
+						const trackMoreBtn = d.querySelector('.track-more-btn');
+						if (trackMoreBtn) {
+							trackMoreBtn.addEventListener('click', (e) => openSpaArtistTrackMenu(e, t));
+						}
 						list.appendChild(d);
 					});
+					try { refreshArtistSpaNowPlayingHighlight(); } catch (_) {}
 					visibleTracksCount += nextBatch.length;
 					if(visibleTracksCount >= allTracks.length) {
 						showMoreBtn.style.display = 'none';
@@ -2705,17 +2938,18 @@ function showAlbumContextMenu(event, album, albumIndex) {
 			// Play all button
 			
 			document.getElementById('play-all-btn').onclick=()=>{ 
-				const q=(data.top_tracks||[]).map(tt=>{
-					const s = tt.file_path || '';
-					if(!s) return null;
-					const src = /^https?:/i.test(s) ? s : (s.indexOf('tracks/') !== -1 ? '/muzic2/' + s.slice(s.indexOf('tracks/')) : '/muzic2/' + s.replace(/^\/+/, ''));
-					return { src: encodeURI(src), title: tt.title, artist: tt.artist, feats: tt.feats || '', cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg'), video_url: tt.video_url || '' };
-				}).filter(t => t !== null);
+				const q=(data.top_tracks||[]).map(tt => spaQueueItemFromTrack(tt, data)).filter(t => t !== null);
 				if(q.length){ 
 					window.setQueue && window.setQueue(q, 0); 
 					window.playFromQueue && window.playFromQueue(0); 
 				} 
 			};
+
+			const moreHeaderBtn = document.getElementById('more-btn');
+			if (moreHeaderBtn) {
+				moreHeaderBtn.addEventListener('click', (e) => openSpaArtistHeaderMenu(e, data));
+			}
+			try { refreshArtistSpaNowPlayingHighlight(); } catch (_) {}
 			
 			// Load artist albums
 			loadArtistAlbums(artistName);

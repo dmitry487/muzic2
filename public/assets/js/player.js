@@ -5232,6 +5232,15 @@
   // Initialize from storage
   loadQueue();
   loadPlayerState();
+  // Восстановить id текущего трека для UI (страница артиста, лайки) после перезагрузки
+  try {
+    const cur = trackQueue.length && trackQueue[queueIndex] ? trackQueue[queueIndex] : null;
+    if (cur && cur.id != null && cur.id !== '') {
+      const tid = cur.id;
+      currentTrackId = typeof tid === 'number' ? tid : (Number(tid) || tid);
+      document.dispatchEvent(new CustomEvent('track:change', { detail: { trackId: currentTrackId } }));
+    }
+  } catch (_) {}
   updateShuffleUI();
   updateRepeatUI();
   updateMuteUI();

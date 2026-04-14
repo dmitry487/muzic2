@@ -41,6 +41,211 @@ function attachImgFallback(imgEl) {
     }, { once: true });
 }
 
+function getNowPlayingTrackIdForHighlight() {
+    let id = null;
+    try {
+        if (typeof window.getCurrentTrackId === 'function') {
+            id = window.getCurrentTrackId();
+        }
+    } catch (_) {}
+    if (id != null && id !== '') return id;
+    try {
+        const raw = localStorage.getItem('muzic2_player_queue');
+        const idx = parseInt(localStorage.getItem('muzic2_player_queue_index') || '0', 10);
+        const q = raw ? JSON.parse(raw) : [];
+        const cur = q && !isNaN(idx) && q[idx];
+        if (cur && cur.id != null && cur.id !== '') return cur.id;
+    } catch (_) {}
+    return null;
+}
+
+function refreshArtistPageNowPlayingHighlight() {
+    const list = document.getElementById('popular-tracks');
+    if (!list) return;
+    const id = getNowPlayingTrackIdForHighlight();
+    list.querySelectorAll('.track-item-numbered').forEach((el) => {
+        const rowId = el.getAttribute('data-track-id');
+        el.classList.toggle('track-row-now-playing', id != null && rowId != null && String(rowId) === String(id));
+    });
+}
+
+function removeExistingContextMenu() {
+    try {
+        const existingMenu = document.querySelector('.context-menu');
+        if (existingMenu) existingMenu.remove();
+    } catch (_) {}
+}
+
+function positionContextMenu(menu, anchorEl) {
+    document.body.appendChild(menu);
+    const margin = 8;
+    const place = () => {
+        const rect = anchorEl.getBoundingClientRect();
+        const mw = menu.offsetWidth || 200;
+        const mh = menu.offsetHeight || 1;
+        let left = rect.right - mw;
+        if (left < margin) left = rect.left;
+        if (left + mw > window.innerWidth - margin) {
+            left = Math.max(margin, window.innerWidth - margin - mw);
+        }
+        let top = rect.bottom + margin;
+        if (top + mh > window.innerHeight - margin) {
+            top = Math.max(margin, rect.top - mh - margin);
+        }
+        menu.style.position = 'fixed';
+        menu.style.left = left + 'px';
+        menu.style.top = top + 'px';
+        menu.style.zIndex = '20000';
+    };
+    place();
+    requestAnimationFrame(place);
+}
+
+function bindCloseOnOutsideClick(menu) {
+    const closeMenu = (e) => {
+        if (!menu.contains(e.target)) {
+            menu.remove();
+            document.removeEventListener('click', closeMenu, true);
+            document.removeEventListener('contextmenu', closeMenu, true);
+            window.removeEventListener('scroll', closeMenu, true);
+            window.removeEventListener('resize', closeMenu, true);
+        }
+    };
+    setTimeout(() => {
+        document.addEventListener('click', closeMenu, true);
+        document.addEventListener('contextmenu', closeMenu, true);
+        window.addEventListener('scroll', closeMenu, true);
+        window.addEventListener('resize', closeMenu, true);
+    }, 0);
+}
+
+function showTrackContextMenu(event, track) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const anchor = event.currentTarget || event.target.closest('button') || event.target;
+    if (!anchor) return;
+
+    removeExistingContextMenu();
+
+    const menu = document.createElement('div');
+    menu.className = 'context-menu show';
+
+    const isLiked = !!(window.__likedSet && window.__likedSet.has(track.id));
+    const favItem = document.createElement('button');
+    favItem.type = 'button';
+    favItem.className = 'context-menu-item';
+    favItem.innerHTML = `<i class="${isLiked ? 'fas' : 'far'} fa-heart" style="font-size: 0.9rem; color: ${isLiked ? '#1ed760' : '#b3b3b3'};"></i><span>${isLiked ? 'Убрать из избранного' : 'Добавить в избранное'}</span>`;
+    favItem.onclick = async () => {
+        try {
+            if (!window.__likedSet) window.__likedSet = new Set();
+            if (window.__likedSet.has(track.id)) {
+                await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: track.id })});
+                window.__likedSet.delete(track.id);
+            } else {
+                await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: track.id })});
+                window.__likedSet.add(track.id);
+            }
+        } catch (_) {}
+        try { document.dispatchEvent(new CustomEvent('likes:updated', { detail:{ trackId: track.id, liked: window.__likedSet && window.__likedSet.has(track.id) } })); } catch(_){}
+        menu.remove();
+    };
+    menu.appendChild(favItem);
+
+    const trackArtist = (track && typeof track.artist === 'string') ? track.artist.trim() : '';
+    if (trackArtist) {
+        const goArtist = document.createElement('button');
+        goArtist.type = 'button';
+        goArtist.className = 'context-menu-item';
+        goArtist.innerHTML = '<i class="fas fa-user" style="font-size: 0.9rem; color: #b3b3b3;"></i><span>Перейти к артисту</span>';
+        goArtist.onclick = () => {
+            window.location.href = `artist.html?artist=${encodeURIComponent(trackArtist)}`;
+        };
+        menu.appendChild(goArtist);
+    }
+
+    const trackAlbum = (track && typeof track.album === 'string') ? track.album.trim() : '';
+    if (trackAlbum) {
+        const goAlbum = document.createElement('button');
+        goAlbum.type = 'button';
+        goAlbum.className = 'context-menu-item';
+        goAlbum.innerHTML = '<i class="fas fa-compact-disc" style="font-size: 0.9rem; color: #b3b3b3;"></i><span>Перейти к альбому</span>';
+        goAlbum.onclick = () => {
+            window.location.href = `album.html?album=${encodeURIComponent(trackAlbum)}`;
+        };
+        menu.appendChild(goAlbum);
+    }
+
+    positionContextMenu(menu, anchor);
+    bindCloseOnOutsideClick(menu);
+}
+
+function showArtistContextMenu(event, artist) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const anchor = event.currentTarget || event.target.closest('button') || event.target;
+    if (!anchor) return;
+
+    removeExistingContextMenu();
+
+    const menu = document.createElement('div');
+    menu.className = 'context-menu show';
+
+    const copyLink = document.createElement('button');
+    copyLink.type = 'button';
+    copyLink.className = 'context-menu-item';
+    copyLink.innerHTML = '<i class="fas fa-link" style="font-size: 0.9rem; color: #b3b3b3;"></i><span>Скопировать ссылку</span>';
+    copyLink.onclick = async () => {
+        try {
+            await navigator.clipboard.writeText(window.location.href);
+        } catch (_) {
+            // Fallback for older browsers
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = window.location.href;
+                ta.style.position = 'fixed';
+                ta.style.top = '-1000px';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                document.execCommand('copy');
+                ta.remove();
+            } catch(_) {}
+        }
+        menu.remove();
+    };
+    menu.appendChild(copyLink);
+
+    const copyName = document.createElement('button');
+    copyName.type = 'button';
+    copyName.className = 'context-menu-item';
+    copyName.innerHTML = '<i class="fas fa-copy" style="font-size: 0.9rem; color: #b3b3b3;"></i><span>Скопировать имя</span>';
+    copyName.onclick = async () => {
+        const name = (artist && artist.name) ? String(artist.name) : '';
+        try {
+            await navigator.clipboard.writeText(name);
+        } catch (_) {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = name;
+                ta.style.position = 'fixed';
+                ta.style.top = '-1000px';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                document.execCommand('copy');
+                ta.remove();
+            } catch(_) {}
+        }
+        menu.remove();
+    };
+    menu.appendChild(copyName);
+
+    positionContextMenu(menu, anchor);
+    bindCloseOnOutsideClick(menu);
+}
+
 // Initialize artist page
 document.addEventListener('DOMContentLoaded', async function() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -78,6 +283,12 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
 
         resetTrackCounters();
+        if (!window.__muzicArtistHtmlNowPlayingListeners) {
+            window.__muzicArtistHtmlNowPlayingListeners = true;
+            const onPlaying = () => { try { refreshArtistPageNowPlayingHighlight(); } catch (_) {} };
+            document.addEventListener('track:change', onPlaying);
+            document.addEventListener('track:play', onPlaying);
+        }
         loadArtistData(artistName);
     } else {
         // Redirect to home if no artist specified
@@ -211,6 +422,7 @@ function renderPopularTracks(tracks) {
     
     // Обновляем кнопку "показать ещё"
     updateShowMoreButton();
+    try { refreshArtistPageNowPlayingHighlight(); } catch (_) {}
 }
 
 // Create track element
@@ -295,6 +507,12 @@ function createTrackElement(track, number) {
             try{ document.dispatchEvent(new CustomEvent('likes:updated', { detail:{ trackId: track.id, liked:true } })); }catch(_){ }
         }
     });
+
+    // Track "more" context menu
+    const moreBtn = trackDiv.querySelector('.track-more-btn');
+    if (moreBtn) {
+        moreBtn.addEventListener('click', (e) => showTrackContextMenu(e, track));
+    }
     
     return trackDiv;
 }
@@ -467,6 +685,12 @@ function setupEventListeners() {
     if (showMoreBtn) {
         showMoreBtn.addEventListener('click', showMoreTracks);
     }
+
+    // Artist "more" context menu
+    const moreBtn = document.getElementById('more-btn');
+    if (moreBtn) {
+        moreBtn.addEventListener('click', (e) => showArtistContextMenu(e, currentArtist || { name: (document.getElementById('artist-name')?.textContent || '') }));
+    }
 }
 
 // Play track function
@@ -577,6 +801,7 @@ async function artistPlayTrack(track) {
             console.log('Processed trackSrc:', trackSrc);
             
             const trackObj = {
+                id: t.id,
                 src: trackSrc,
                 title: t.title || '',
                 artist: (t.feats && String(t.feats).trim()) ? `${t.artist}, ${t.feats}` : (t.artist || ''),
@@ -584,7 +809,8 @@ async function artistPlayTrack(track) {
                 cover: resolveCoverPath(t.cover),
                 duration: t.duration || 0,
                 video_url: t.video_url || '',
-                explicit: t.explicit || false
+                explicit: t.explicit || false,
+                file_path: t.file_path || ''
             };
             console.log('Created track object:', trackObj);
             return trackObj;
@@ -685,9 +911,10 @@ function showMoreTracks() {
     });
     
     visibleTracksCount += nextBatch.length;
-    
+
     // Обновляем кнопку
     updateShowMoreButton();
+    try { refreshArtistPageNowPlayingHighlight(); } catch (_) {}
 }
 
 // Update show more button visibility
