@@ -391,6 +391,19 @@ function renderArtistPage(artist) {
     
     // Set up event listeners
     setupEventListeners();
+
+    // Follow button initial state
+    try {
+        const FOLLOWED_ARTISTS_KEY = 'muzic2_followed_artists';
+        const normalize = (s) => String(s || '').trim().toLowerCase();
+        const name = String(artist.name || '').trim();
+        const raw = localStorage.getItem(FOLLOWED_ARTISTS_KEY);
+        const arr = raw ? JSON.parse(raw) : [];
+        const followed = Array.isArray(arr) && arr.some(a => a && a.name && normalize(a.name) === normalize(name));
+        applyFollowButtonState(!!followed);
+    } catch (_) {
+        try { applyFollowButtonState(false); } catch(_) {}
+    }
 }
 
 // Render popular tracks (show only first 10, rest hidden)
@@ -885,16 +898,38 @@ function toggleLike(likeBtn) {
 
 // Toggle follow function
 function toggleFollow() {
+    const FOLLOWED_ARTISTS_KEY = 'muzic2_followed_artists';
     const followBtn = document.getElementById('follow-btn');
-    if (followBtn.textContent.trim() === 'Уже подписаны') {
-        followBtn.textContent = 'Подписаться';
-        followBtn.style.background = '#1ed760';
-        followBtn.style.color = '#000';
+    if (!followBtn) return;
+    const name = (currentArtist && currentArtist.name) ? String(currentArtist.name).trim() : (document.getElementById('artist-name')?.textContent || '').trim();
+    if (!name) return;
+    const normalize = (s) => String(s || '').trim().toLowerCase();
+    const getList = () => { try { const raw = localStorage.getItem(FOLLOWED_ARTISTS_KEY); const arr = raw ? JSON.parse(raw) : []; return Array.isArray(arr) ? arr.filter(a => a && a.name) : []; } catch(_) { return []; } };
+    const setList = (arr) => { try { localStorage.setItem(FOLLOWED_ARTISTS_KEY, JSON.stringify(Array.isArray(arr) ? arr : [])); } catch(_){} };
+    const isFollowed = () => getList().some(a => normalize(a.name) === normalize(name));
+    const now = !isFollowed();
+    const list = getList();
+    const key = normalize(name);
+    if (now) {
+        const rawCover = (currentArtist && currentArtist.cover) ? String(currentArtist.cover) : '';
+        const coverAbs = rawCover ? (rawCover.startsWith('http') || rawCover.startsWith('/muzic2/') ? rawCover : (rawCover.startsWith('/') ? rawCover : ('/muzic2/' + rawCover.replace(/^\/+/, '')))) : '';
+        const next = [{ name, cover: coverAbs }].concat(list.filter(a => normalize(a.name) !== key));
+        setList(next.slice(0, 200));
     } else {
-        followBtn.textContent = 'Уже подписаны';
-        followBtn.style.background = 'none';
-        followBtn.style.color = '#fff';
+        setList(list.filter(a => normalize(a.name) !== key));
     }
+    applyFollowButtonState(now);
+    try { document.dispatchEvent(new CustomEvent('follow:updated', { detail: { name, followed: now } })); } catch(_) {}
+}
+
+function applyFollowButtonState(followed) {
+    const followBtn = document.getElementById('follow-btn');
+    if (!followBtn) return;
+    followBtn.classList.toggle('is-following', !!followed);
+    followBtn.textContent = followed ? 'Уже подписаны' : 'Подписаться';
+    followBtn.style.background = followed ? 'none' : '#1ed760';
+    followBtn.style.color = followed ? '#fff' : '#000';
+    followBtn.style.border = followed ? '1px solid rgba(255, 255, 255, 0.3)' : 'none';
 }
 
 // Show more tracks function

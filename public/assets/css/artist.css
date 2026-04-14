@@ -313,9 +313,9 @@
 }
 
 .follow-btn {
-    background: none;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    color: #fff;
+    background: #1ed760;
+    border: none;
+    color: #000;
     border-radius: 4px;
     padding: 0.75rem 1.5rem;
     font-size: 0.9rem;
@@ -325,6 +325,16 @@
 }
 
 .follow-btn:hover {
+    background: #1fdf64;
+}
+
+.follow-btn.is-following {
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #fff;
+}
+
+.follow-btn.is-following:hover {
     border-color: #fff;
     background: rgba(255, 255, 255, 0.1);
 }

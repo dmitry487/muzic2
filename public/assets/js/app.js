@@ -23,16 +23,18 @@ if (mainContent && navHome && navSearch && navLibrary) {
 		
 		if (page === 'Главная') {
 			renderHome();
-	} else if (page === 'Поиск') {
-		renderSearch();
+		} else if (page === 'Поиск') {
+			renderSearch();
 		} else if (page === 'Моя музыка') {
 			renderMyMusic();
 		}
+		// Always scroll to top for top-level pages
+		try { scrollToPageTop(); } catch (_) {}
 	}
 
 	navHome.onclick = () => navigateTo('home');
-	navSearch.onclick = () => showPage('Поиск');
-	navLibrary.onclick = () => showPage('Моя музыка');
+	navSearch.onclick = () => navigateTo('search');
+	navLibrary.onclick = () => navigateTo('library');
 
 	// SPA will handle initial page load
 
@@ -295,15 +297,25 @@ window.API_ORIGIN = API_ORIGIN;
 		
 		// Определяем текущую страницу и загружаем соответствующий контент
 		const urlParams = new URLSearchParams(window.location.search);
-		if (urlParams.has('album')) {
+		if (urlParams.has('page')) {
+			const p = String(urlParams.get('page') || '').toLowerCase();
+			if (p === 'search') {
+				navigateTo('search', {}, { replace: true });
+			} else if (p === 'library') {
+				navigateTo('library', {}, { replace: true });
+			} else {
+				navigateTo('home', {}, { replace: true });
+			}
+		} else if (urlParams.has('album')) {
 			// Загружаем страницу альбома
-			navigateTo('album', { album: urlParams.get('album') });
+			navigateTo('album', { album: urlParams.get('album') }, { replace: true });
 		} else if (urlParams.has('artist')) {
 			// Загружаем страницу артиста
-			navigateTo('artist', { artist: urlParams.get('artist') });
+			navigateTo('artist', { artist: urlParams.get('artist') }, { replace: true });
 		} else {
 			// Главная страница - всегда загружаем контент
 			renderHome();
+			try { scrollToPageTop(); } catch (_) {}
 		}
 	}
 
@@ -820,6 +832,74 @@ window.API_ORIGIN = API_ORIGIN;
 			showLoginScreen();
 			return;
 		}
+
+		// Followed artists persistence (local-only)
+		const FOLLOWED_ARTISTS_KEY = 'muzic2_followed_artists';
+		function getFollowedArtists() {
+			try {
+				const raw = localStorage.getItem(FOLLOWED_ARTISTS_KEY);
+				const arr = raw ? JSON.parse(raw) : [];
+				return Array.isArray(arr) ? arr.filter(a => a && a.name) : [];
+			} catch (_) { return []; }
+		}
+		function setFollowedArtists(arr) {
+			try { localStorage.setItem(FOLLOWED_ARTISTS_KEY, JSON.stringify(Array.isArray(arr) ? arr : [])); } catch (_) {}
+		}
+		function isArtistFollowed(name) {
+			const n = String(name || '').trim().toLowerCase();
+			if (!n) return false;
+			return getFollowedArtists().some(a => String(a.name || '').trim().toLowerCase() === n);
+		}
+		function upsertFollowedArtist(artist) {
+			const name = String((artist && artist.name) || '').trim();
+			if (!name) return;
+			const cover = (artist && artist.cover) ? String(artist.cover) : '';
+			const list = getFollowedArtists();
+			const key = name.toLowerCase();
+			const next = [{ name, cover }].concat(list.filter(a => String(a.name || '').trim().toLowerCase() !== key));
+			setFollowedArtists(next.slice(0, 200));
+			try { document.dispatchEvent(new CustomEvent('follow:updated', { detail: { name, followed: true } })); } catch (_) {}
+		}
+		function removeFollowedArtist(name) {
+			const n = String(name || '').trim();
+			if (!n) return;
+			const key = n.toLowerCase();
+			const list = getFollowedArtists().filter(a => String(a.name || '').trim().toLowerCase() !== key);
+			setFollowedArtists(list);
+			try { document.dispatchEvent(new CustomEvent('follow:updated', { detail: { name: n, followed: false } })); } catch (_) {}
+		}
+		function renderFollowedArtistsInto(containerId) {
+			const wrap = document.getElementById(containerId);
+			if (!wrap) return;
+			const list = getFollowedArtists();
+			if (!list.length) {
+				wrap.innerHTML = '<div class="empty">Пока нет подписок на артистов</div>';
+				return;
+			}
+			wrap.innerHTML = list.map(a => {
+				const cover = a.cover ? (String(a.cover).startsWith('http') ? a.cover : (String(a.cover).startsWith('/muzic2/') ? a.cover : ('/muzic2/' + String(a.cover).replace(/^\/+/, '')))) : '/muzic2/tracks/covers/placeholder.jpg';
+				const safeName = escapeHtml(a.name);
+				return `
+					<div class="followed-artist-card" data-artist-name="${safeName}" role="button" tabindex="0" onclick="navigateTo('artist', { artist: '${encodeURIComponent(a.name)}' })">
+						<div class="fac-avatar">
+							<img loading="lazy" src="${cover}" alt="${safeName}" onerror="this.onerror=null;this.src='/muzic2/tracks/covers/placeholder.jpg'">
+						</div>
+						<div class="fac-meta">
+							<div class="fac-name">${safeName}</div>
+							<div class="fac-sub">Артист</div>
+						</div>
+						<button class="fac-unfollow" type="button" title="Отписаться" aria-label="Отписаться" onclick="event.preventDefault(); event.stopPropagation(); window.__muzicUnfollowArtist && window.__muzicUnfollowArtist('${encodeURIComponent(a.name)}');">
+							<span class="x">×</span>
+						</button>
+					</div>
+				`;
+			}).join('');
+
+			// Provide a safe handler without leaking internal closures to markup
+			window.__muzicUnfollowArtist = (encodedName) => {
+				try { removeFollowedArtist(decodeURIComponent(encodedName || '')); } catch (_) {}
+			};
+		}
 		
 		// Windows: мгновенный скелет + фоновые загрузки
 		if (isWindows) {
@@ -829,8 +909,17 @@ window.API_ORIGIN = API_ORIGIN;
 					<div class="my-music-container">
 					<div class="my-music-header"><h2>Моя музыка</h2></div>
 						<div class="my-music-content">
+							<div class="favorite-artists-section">
+								<h3>Подписки</h3>
+								<div class="albums-grid" id="followed-artists-grid"><div class="empty">Загрузка…</div></div>
+							</div>
 							<div class="playlists-section">
-								<h3>Плейлисты</h3>
+								<div class="my-header" style="margin: 0 0 0.75rem 0;">
+									<h3 style="margin:0;">Плейлисты</h3>
+									<div class="my-actions">
+										<button id="create-playlist" class="btn primary">Создать плейлист</button>
+									</div>
+								</div>
 							<div class="playlists-grid" id="playlists-grid"><div class="empty">Загрузка плейлистов…</div></div>
 							</div>
 							<div class="favorite-albums-section">
@@ -839,6 +928,20 @@ window.API_ORIGIN = API_ORIGIN;
 								</div>
 							</div>
 				</div>`;
+
+			// Followed artists — instantly from localStorage
+			try { renderFollowedArtistsInto('followed-artists-grid'); } catch (_) {}
+			// Create playlist button (Windows)
+			try {
+				const cp = document.getElementById('create-playlist');
+				if (cp) cp.onclick = () => openCreatePlaylistDialog();
+			} catch (_) {}
+			// Keep in sync while on this page
+			(function(){
+				if (window.__mymusic_follow_listener) return;
+				window.__mymusic_follow_listener = true;
+				document.addEventListener('follow:updated', () => { try { renderFollowedArtistsInto('followed-artists-grid'); } catch (_) {} });
+			})();
 
 			// Плейлисты — в фоне
 			(void async function(){
@@ -989,6 +1092,12 @@ window.API_ORIGIN = API_ORIGIN;
 			mainContent.innerHTML = `
 				<section class="my-section">
 					<div class="my-header">
+						<h2>Подписки</h2>
+					</div>
+					<div class="tile-row" id="followed-artists-row"></div>
+				</section>
+				<section class="my-section">
+					<div class="my-header">
 						<h2>Любимые альбомы</h2>
 					</div>
 					<div class="tile-row" id="albums-row">
@@ -1008,6 +1117,13 @@ window.API_ORIGIN = API_ORIGIN;
 				</section>
 				<div id="playlist-view"></div>
 			`;
+
+			try { renderFollowedArtistsInto('followed-artists-row'); } catch (_) {}
+			(function(){
+				if (window.__mymusic_follow_listener) return;
+				window.__mymusic_follow_listener = true;
+				document.addEventListener('follow:updated', () => { try { renderFollowedArtistsInto('followed-artists-row'); } catch (_) {} });
+			})();
 
 			document.getElementById('create-playlist').onclick = () => openCreatePlaylistDialog();
 
@@ -1381,8 +1497,26 @@ function showAlbumContextMenu(event, album, albumIndex) {
 	async function openCreatePlaylistDialog() {
 		const name = prompt('Название плейлиста');
 		if (!name) return;
-	await fetch(api('/muzic2/src/api/playlists.php'), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
-		renderMyMusic();
+		try {
+			const endpoint = isWindows ? '/muzic2/src/api/playlists_windows.php' : '/muzic2/src/api/playlists.php';
+			const res = await fetch(api(endpoint), {
+				method: 'POST',
+				credentials: 'include',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ name })
+			});
+			let payload = null;
+			try { payload = await res.json(); } catch (_) {}
+			if (!res.ok) {
+				console.error('Create playlist failed:', res.status, payload);
+				alert((payload && payload.error) ? payload.error : 'Не удалось создать плейлист');
+				return;
+			}
+			renderMyMusic();
+		} catch (e) {
+			console.error('Create playlist error:', e);
+			alert('Ошибка сети при создании плейлиста');
+		}
 	}
 
 	function injectMyMusicStyles() {
@@ -1402,6 +1536,66 @@ function showAlbumContextMenu(event, album, albumIndex) {
 			.card { position: relative; }
 			.heart-btn { position:absolute; right:.5rem; bottom:.5rem; background:#222; border:1px solid #333; color:#bbb; border-radius:999px; width:36px; height:36px; cursor:pointer; }
 			.heart-btn.liked { background:#1db954; border-color:#1db954; color:#fff; }
+			
+			/* Followed artists cards (ONLY in "Моя музыка") */
+			.followed-artist-card{
+				display:flex;
+				align-items:center;
+				gap:12px;
+				padding:12px;
+				border-radius:14px;
+				background:rgba(24,24,24,0.9);
+				border:1px solid rgba(255,255,255,0.08);
+				box-shadow:0 10px 30px rgba(0,0,0,0.28);
+				cursor:pointer;
+				transition:transform .14s ease, background .14s ease, border-color .14s ease;
+				position:relative;
+				user-select:none;
+				min-height:66px;
+			}
+			.followed-artist-card:hover{
+				transform:translateY(-1px);
+				background:rgba(35,35,35,0.95);
+				border-color:rgba(30,215,96,0.25);
+			}
+			.followed-artist-card:focus{
+				outline:2px solid rgba(30,215,96,0.55);
+				outline-offset:2px;
+			}
+			.fac-avatar{
+				width:44px;height:44px;
+				border-radius:999px;
+				overflow:hidden;
+				flex:0 0 44px;
+				background:#101010;
+				border:1px solid rgba(255,255,255,0.08);
+				box-shadow:0 6px 18px rgba(0,0,0,0.35);
+			}
+			.fac-avatar img{width:100%;height:100%;object-fit:cover;display:block;}
+			.fac-meta{min-width:0;display:flex;flex-direction:column;gap:2px;flex:1;}
+			.fac-name{
+				color:#fff;
+				font-weight:800;
+				letter-spacing:-0.2px;
+				white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+			}
+			.fac-sub{color:#9aa0a6;font-size:.86rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+			.fac-unfollow{
+				width:34px;height:34px;
+				border-radius:999px;
+				border:1px solid rgba(255,255,255,0.12);
+				background:rgba(255,255,255,0.06);
+				color:#fff;
+				display:inline-flex;align-items:center;justify-content:center;
+				cursor:pointer;
+				transition:transform .12s ease, background .12s ease, border-color .12s ease;
+			}
+			.fac-unfollow:hover{
+				transform:scale(1.06);
+				background:rgba(255,255,255,0.10);
+				border-color:rgba(255,255,255,0.22);
+			}
+			.fac-unfollow .x{font-size:20px;line-height:1;margin-top:-1px;}
 			
 			#playlist-view {
 				display: block;
@@ -1800,7 +1994,16 @@ function showAlbumContextMenu(event, album, albumIndex) {
 	window.currentPage = 'home';
 	let currentParams = {};
 
-	function navigateTo(page, params = {}) {
+	function scrollToPageTop() {
+		try { window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); } catch (_) { try { window.scrollTo(0,0); } catch(_){} }
+		try {
+			// In case mainContent becomes a scroll container in some layouts
+			if (mainContent && typeof mainContent.scrollTo === 'function') mainContent.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+			if (mainContent) mainContent.scrollTop = 0;
+		} catch (_) {}
+	}
+
+	function navigateTo(page, params = {}, options = {}) {
 		// Проверяем авторизацию перед навигацией
 		if (!currentUser) {
 			showLoginScreen();
@@ -1814,21 +2017,34 @@ function showAlbumContextMenu(event, album, albumIndex) {
 		const url = new URL(window.location);
 		if (page === 'home') {
 			url.search = '';
+		} else if (page === 'search') {
+			url.search = '?page=search';
+		} else if (page === 'library') {
+			url.search = '?page=library';
 		} else if (page === 'album') {
 			url.search = `?album=${encodeURIComponent(params.album || '')}`;
 		} else if (page === 'artist') {
 			url.search = `?artist=${encodeURIComponent(params.artist || '')}`;
 		}
-		window.history.pushState({ page, params }, '', url);
+		const st = { page, params };
+		if (options && options.replace) window.history.replaceState(st, '', url);
+		else window.history.pushState(st, '', url);
 		
 		// Render page
 		if (page === 'home') {
 			showPage('Главная');
+		} else if (page === 'search') {
+			showPage('Поиск');
+		} else if (page === 'library') {
+			showPage('Моя музыка');
 		} else if (page === 'album') {
 			renderAlbumSPA(params.album);
 		} else if (page === 'artist') {
 			renderArtistSPA(params.artist);
 		}
+
+		// Always scroll to top after navigation (fix "stays at bottom" issue)
+		if (!(options && options.preserveScroll)) scrollToPageTop();
 	}
 
 	// Handle browser back/forward
@@ -1838,20 +2054,34 @@ function showAlbumContextMenu(event, album, albumIndex) {
 			currentParams = event.state.params;
 			if (window.currentPage === 'home') {
 				showPage('Главная');
+			} else if (window.currentPage === 'search') {
+				showPage('Поиск');
+			} else if (window.currentPage === 'library') {
+				showPage('Моя музыка');
 			} else if (window.currentPage === 'album') {
 				renderAlbumSPA(currentParams.album);
 			} else if (window.currentPage === 'artist') {
 				renderArtistSPA(currentParams.artist);
 			}
+			scrollToPageTop();
 		} else {
 			// Handle direct URL access
 			const urlParams = new URLSearchParams(window.location.search);
-			if (urlParams.has('album')) {
-				navigateTo('album', { album: urlParams.get('album') });
+			if (urlParams.has('page')) {
+				const p = String(urlParams.get('page') || '').toLowerCase();
+				if (p === 'search') {
+					navigateTo('search', {}, { replace: true });
+				} else if (p === 'library') {
+					navigateTo('library', {}, { replace: true });
+				} else {
+					navigateTo('home', {}, { replace: true });
+				}
+			} else if (urlParams.has('album')) {
+				navigateTo('album', { album: urlParams.get('album') }, { replace: true });
 			} else if (urlParams.has('artist')) {
-				navigateTo('artist', { artist: urlParams.get('artist') });
+				navigateTo('artist', { artist: urlParams.get('artist') }, { replace: true });
 			} else {
-				navigateTo('home');
+				navigateTo('home', {}, { replace: true });
 			}
 		}
 	});
@@ -2708,7 +2938,7 @@ function showAlbumContextMenu(event, album, albumIndex) {
 						</button>
 						` : ''}
 						<button class="follow-btn" id="follow-btn">
-							Уже подписаны
+							Подписаться
 						</button>
 						<button class="more-btn" id="more-btn">
 							<i class="fas fa-ellipsis-h"></i>
@@ -2950,6 +3180,43 @@ function showAlbumContextMenu(event, album, albumIndex) {
 				moreHeaderBtn.addEventListener('click', (e) => openSpaArtistHeaderMenu(e, data));
 			}
 			try { refreshArtistSpaNowPlayingHighlight(); } catch (_) {}
+
+			// Follow button (subscribe) — local-only, persists to "Моя музыка"
+			(function(){
+				const FOLLOWED_ARTISTS_KEY = 'muzic2_followed_artists';
+				const normalize = (s) => String(s || '').trim().toLowerCase();
+				const getList = () => { try { const raw = localStorage.getItem(FOLLOWED_ARTISTS_KEY); const arr = raw ? JSON.parse(raw) : []; return Array.isArray(arr) ? arr.filter(a => a && a.name) : []; } catch(_) { return []; } };
+				const setList = (arr) => { try { localStorage.setItem(FOLLOWED_ARTISTS_KEY, JSON.stringify(Array.isArray(arr) ? arr : [])); } catch(_){} };
+				const artistName = String(data.name || '').trim();
+				const artistCover = data.cover ? String(data.cover) : '';
+				const btn = document.getElementById('follow-btn');
+				if (!btn || !artistName) return;
+				const apply = (followed) => {
+					btn.classList.toggle('is-following', !!followed);
+					btn.textContent = followed ? 'Уже подписаны' : 'Подписаться';
+					// green by default when NOT following
+					btn.style.background = followed ? 'none' : '#1ed760';
+					btn.style.color = followed ? '#fff' : '#000';
+					btn.style.border = followed ? '1px solid rgba(255, 255, 255, 0.3)' : 'none';
+				};
+				const isFollowed = () => getList().some(a => normalize(a.name) === normalize(artistName));
+				apply(isFollowed());
+				btn.onclick = (e) => {
+					e.preventDefault(); e.stopPropagation();
+					const list = getList();
+					const key = normalize(artistName);
+					const now = !isFollowed();
+					if (now) {
+						const cover = artistCover ? (artistCover.startsWith('http') || artistCover.startsWith('/muzic2/') ? artistCover : ('/muzic2/' + artistCover.replace(/^\/+/, ''))) : '';
+						const next = [{ name: artistName, cover }].concat(list.filter(a => normalize(a.name) !== key));
+						setList(next.slice(0, 200));
+					} else {
+						setList(list.filter(a => normalize(a.name) !== key));
+					}
+					apply(now);
+					try { document.dispatchEvent(new CustomEvent('follow:updated', { detail: { name: artistName, followed: now } })); } catch(_) {}
+				};
+			})();
 			
 			// Load artist albums
 			loadArtistAlbums(artistName);

@@ -5214,11 +5214,27 @@
     console.log('First few tracks:', queue.slice(0, 3).map(t => ({ title: t.title, artist: t.artist, src: t.src })));
     
     // Update internal queue variables
-    trackQueue = queue;
-    queueIndex = startIndex;
+    // If shuffle is enabled, keep the requested track first and shuffle the rest
+    const safeStartIndex = Math.max(0, Math.min(parseInt(startIndex, 10) || 0, queue.length - 1));
+    if (shuffleEnabled) {
+      if (!originalQueue || !originalQueue.length) originalQueue = queue.slice();
+      const current = queue[safeStartIndex];
+      const rest = queue.filter((_, idx) => idx !== safeStartIndex);
+      for (let i = rest.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = rest[i]; rest[i] = rest[j]; rest[j] = tmp;
+      }
+      trackQueue = [current, ...rest];
+      queueIndex = 0;
+    } else {
+      trackQueue = queue;
+      queueIndex = safeStartIndex;
+      // Reset original queue when shuffle is off so the next shuffle uses the new order
+      originalQueue = [];
+    }
     
     // Save queue to localStorage
-    localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(trackQueue));
     localStorage.setItem(QUEUE_INDEX_KEY, String(queueIndex));
     
     // Update queue UI
