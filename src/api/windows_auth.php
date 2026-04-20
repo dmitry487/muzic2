@@ -1,6 +1,6 @@
 <?php
 // Windows-optimized authentication API
-session_start();
+require_once __DIR__ . '/../config/session_init.php';
 require_once __DIR__ . '/../config/db.php';
 header('Content-Type: application/json');
 // Dynamic CORS for credentials: reflect exact Origin instead of '*'

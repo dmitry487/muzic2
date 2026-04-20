@@ -48,11 +48,13 @@ try {
     $sameArtistStmt = $db->prepare("SELECT id, title, artist, album, duration, cover, file_path as src, COALESCE(video_url, '') AS video_url, explicit 
                                     FROM tracks 
                                     WHERE artist = ? AND id != ? 
-                                    ORDER BY RAND() 
-                                    LIMIT ?");
+                                    ORDER BY id DESC 
+                                    LIMIT 120");
     $sameArtistLimit = min(10, (int)($limit * 0.3));
-    $sameArtistStmt->execute([$baseTrack['artist'], $trackId, $sameArtistLimit]);
+    $sameArtistStmt->execute([$baseTrack['artist'], $trackId]);
     $sameArtistTracks = $sameArtistStmt->fetchAll(PDO::FETCH_ASSOC);
+    shuffle($sameArtistTracks);
+    $sameArtistTracks = array_slice($sameArtistTracks, 0, $sameArtistLimit);
     $similarTracks = array_merge($similarTracks, $sameArtistTracks);
     
     // 2. Ищем треки из того же альбома
@@ -60,11 +62,13 @@ try {
         $sameAlbumStmt = $db->prepare("SELECT id, title, artist, album, duration, cover, file_path as src, COALESCE(video_url, '') AS video_url, explicit 
                                        FROM tracks 
                                        WHERE album = ? AND id != ? 
-                                       ORDER BY RAND() 
-                                       LIMIT ?");
+                                       ORDER BY id DESC 
+                                       LIMIT 80");
         $sameAlbumLimit = min(5, (int)($limit * 0.2));
-        $sameAlbumStmt->execute([$baseTrack['album'], $trackId, $sameAlbumLimit]);
+        $sameAlbumStmt->execute([$baseTrack['album'], $trackId]);
         $sameAlbumTracks = $sameAlbumStmt->fetchAll(PDO::FETCH_ASSOC);
+        shuffle($sameAlbumTracks);
+        $sameAlbumTracks = array_slice($sameAlbumTracks, 0, $sameAlbumLimit);
         $similarTracks = array_merge($similarTracks, $sameAlbumTracks);
     }
     
@@ -74,11 +78,13 @@ try {
                                INNER JOIN track_genres tg1 ON t.id = tg1.track_id
                                INNER JOIN track_genres tg2 ON tg1.genre_id = tg2.genre_id
                                WHERE tg2.track_id = ? AND t.id != ?
-                               ORDER BY RAND()
-                               LIMIT ?");
+                               ORDER BY t.id DESC
+                               LIMIT 160");
     $genreLimit = min(10, (int)($limit * 0.3));
-    $genreStmt->execute([$trackId, $trackId, $genreLimit]);
+    $genreStmt->execute([$trackId, $trackId]);
     $genreTracks = $genreStmt->fetchAll(PDO::FETCH_ASSOC);
+    shuffle($genreTracks);
+    $genreTracks = array_slice($genreTracks, 0, $genreLimit);
     $similarTracks = array_merge($similarTracks, $genreTracks);
     
     // 4. Ищем треки с похожими названиями (по ключевым словам)
@@ -95,15 +101,16 @@ try {
         
         if (!empty($titleConditions)) {
             $titleParams[] = $trackId;
-            $titleParams[] = $limit;
             
             $titleStmt = $db->prepare("SELECT DISTINCT t.id, t.title, t.artist, t.album, t.duration, t.cover, t.file_path as src, COALESCE(t.video_url, '') AS video_url, t.explicit
                                        FROM tracks t
                                        WHERE (" . implode(' OR ', $titleConditions) . ") AND t.id != ?
-                                       ORDER BY RAND()
-                                       LIMIT ?");
+                                       ORDER BY t.id DESC
+                                       LIMIT 160");
             $titleStmt->execute($titleParams);
             $titleTracks = $titleStmt->fetchAll(PDO::FETCH_ASSOC);
+            shuffle($titleTracks);
+            $titleTracks = array_slice($titleTracks, 0, min(10, $limit));
             $similarTracks = array_merge($similarTracks, $titleTracks);
         }
     }
@@ -124,11 +131,13 @@ try {
         $randomStmt = $db->prepare("SELECT id, title, artist, album, duration, cover, file_path as src, COALESCE(video_url, '') AS video_url, explicit
                                    FROM tracks
                                    WHERE id NOT IN ($inPlaceholders)
-                                   ORDER BY RAND()
-                                   LIMIT ?");
-        $randomParams = array_merge($seenIds, [$needed]);
+                                   ORDER BY id DESC
+                                   LIMIT 200");
+        $randomParams = $seenIds;
         $randomStmt->execute($randomParams);
         $randomTracks = $randomStmt->fetchAll(PDO::FETCH_ASSOC);
+        shuffle($randomTracks);
+        $randomTracks = array_slice($randomTracks, 0, $needed);
         $uniqueTracks = array_merge($uniqueTracks, $randomTracks);
     }
     

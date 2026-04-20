@@ -2,25 +2,34 @@
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
+@ini_set('default_socket_timeout', '5');
 
 function get_db_connection() {
-    $host = 'localhost';
+    $hosts = ['127.0.0.1', 'localhost'];
     $dbname = 'muzic2';
     $username = 'root';
-    $password = 'root';
+    $passwords = ['root', ''];
     
-    // Пробуем сначала порт 3306 (Windows MAMP), потом 8889 (Mac MAMP)
-    $ports = [3306, 8889];
+    // MAMP чаще использует 8889, затем стандартный 3306.
+    // Короткий timeout убирает долгие подвисания при "неверном" первом порте.
+    $ports = [8889, 3306];
+    $opts = [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_TIMEOUT => 1,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    ];
     
-    foreach ($ports as $port) {
-        $dsn = "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4";
-        try {
-            $pdo = new PDO($dsn, $username, $password);
-            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            return $pdo;
-        } catch (PDOException $e) {
-            // Пробуем следующий порт
-            continue;
+    foreach ($hosts as $host) {
+        foreach ($ports as $port) {
+            $dsn = "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4";
+            foreach ($passwords as $password) {
+                try {
+                    $pdo = new PDO($dsn, $username, $password, $opts);
+                    return $pdo;
+                } catch (PDOException $e) {
+                    continue;
+                }
+            }
         }
     }
     

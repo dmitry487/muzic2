@@ -32,13 +32,29 @@ try {
 
     if ($method === 'GET') {
         $q = isset($_GET['q']) ? trim((string)$_GET['q']) : '';
-        if ($q !== '') {
-            $st=$db->prepare('SELECT * FROM tracks WHERE title LIKE ? OR artist LIKE ? OR album LIKE ? ORDER BY id DESC LIMIT 500');
+        $albumExact = isset($_GET['album']) ? trim((string)$_GET['album']) : '';
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 100;
+        if ($limit < 1) $limit = 1;
+        if ($limit > 200) $limit = 200;
+        $afterId = isset($_GET['after_id']) ? (int)$_GET['after_id'] : 0;
+
+        // Select only fields used by admin UI
+        $cols = 'id, title, artist, album, album_type, duration, file_path, cover, COALESCE(video_url,"") AS video_url, explicit';
+
+        if ($albumExact !== '') {
+            // Album track listing (used inside album modal)
+            $st = $db->prepare("SELECT $cols FROM tracks WHERE TRIM(LOWER(album))=TRIM(LOWER(?)) AND (?=0 OR id > ?) ORDER BY id ASC LIMIT $limit");
+            $st->execute([$albumExact, $afterId, $afterId]);
+            $rows = $st->fetchAll();
+        } elseif ($q !== '') {
             $like = '%'.$q.'%';
-            $st->execute([$like,$like,$like]);
+            $st = $db->prepare("SELECT $cols FROM tracks WHERE (title LIKE ? OR artist LIKE ? OR album LIKE ?) AND (?=0 OR id < ?) ORDER BY id DESC LIMIT $limit");
+            $st->execute([$like, $like, $like, $afterId, $afterId]);
             $rows = $st->fetchAll();
         } else {
-            $rows=$db->query('SELECT * FROM tracks ORDER BY id DESC LIMIT 200')->fetchAll();
+            $st = $db->prepare("SELECT $cols FROM tracks WHERE (?=0 OR id < ?) ORDER BY id DESC LIMIT $limit");
+            $st->execute([$afterId, $afterId]);
+            $rows = $st->fetchAll();
         }
         // Attach feats
         try {
@@ -52,7 +68,14 @@ try {
                 foreach ($rows as &$r) { $r['feats'] = $m[(int)$r['id']] ?? ''; }
             }
         } catch (Throwable $e) {}
-        echo json_encode(['success'=>true, 'data'=>$rows], JSON_UNESCAPED_UNICODE);
+        $nextAfter = 0;
+        if ($rows && count($rows) > 0) {
+            // For DESC lists, caller should pass after_id=<last_seen_id> to fetch older (id < after_id)
+            // For ASC album lists, caller should pass after_id=<last_seen_id> to fetch newer (id > after_id)
+            $last = end($rows);
+            $nextAfter = (int)($last['id'] ?? 0);
+        }
+        echo json_encode(['success'=>true, 'data'=>$rows, 'next_after_id'=>$nextAfter], JSON_UNESCAPED_UNICODE);
         exit;
     }
 

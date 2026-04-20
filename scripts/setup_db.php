@@ -24,8 +24,78 @@ function file_contents_or_null(string $path): ?string {
     return ($s===false)?null:$s;
 }
 
+function table_exists(PDO $db, string $table): bool {
+    try {
+        $st = $db->prepare('SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1');
+        $st->execute([$table]);
+        return (bool)$st->fetchColumn();
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+function index_exists(PDO $db, string $table, string $indexName): bool {
+    try {
+        $st = $db->prepare('SELECT 1 FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ? LIMIT 1');
+        $st->execute([$table, $indexName]);
+        return (bool)$st->fetchColumn();
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+function ensure_index(PDO $db, array &$executed, string $table, string $indexName, string $ddl): void {
+    if (!table_exists($db, $table)) return;
+    if (index_exists($db, $table, $indexName)) return;
+    $db->exec($ddl);
+    $executed[] = "index:$table.$indexName";
+}
+
 try {
-    $db = get_db_connection();
+    // Сначала пытаемся подключиться к БД
+    $db = null;
+    $connectionErrors = [];
+    
+    try {
+        $db = get_db_connection();
+    } catch (Throwable $e) {
+        // Если не удалось подключиться к БД, возможно БД не существует
+        // Пробуем подключиться без указания БД и создать её
+        $host = 'localhost';
+        $username = 'root';
+        $password = 'root';
+        $ports = [3306, 8889, 3307];
+        
+        foreach ($ports as $port) {
+            try {
+                $dsn = "mysql:host=$host;port=$port;charset=utf8mb4";
+                $pdo = new PDO($dsn, $username, $password);
+                $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                
+                // Создаём БД если её нет
+                $pdo->exec("CREATE DATABASE IF NOT EXISTS muzic2 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+                
+                // Теперь подключаемся к созданной БД
+                $dsn = "mysql:host=$host;port=$port;dbname=muzic2;charset=utf8mb4";
+                $db = new PDO($dsn, $username, $password);
+                $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                break;
+            } catch (PDOException $e2) {
+                $connectionErrors[] = "Порт $port: " . $e2->getMessage();
+                continue;
+            }
+        }
+        
+        if (!$db) {
+            $errorMsg = "Не удалось подключиться к MySQL.\n\n";
+            $errorMsg .= "Проверьте:\n";
+            $errorMsg .= "1. MAMP запущен и MySQL работает (зелёный индикатор)\n";
+            $errorMsg .= "2. Порт MySQL в MAMP (обычно 3306 или 8889)\n";
+            $errorMsg .= "3. Логин и пароль в src/config/db.php\n\n";
+            $errorMsg .= "Ошибки подключения:\n" . implode("\n", $connectionErrors);
+            throw new Exception($errorMsg);
+        }
+    }
 
     // Detect if main tables exist (tracks is core for the app)
     $hasTracks = false;
@@ -83,6 +153,25 @@ try {
             UNIQUE KEY uniq_album_artist_role (album, artist, role)
         )");
     } catch (Throwable $e) {}
+
+    // Performance indexes (idempotent)
+    try {
+        // likes: accelerate user likes fetch + existence checks
+        ensure_index($db, $executed, 'likes', 'idx_likes_user_created', 'CREATE INDEX idx_likes_user_created ON likes (user_id, created_at)');
+        ensure_index($db, $executed, 'likes', 'uniq_likes_user_track', 'CREATE UNIQUE INDEX uniq_likes_user_track ON likes (user_id, track_id)');
+
+        // album_likes: accelerate user album likes ORDER BY created_at
+        ensure_index($db, $executed, 'album_likes', 'idx_album_likes_user_created', 'CREATE INDEX idx_album_likes_user_created ON album_likes (user_id, created_at)');
+
+        // track_artists: accelerate feats aggregation lookups
+        ensure_index($db, $executed, 'track_artists', 'idx_track_artists_track_role', 'CREATE INDEX idx_track_artists_track_role ON track_artists (track_id, role)');
+
+        // tracks: admin filters by artist/album (and ORDER BY id)
+        ensure_index($db, $executed, 'tracks', 'idx_tracks_artist_id', 'CREATE INDEX idx_tracks_artist_id ON tracks (artist, id)');
+        ensure_index($db, $executed, 'tracks', 'idx_tracks_album_id', 'CREATE INDEX idx_tracks_album_id ON tracks (album, id)');
+    } catch (Throwable $e) {
+        // ignore: setup should be best-effort and remain idempotent
+    }
 
     // Seeds: optional, run only if tracks is empty
     $shouldSeed = false;

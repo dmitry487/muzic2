@@ -11,62 +11,65 @@ function admin_log($message){
     } catch (Throwable $e) {}
 }
 
+function find_artist_id_by_name(PDO $db, string $name): ?int {
+    $st = $db->prepare('SELECT id FROM artists WHERE TRIM(LOWER(name)) = TRIM(LOWER(?)) LIMIT 1');
+    $st->execute([$name]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$row || !isset($row['id'])) return null;
+    $id = (int)$row['id'];
+    return $id > 0 ? $id : null;
+}
+
 try {
     $db = get_db_connection();
 
-    // Ensure artists table exists
-    $db->exec('CREATE TABLE IF NOT EXISTS artists (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(255) NOT NULL UNIQUE,
-        cover VARCHAR(255),
-        bio TEXT,
-        promo_video VARCHAR(500),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )');
-    
-    // Add promo_video column if it doesn't exist
-    try {
-        $db->exec("ALTER TABLE artists ADD COLUMN promo_video VARCHAR(500) DEFAULT NULL");
-    } catch (Throwable $e) {
-        // Column already exists, ignore
-    }
+    // NOTE: DDL/migrations must not run here (hot path). Use /muzic2/scripts/setup_db.php for setup.
 
     $method = $_SERVER['REQUEST_METHOD'];
 
     if ($method === 'GET') {
         $q = isset($_GET['q']) ? trim((string)$_GET['q']) : '';
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 100;
+        if ($limit < 1) $limit = 1;
+        if ($limit > 200) $limit = 200;
+        $after = isset($_GET['after']) ? (string)$_GET['after'] : '';
+
+        // Fast path: equality join can use indexes on tracks(artist, id)
+        // Track counts are still computed, but the join predicate is now indexable.
+        $where = '1=1';
+        $params = [];
         if ($q !== '') {
-            // List artists from artists table including those without tracks
-            $sql = "SELECT a.name AS artist,
-                           a.cover AS artist_cover,
-                           a.bio AS bio,
-                           a.promo_video AS promo_video,
-                           COUNT(t.id) AS tracks,
-                           MIN(t.cover) AS track_cover
-                    FROM artists a
-                    LEFT JOIN tracks t ON TRIM(LOWER(a.name)) = TRIM(LOWER(t.artist))
-                    WHERE a.name LIKE ?
-                    GROUP BY a.name, a.cover, a.bio, a.promo_video
-                    ORDER BY a.name ASC
-                    LIMIT 500";
-            $st = $db->prepare($sql);
-            $like = '%'.$q.'%';
-            $st->execute([$like]);
-            $rows = $st->fetchAll();
-        } else {
-            $rows = $db->query("SELECT a.name AS artist,
-                                       a.cover AS artist_cover,
-                                       a.bio AS bio,
-                                       a.promo_video AS promo_video,
-                                       COUNT(t.id) AS tracks,
-                                       MIN(t.cover) AS track_cover
-                                FROM artists a
-                                LEFT JOIN tracks t ON TRIM(LOWER(a.name)) = TRIM(LOWER(t.artist))
-                                GROUP BY a.name, a.cover, a.bio, a.promo_video
-                                ORDER BY a.name ASC
-                                LIMIT 200")->fetchAll();
+            $where .= ' AND a.name LIKE ?';
+            $params[] = '%'.$q.'%';
         }
-        echo json_encode(['success'=>true, 'data'=>$rows], JSON_UNESCAPED_UNICODE);
+        if ($after !== '') {
+            $where .= ' AND a.name > ?';
+            $params[] = $after;
+        }
+
+        $sql = "SELECT a.name AS artist,
+                       a.cover AS artist_cover,
+                       a.bio AS bio,
+                       a.promo_video AS promo_video,
+                       COUNT(t.id) AS tracks,
+                       MIN(t.cover) AS track_cover
+                FROM artists a
+                LEFT JOIN tracks t ON t.artist = a.name
+                WHERE $where
+                GROUP BY a.name, a.cover, a.bio, a.promo_video
+                ORDER BY a.name ASC
+                LIMIT $limit";
+        $st = $db->prepare($sql);
+        $st->execute($params);
+        $rows = $st->fetchAll();
+
+        $nextAfter = '';
+        if ($rows && count($rows) > 0) {
+            $last = end($rows);
+            $nextAfter = (string)($last['artist'] ?? '');
+        }
+
+        echo json_encode(['success'=>true, 'data'=>$rows, 'next_after'=>$nextAfter], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
@@ -84,8 +87,14 @@ try {
         $bio = trim((string)($body['bio'] ?? ''));
         $promoVideo = trim((string)($body['promo_video'] ?? ''));
         if ($name === '') throw new Exception('Введите имя артиста');
-        $st = $db->prepare('INSERT INTO artists (name, cover, bio, promo_video) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE cover=VALUES(cover), bio=VALUES(bio), promo_video=VALUES(promo_video)');
-        $st->execute([$name, $cover, $bio, $promoVideo]);
+        $existingId = find_artist_id_by_name($db, $name);
+        if ($existingId) {
+            $st = $db->prepare('UPDATE artists SET name = ?, cover = ?, bio = ?, promo_video = ? WHERE id = ?');
+            $st->execute([$name, $cover, $bio, $promoVideo, $existingId]);
+        } else {
+            $st = $db->prepare('INSERT INTO artists (name, cover, bio, promo_video) VALUES (?, ?, ?, ?)');
+            $st->execute([$name, $cover, $bio, $promoVideo]);
+        }
         echo json_encode(['success'=>true]);
         exit;
     }
@@ -98,12 +107,18 @@ try {
         $promoVideo = trim((string)($body['promo_video'] ?? ''));
         if ($name === '') throw new Exception('Введите текущее имя артиста');
         $db->beginTransaction();
+        $existingId = find_artist_id_by_name($db, $name);
         if (strcasecmp($name, $name_new) !== 0) {
             $st = $db->prepare('UPDATE tracks SET artist = ? WHERE TRIM(LOWER(artist)) = TRIM(LOWER(?))');
             $st->execute([$name_new, $name]);
         }
-        $st = $db->prepare('INSERT INTO artists (name, cover, bio, promo_video) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE cover=VALUES(cover), bio=VALUES(bio), promo_video=VALUES(promo_video)');
-        $st->execute([$name_new, $cover, $bio, $promoVideo]);
+        if ($existingId) {
+            $st = $db->prepare('UPDATE artists SET name = ?, cover = ?, bio = ?, promo_video = ? WHERE id = ?');
+            $st->execute([$name_new, $cover, $bio, $promoVideo, $existingId]);
+        } else {
+            $st = $db->prepare('INSERT INTO artists (name, cover, bio, promo_video) VALUES (?, ?, ?, ?)');
+            $st->execute([$name_new, $cover, $bio, $promoVideo]);
+        }
         $db->commit();
         echo json_encode(['success'=>true]);
         exit;

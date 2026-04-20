@@ -1,6 +1,6 @@
 <?php
 // API для отслеживания прослушиваний треков
-session_start();
+require_once __DIR__ . '/../config/session_init.php';
 require_once __DIR__ . '/../config/db.php';
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');

@@ -1,30 +1,30 @@
 <?php
 // Windows-optimized database configuration
 function get_db_connection_windows() {
-    $host = 'localhost';
+    $hosts = ['127.0.0.1', 'localhost'];
     $dbname = 'muzic2';
     $username = 'root';
-    $password = 'root';
+    $passwords = ['root', ''];
     
-    // Для Windows используем порт 3306 (стандартный MySQL)
-    $dsn = "mysql:host=$host;port=3306;dbname=$dbname;charset=utf8mb4";
-    
-    try {
-        $pdo = new PDO($dsn, $username, $password);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT);
-        $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-        return $pdo;
-    } catch (PDOException $e) {
-        // Fallback на порт 8889 для совместимости
-        try {
-            $dsn = "mysql:host=$host;port=8889;dbname=$dbname;charset=utf8mb4";
-            $pdo = new PDO($dsn, $username, $password);
-            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT);
-            $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-            return $pdo;
-        } catch (PDOException $e2) {
-            throw new Exception('Database connection failed: ' . $e2->getMessage());
+    $ports = [8889, 3306];
+    $opts = [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_SILENT,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_TIMEOUT => 1,
+    ];
+
+    foreach ($hosts as $host) {
+        foreach ($ports as $port) {
+            $dsn = "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4";
+            foreach ($passwords as $password) {
+                try {
+                    return new PDO($dsn, $username, $password, $opts);
+                } catch (PDOException $e) {
+                    continue;
+                }
+            }
         }
     }
+    throw new Exception('Database connection failed: Unable to connect to MySQL on ports 8889 or 3306');
 }
 ?>

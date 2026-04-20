@@ -66,16 +66,19 @@ try {
         $playedPlaceholders = count($playedTrackIds) > 0 ? implode(',', array_fill(0, count($playedTrackIds), '?')) : '0';
         
         // Рекомендуем треки от любимых артистов, которые не были прослушаны
+        $recommendPoolLimit = max($limit * 8, 80);
         $recommendStmt = $db->prepare("SELECT t.id, t.title, t.artist, t.album, t.duration, t.cover, t.file_path, t.video_url, t.explicit
                                       FROM tracks t
                                       WHERE t.artist IN ($placeholders)
                                       AND t.id NOT IN ($playedPlaceholders)
-                                      ORDER BY RAND()
-                                      LIMIT ?");
+                                      ORDER BY t.id DESC
+                                      LIMIT $recommendPoolLimit");
         
-        $params = array_merge($artistNames, $playedTrackIds, [$limit]);
+        $params = array_merge($artistNames, $playedTrackIds);
         $recommendStmt->execute($params);
         $recommendedTracks = $recommendStmt->fetchAll(PDO::FETCH_ASSOC);
+        shuffle($recommendedTracks);
+        $recommendedTracks = array_slice($recommendedTracks, 0, $limit);
     }
     
     // Если недостаточно рекомендаций, добавляем случайные треки
@@ -83,15 +86,18 @@ try {
         $needed = $limit - count($recommendedTracks);
         $playedPlaceholders = count($playedTrackIds) > 0 ? implode(',', array_fill(0, count($playedTrackIds), '?')) : '0';
         
+        $randomPoolLimit = max($needed * 8, 80);
         $randomStmt = $db->prepare("SELECT t.id, t.title, t.artist, t.album, t.duration, t.cover, t.file_path, t.video_url, t.explicit
                                    FROM tracks t
                                    WHERE t.id NOT IN ($playedPlaceholders)
-                                   ORDER BY RAND()
-                                   LIMIT ?");
+                                   ORDER BY t.id DESC
+                                   LIMIT $randomPoolLimit");
         
-        $params = array_merge($playedTrackIds, [$needed]);
+        $params = $playedTrackIds;
         $randomStmt->execute($params);
         $randomTracks = $randomStmt->fetchAll(PDO::FETCH_ASSOC);
+        shuffle($randomTracks);
+        $randomTracks = array_slice($randomTracks, 0, $needed);
         $recommendedTracks = array_merge($recommendedTracks, $randomTracks);
     }
     

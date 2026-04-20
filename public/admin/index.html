@@ -86,6 +86,9 @@ const closeBtn = document.getElementById('close');
 const saveBtn = document.getElementById('save');
 
 let tab = 'artists', items = [], current = null;
+let paging = { after: '', done: false, loading: false };
+let artistSuggestions = [];
+let artistSuggestionsLoaded = false;
 
 function ok(t){statusEl.textContent=t||''; statusEl.className='status ok'}
 function err(t){statusEl.textContent=t||''; statusEl.className='status err'}
@@ -94,18 +97,54 @@ function merr(t){mstatus.textContent=t||''; mstatus.className='status err'}
 function esc(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))}
 function img(src){ if(!src) return ''; const p=src.startsWith('/muzic2/')?src:('/muzic2/'+src.replace(/^\//,'')); return `<img class="img" src="${p}" onerror="this.style.display='none'">`; }
 
-async function load(){
+async function readJsonSafe(res){
+  const text = await res.text().catch(()=> '');
+  try {
+    return text ? JSON.parse(text) : null;
+  } catch (_) {
+    const status = res && typeof res.status === 'number' ? res.status : 0;
+    const prefix = status ? `HTTP ${status}. ` : '';
+    const body = text ? `Ответ сервера: ${text.slice(0, 300)}` : 'Пустой ответ от сервера';
+    throw new Error(prefix + body);
+  }
+}
+
+async function load(opts){
   try{
-    ok('Загрузка...');
+    const o = opts || {};
+    const reset = !!o.reset;
+    if (reset) {
+      items = [];
+      paging = { after: '', done: false, loading: false };
+      list.innerHTML = '';
+    }
+    if (paging.loading || paging.done) return;
+    paging.loading = true;
+    ok(items.length ? 'Загрузка ещё...' : 'Загрузка...');
+
     const q = search.value.trim();
-    const url = API[tab] + (q?`?q=${encodeURIComponent(q)}`:'');
+    const qs = [];
+    if (q) qs.push(`q=${encodeURIComponent(q)}`);
+    qs.push(`limit=${encodeURIComponent(String(tab==='tracks' ? 80 : 100))}`);
+    if (paging.after) {
+      if (tab === 'tracks') qs.push(`after_id=${encodeURIComponent(String(paging.after))}`);
+      else qs.push(`after=${encodeURIComponent(String(paging.after))}`);
+    }
+    const url = API[tab] + (qs.length ? `?${qs.join('&')}` : '');
     const r = await fetch(url);
-    const j = await r.json();
+    const j = await readJsonSafe(r);
     if (!j.success) throw new Error(j.message||'Ошибка');
-    items = j.data || [];
+    const batch = j.data || [];
+    items = items.concat(batch);
     render();
-    ok(items.length?`Найдено: ${items.length}`:'Ничего не найдено');
+
+    if (tab === 'tracks') paging.after = j.next_after_id ? String(j.next_after_id) : '';
+    else paging.after = j.next_after ? String(j.next_after) : '';
+    if (!paging.after || batch.length === 0) paging.done = true;
+
+    ok(items.length ? `Загружено: ${items.length}${paging.done ? '' : ' (можно ещё)'}` : 'Ничего не найдено');
   }catch(e){ err(e.message) }
+  finally { paging.loading = false; }
 }
 
 function render(){
@@ -139,21 +178,74 @@ function render(){
       list.appendChild(c);
     });
   }
+
+  ensureLoadMoreButton();
+}
+
+function ensureLoadMoreButton(){
+  // Simple "Load more" button at the end of the list
+  let btn = document.getElementById('load-more');
+  if (!btn){
+    btn = document.createElement('button');
+    btn.id = 'load-more';
+    btn.className = 'btn';
+    btn.style.cssText = 'margin:12px; width:calc(100% - 24px)';
+    btn.textContent = 'Загрузить ещё';
+    btn.onclick = ()=> load({ reset:false });
+    document.body.appendChild(btn);
+  }
+  btn.style.display = paging.done ? 'none' : 'block';
 }
 
 function openModal(title, html, it){ mtitle.textContent=title; mbody.innerHTML=html; mstatus.textContent=''; modal.style.display='flex'; current = it || null; }
 function closeModal(){ modal.style.display='none'; current=null; }
 closeBtn.onclick = closeModal;
 
-async function upload(file){ const fd=new FormData(); fd.append('cover', file); const r=await fetch(API.upload,{method:'POST',body:fd}); const j=await r.json(); if(!r.ok||!j.success) throw new Error(j.message||'Ошибка загрузки'); return j.path; }
-async function uploadVideo(file){ const fd=new FormData(); fd.append('video', file); const r=await fetch(API.uploadVideo,{method:'POST',body:fd}); const j=await r.json(); if(!r.ok||!j.success) throw new Error(j.message||'Ошибка загрузки'); return j.path; }
+async function upload(file){ const fd=new FormData(); fd.append('cover', file); const r=await fetch(API.upload,{method:'POST',body:fd}); const j=await readJsonSafe(r); if(!r.ok||!j||!j.success) throw new Error((j&&j.message)||'Ошибка загрузки'); return j.path; }
+async function uploadVideo(file){ const fd=new FormData(); fd.append('video', file); const r=await fetch(API.uploadVideo,{method:'POST',body:fd}); const j=await readJsonSafe(r); if(!r.ok||!j||!j.success) throw new Error((j&&j.message)||'Ошибка загрузки'); return j.path; }
+
+async function loadArtistSuggestions(force){
+  if (!force && artistSuggestionsLoaded) return artistSuggestions;
+  const names = new Set();
+  let after = '';
+  let guard = 0;
+  try {
+    while (guard < 8) {
+      guard += 1;
+      const qs = [`limit=200`];
+      if (after) qs.push(`after=${encodeURIComponent(after)}`);
+      const res = await fetch(`${API.artists}?${qs.join('&')}`);
+      const data = await readJsonSafe(res);
+      const rows = (data && data.success && Array.isArray(data.data)) ? data.data : [];
+      rows.forEach((r)=>{
+        const nm = String((r && r.artist) || '').trim();
+        if (nm) names.add(nm);
+      });
+      const next = data && data.next_after ? String(data.next_after) : '';
+      if (!next || rows.length === 0) break;
+      after = next;
+    }
+  } catch(_) {}
+  artistSuggestions = Array.from(names).sort((a,b)=>a.localeCompare(b,'ru'));
+  artistSuggestionsLoaded = true;
+  return artistSuggestions;
+}
+
+function bindArtistSuggestionsToTrackModal(){
+  const dl = document.getElementById('artist-suggestions');
+  if (!dl) return;
+  loadArtistSuggestions(false).then((list)=>{
+    if (!Array.isArray(list) || !list.length) return;
+    dl.innerHTML = list.map((name)=>`<option value="${esc(name)}"></option>`).join('');
+  }).catch(()=>{});
+}
 
 async function editArtist(a){
   // Load artist tracks for promo track selection
   let tracksOptions = '<option value="">— Не выбран —</option>';
   try {
     const tracksRes = await fetch(`${API.tracks}?q=${encodeURIComponent(a.artist||'')}`);
-    const tracksData = await tracksRes.json();
+    const tracksData = await readJsonSafe(tracksRes);
     if (tracksData.success && Array.isArray(tracksData.data)) {
       tracksData.data.forEach(t => {
         const selected = a.promo_track_id && t.id == a.promo_track_id ? 'selected' : '';
@@ -182,7 +274,7 @@ async function editArtist(a){
       const promoTrackId = document.getElementById('f-promo-track').value || null;
       const payload = { action:'update', name: a.artist, name_new: document.getElementById('f-name').value.trim(), cover, bio: document.getElementById('f-bio').value.trim(), promo_video: promoVideo, promo_track_id: promoTrackId };
       const r = await fetch(API.artists, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-      const j = await r.json(); if(!j.success) throw new Error(j.message||'Ошибка');
+      const j = await readJsonSafe(r); if(!j || !j.success) throw new Error((j&&j.message)||'Ошибка');
       closeModal(); load();
     }catch(e){ merr(e.message) }
   };
@@ -204,7 +296,7 @@ function editAlbum(al){
       if (file){ cover = await upload(file); document.getElementById('f-cover').value = cover; }
       const payload = { action:'update', album: al.album, album_new: document.getElementById('f-album').value.trim(), artist: document.getElementById('f-artist').value.trim(), album_type: document.getElementById('f-type').value, cover, feats: document.getElementById('f-feats').value.trim() };
       const r = await fetch(API.albums, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-      const j = await r.json(); if(!j.success) throw new Error(j.message||'Ошибка');
+      const j = await readJsonSafe(r); if(!j || !j.success) throw new Error((j&&j.message)||'Ошибка');
       closeModal(); load();
     }catch(e){ merr(e.message) }
   };
@@ -213,7 +305,7 @@ function editAlbum(al){
 function editTrack(t){
   openModal('Изменить трек', `
     <div class='field'><label>Название</label><input id='f-title' value='${esc(t.title||'')}'></div>
-    <div class='field'><label>Артист</label><input id='f-artist' value='${esc(t.artist||'')}'></div>
+    <div class='field'><label>Артист</label><input id='f-artist' list='artist-suggestions' value='${esc(t.artist||'')}' placeholder='Начните вводить имя артиста'><datalist id='artist-suggestions'></datalist><div style='font-size:12px;color:var(--muted);margin-top:4px'>Выберите из списка, чтобы избежать опечаток</div></div>
     <div class='field'><label>Фиты (через запятую)</label><input id='f-feats' value='${esc(t.feats||'')}' placeholder='Kai Angel, 9mice'></div>
     <div class='field'><label>Альбом</label><input id='f-album' value='${esc(t.album||'')}'></div>
     <div class='field'><label>Тип</label><select id='f-type'><option value='album' ${t.album_type==='album'?'selected':''}>Альбом</option><option value='ep' ${t.album_type==='ep'?'selected':''}>EP</option><option value='single' ${t.album_type==='single'?'selected':''}>Сингл</option></select></div>
@@ -221,6 +313,7 @@ function editTrack(t){
     <div class='field'><label>Обложка (путь или загрузите)</label><div style='display:flex;gap:8px'><input id='f-cover' value='${esc(t.cover||'')}' style='flex:1'><input id='f-file2' type='file' accept='image/*' style='flex:1'></div></div>
     <div class='field'><label>Длительность (сек)</label><input id='f-dur' type='number' value='${t.duration||0}'></div>
   `, t);
+  bindArtistSuggestionsToTrackModal();
   saveBtn.onclick = async ()=>{
     try{
       mok('Сохранение...');
@@ -231,7 +324,7 @@ function editTrack(t){
       const base = { title: document.getElementById('f-title').value.trim(), artist: document.getElementById('f-artist').value.trim(), feats: document.getElementById('f-feats').value.trim(), album: document.getElementById('f-album').value.trim(), album_type: document.getElementById('f-type').value, file_path: document.getElementById('f-file').value.trim(), cover, duration: parseInt(document.getElementById('f-dur').value||0,10) };
       const payload = isCreate ? ({ action:'create', ...base }) : ({ action:'update', id: t.id, ...base });
       const r = await fetch(API.tracks, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-      const j = await r.json(); if(!j.success) throw new Error(j.message||'Ошибка');
+      const j = await readJsonSafe(r); if(!j || !j.success) throw new Error((j&&j.message)||'Ошибка');
       closeModal(); load();
     }catch(e){ merr(e.message) }
   };
@@ -240,22 +333,22 @@ function editTrack(t){
 async function delTrack(t){
   if (!confirm(`Удалить трек "${t.title}"?`)) return;
   const r = await fetch(API.tracks, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'delete', id: t.id})});
-  const j = await r.json();
-  if (j.success){ ok('Трек удалён'); load(); } else { err(j.message||'Ошибка') }
+  const j = await readJsonSafe(r);
+  if (j && j.success){ ok('Трек удалён'); load(); } else { err((j&&j.message)||'Ошибка') }
 }
 
 async function delArtist(a){
   if (!confirm(`Удалить артиста "${a.artist}"?`)) return;
   const r = await fetch(API.artists, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'delete', name: a.artist})});
-  const j = await r.json();
-  if (j.success){ ok('Артист удалён'); load(); } else { err(j.message||'Ошибка') }
+  const j = await readJsonSafe(r);
+  if (j && j.success){ ok('Артист удалён'); load(); } else { err((j&&j.message)||'Ошибка') }
 }
 
 async function delAlbum(al){
   if (!confirm(`Удалить альбом "${al.album}" от "${al.artist}"?`)) return;
   const r = await fetch(API.albums, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'delete', album: al.album})});
-  const j = await r.json();
-  if (j.success){ ok('Альбом удалён'); load(); } else { err(j.message||'Ошибка') }
+  const j = await readJsonSafe(r);
+  if (j && j.success){ ok('Альбом удалён'); load(); } else { err((j&&j.message)||'Ошибка') }
 }
 
 add.onclick = async ()=>{
@@ -274,7 +367,7 @@ add.onclick = async ()=>{
         const promoTrackId = document.getElementById('f-promo-track') ? (document.getElementById('f-promo-track').value || null) : null;
         const payload = { action:'create', name: document.getElementById('f-name').value.trim(), cover, bio: document.getElementById('f-bio').value.trim(), promo_video: promoVideo, promo_track_id: promoTrackId };
         const r = await fetch(API.artists, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-        const j = await r.json(); if(!j.success) throw new Error(j.message||'Ошибка');
+        const j = await readJsonSafe(r); if(!j || !j.success) throw new Error((j&&j.message)||'Ошибка');
         closeModal(); load();
       }catch(e){ merr(e.message) }
     };
@@ -287,10 +380,10 @@ add.onclick = async ()=>{
   }
 };
 
-document.querySelectorAll('.tab').forEach(b=> b.onclick=()=>{ document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); tab=b.dataset.tab; load(); });
-search.oninput = ()=>{ clearTimeout(search._t); search._t = setTimeout(load, 300); };
+document.querySelectorAll('.tab').forEach(b=> b.onclick=()=>{ document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); tab=b.dataset.tab; load({reset:true}); });
+search.oninput = ()=>{ clearTimeout(search._t); search._t = setTimeout(()=>load({reset:true}), 300); };
 
-load();
+load({reset:true});
 </script>
 </body>
 </html>

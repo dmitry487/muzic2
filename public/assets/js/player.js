@@ -607,14 +607,17 @@
     ? window.location.origin
     : (window.API_ORIGIN || 'http://localhost:8888');
   const api = (path) => (String(path).startsWith('http') ? path : API_ORIGIN + path);
-  const getLikesAPI = () => {
-    const isWin = navigator.platform.toUpperCase().indexOf('WIN') >= 0;
-    return api(isWin ? '/muzic2/src/api/windows_likes.php' : '/muzic2/src/api/likes.php');
-  };
+  const getLikesAPI = (opts) => (typeof window.getLikesAPI === 'function'
+    ? window.getLikesAPI(opts)
+    : api('/muzic2/src/api/windows_likes.php' + (opts && opts.lite ? '?lite=1&limit=2000' : '')));
   
   // Elements (scoped to player container to avoid ID conflicts on page)
   const playerContainer = playerRoot.querySelector('#player');
   const audio = playerRoot.querySelector('#audio');
+  if (audio) {
+    // Reduce network pressure on initial page render.
+    audio.preload = 'none';
+  }
   
   const playBtn = playerContainer.querySelector('#play-btn');
   const playIcon = playerContainer.querySelector('#play-icon');
@@ -1935,53 +1938,75 @@
   }
   
 
-  // Likes helpers
+  // Likes helpers (id всегда число — совпадение с Set из API)
+  function normalizeTrackId(t) {
+    if (!t) return null;
+    const raw = t.id != null ? t.id : t.track_id;
+    if (raw === null || raw === undefined || raw === '') return null;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  function extractAudioFileParam(src) {
+    if (!src || typeof src !== 'string') return '';
+    try {
+      const u = new URL(src, window.location.origin || 'http://localhost');
+      const f = u.searchParams.get('f');
+      return f || '';
+    } catch (_) {
+      const m = String(src).match(/[?&]f=([^&]+)/);
+      if (!m) return '';
+      try {
+        return decodeURIComponent(m[1].replace(/\+/g, ' '));
+      } catch (e2) {
+        return m[1];
+      }
+    }
+  }
+  async function resolveTrackIdFromPlayer() {
+    const src = (audio && audio.currentSrc) || (audio && audio.src) || '';
+    const f = extractAudioFileParam(src);
+    if (!f) return null;
+    try {
+      const r = await fetch(api('/muzic2/src/api/track_resolve.php?f=' + encodeURIComponent(f)), { credentials: 'include' });
+      const j = await r.json();
+      const id = j && j.id != null ? Number(j.id) : null;
+      return Number.isFinite(id) && id > 0 ? id : null;
+    } catch (_) {
+      return null;
+    }
+  }
   async function loadLikes() {
     try {
-      const r = await fetch(getLikesAPI(), { credentials: 'include' });
-      const j = await r.json();
-      likedSet = new Set((j.tracks||[]).map(t=>t.id));
-    } catch (e) { likedSet = new Set(); }
+      if (window.__likedSet instanceof Set && window.__likedSet.size) {
+        likedSet = new Set(Array.from(window.__likedSet));
+        return;
+      }
+      const j = (typeof window.fetchLikesLiteCached === 'function')
+        ? await window.fetchLikesLiteCached(false)
+        : await fetch(getLikesAPI({ lite: true }), { credentials: 'include' }).then((r) => r.json());
+      const ids = j.lite && Array.isArray(j.track_ids)
+        ? j.track_ids.map((n) => Number(n)).filter((n) => n > 0)
+        : (j.tracks || []).map((t) => Number(t.id)).filter((n) => n > 0);
+      likedSet = new Set(ids);
+    } catch (e) {
+      likedSet = new Set();
+    }
   }
   function updatePlayerLikeUI() {
     if (!likeBtn) return;
-    const liked = currentTrackId && likedSet.has(currentTrackId);
+    const tid = currentTrackId != null ? Number(currentTrackId) : null;
+    const liked = tid > 0 && likedSet.has(tid);
     likeBtn.classList.toggle('btn-active', !!liked);
     likeBtn.title = liked ? 'Убрать из любимых' : 'В избранное';
   }
   document.addEventListener('likes:updated', (e) => {
-    const d = e.detail || {}; const id = d.trackId; const liked = !!d.liked;
+    const d = e.detail || {};
+    const id = Number(d.trackId);
+    const liked = !!d.liked;
     if (!id) return;
     if (liked) likedSet.add(id); else likedSet.delete(id);
-    if (currentTrackId === id) updatePlayerLikeUI();
+    if (Number(currentTrackId) === id) updatePlayerLikeUI();
   });
-  async function loadLikes() {
-    try {
-      const r = await fetch(getLikesAPI(), { credentials: 'include' });
-      const j = await r.json();
-      likedSet = new Set((j.tracks||[]).map(t=>t.id));
-    } catch (e) { likedSet = new Set(); }
-  }
-  function updatePlayerLikeUI() {
-    if (!likeBtn) return;
-    const liked = currentTrackId && likedSet.has(currentTrackId);
-    likeBtn.classList.toggle('btn-active', !!liked);
-    likeBtn.title = liked ? 'Убрать из любимых' : 'В избранное';
-  }
-
-  async function loadLikes() {
-    try {
-      const r = await fetch(getLikesAPI(), { credentials: 'include' });
-      const j = await r.json();
-      likedSet = new Set((j.tracks||[]).map(t=>t.id));
-    } catch (e) { likedSet = new Set(); }
-  }
-  function updatePlayerLikeUI() {
-    if (!likeBtn) return;
-    const liked = currentTrackId && likedSet.has(currentTrackId);
-    likeBtn.classList.toggle('btn-active', !!liked);
-    likeBtn.title = liked ? 'Убрать из любимых' : 'В избранное';
-  }
 
   function updateMuteUI() {
     if (!volumeBtn) return;
@@ -2161,7 +2186,6 @@
   function loadPlayerState() {
     const state = getSavedState();
     if (state && state.src) {
-      audio.src = state.src;
       trackTitle.textContent = state.title || '';
       trackArtist.textContent = state.artist || '';
       cover.src = state.cover || '';
@@ -2176,6 +2200,13 @@
       updateRepeatUI();
       updateMuteUI();
       updateFullscreenUI();
+
+      // Performance: do not start downloading audio on first page paint
+      // unless track was actively playing before reload.
+      if (!state.isPlaying) {
+        return;
+      }
+      audio.src = state.src;
 
       audio.addEventListener('loadedmetadata', function restoreOnce() {
         audio.currentTime = state.currentTime || 0;
@@ -2347,7 +2378,7 @@
       if (carouselTrackArtist) carouselTrackArtist.textContent = t.artist || '';
     }
     if (cover) cover.src = t.cover || (cover.src || '');
-    currentTrackId = t.id || null;
+    currentTrackId = normalizeTrackId(t);
     lastTrackTitle = String(t.title||'');
     lastTrackArtist = String(t.artist||'');
     
@@ -2995,6 +3026,7 @@
     }
   });
   window.playFromQueue = function(idx) {
+    try { crossfadeStarted = false; } catch (_) {}
     console.log('playFromQueue called with index:', idx);
     console.log('trackQueue length:', trackQueue.length);
     console.log('Full trackQueue:', trackQueue);
@@ -3561,6 +3593,7 @@
         
         const currentTrack = trackQueue[queueIndex];
         const nextTrack = trackQueue[(queueIndex + 1) % trackQueue.length];
+        const nextSrc = ensureAudioProxy(nextTrack.src);
         
         // Update UI immediately when crossfade starts
         trackTitle.textContent = nextTrack.title || '';
@@ -3568,7 +3601,7 @@
         cover.src = nextTrack.cover || cover.src;
         
         // Create next audio element
-        const nextAudio = new Audio(nextTrack.src);
+        const nextAudio = new Audio(nextSrc);
         nextAudio.volume = 0;
         nextAudio.currentTime = 0;
         
@@ -3607,7 +3640,7 @@
             
             // Stop current audio and switch to next
             audio.pause();
-            audio.src = nextTrack.src;
+            audio.src = nextSrc;
             audio.currentTime = nextAudio.currentTime; // Sync position
             audio.volume = 1;
             audio.play().catch(() => {});
@@ -3636,7 +3669,8 @@
   });
   audio.addEventListener('ended', () => {
     console.log('Audio ended event triggered');
-    
+    try { crossfadeStarted = false; } catch (_) {}
+
     // Отслеживание завершения прослушивания
     if (trackQueue[queueIndex]) {
       const currentTrack = trackQueue[queueIndex];
@@ -4486,21 +4520,42 @@
   // Like button - single handler
   if (likeBtn) {
     likeBtn.onclick = async () => {
-      if (!currentTrackId) return;
-      // Ensure we have current liked set
       if (!likedSet || typeof likedSet.has !== 'function') likedSet = new Set();
-      
-      if (likedSet.has(currentTrackId)) {
-        await fetch(getLikesAPI(), { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: currentTrackId })});
-        likedSet.delete(currentTrackId);
-      } else {
-        await fetch(getLikesAPI(), { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: currentTrackId })});
-        likedSet.add(currentTrackId);
+      let tid = normalizeTrackId({ id: currentTrackId });
+      if (!tid && trackQueue[queueIndex]) {
+        tid = normalizeTrackId(trackQueue[queueIndex]);
+      }
+      if (!tid) {
+        tid = await resolveTrackIdFromPlayer();
+        if (tid) {
+          currentTrackId = tid;
+          if (trackQueue[queueIndex]) {
+            trackQueue[queueIndex].id = tid;
+            try { saveQueue(); } catch (_) {}
+          }
+        }
+      }
+      if (!tid) {
+        likeBtn.title = 'Не удалось определить трек в базе';
+        setTimeout(() => { updatePlayerLikeUI(); }, 2500);
+        return;
+      }
+      currentTrackId = tid;
+      try {
+        if (likedSet.has(tid)) {
+          const r = await fetch(getLikesAPI(), { method: 'DELETE', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ track_id: tid }) });
+          if (r.ok) likedSet.delete(tid);
+        } else {
+          const r = await fetch(getLikesAPI(), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ track_id: tid }) });
+          if (r.ok) likedSet.add(tid);
+        }
+      } catch (err) {
+        console.error('Like request failed', err);
       }
       updatePlayerLikeUI();
-      // Broadcast change so hearts update elsewhere
-      try { document.dispatchEvent(new CustomEvent('likes:updated', { detail: { trackId: currentTrackId, liked: likedSet.has(currentTrackId) } })); } catch (_) {}
-      // Update carousel if it's open
+      try {
+        document.dispatchEvent(new CustomEvent('likes:updated', { detail: { trackId: tid, liked: likedSet.has(tid) } }));
+      } catch (_) {}
       if (isCarouselMode) {
         updateCarousel();
       }
@@ -5140,7 +5195,8 @@
       title: track.title || '',
       artist: track.artist || '',
       cover: normalizeCover(track.cover || ''),
-      duration: track.duration || 0
+      duration: track.duration || 0,
+      id: track.id != null ? track.id : track.track_id
     };
     window.playTrack({ ...t });
   };
@@ -5246,11 +5302,9 @@
     postToPopup({ cmd: 'play' }, { retries: 3, delay: 150 });
   }
 
-  // Detect operating system
-  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-  const isWindows = navigator.platform.toUpperCase().indexOf('WIN') >= 0;
+  const isWindows = /Win/i.test(navigator.userAgent || '') || /Win/i.test(navigator.platform || '');
   
-  // F7 and F9 keys handler (cross-platform)
+  // F7 and F9 keys handler
   document.addEventListener('keydown', (e) => {
     // Try multiple approaches for F-keys
     const isF7 = e.keyCode === 118 || e.code === 'F7' || e.key === 'F7';
@@ -5271,27 +5325,6 @@
       return false;
     }
   }, true); // Use capture phase
-  
-  // Alternative: Try with modifier keys (Mac specific)
-  if (isMac) {
-    document.addEventListener('keydown', (e) => {
-      // On Mac, F-keys might need modifier keys
-      if ((e.keyCode === 118 || e.keyCode === 120) && (e.altKey || e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        
-        if (e.keyCode === 118) { // Modifier+F7
-          console.log('Modifier+F7 pressed - Previous track');
-          playPrev();
-        } else if (e.keyCode === 120) { // Modifier+F9
-          console.log('Modifier+F9 pressed - Next track');
-          playNext(false);
-        }
-        return false;
-      }
-    }, true);
-  }
   
   // Windows-specific keys
   if (isWindows) {
@@ -5340,70 +5373,11 @@
     }
   });
   
-  // Show instructions based on OS
-  if (isMac) {
-    console.log('🍎 Mac: Для работы F7/F9:');
-    console.log('1. System Preferences → Keyboard → Shortcuts');
-    console.log('2. Отключите системные сочетания для F7/F9');
-    console.log('3. Или включите "Use F1, F2, etc. keys as standard function keys"');
-    console.log('4. Или используйте Fn+F7/F9');
-  } else if (isWindows) {
-    console.log('🪟 Windows: Поддерживаемые клавиши:');
-    console.log('• F7/F9 - переключение треков');
-    console.log('• Ctrl+F7/Ctrl+F9 - альтернативное переключение');
-    console.log('• Media клавиши - Play/Pause, Next, Previous, Stop');
-  } else {
-    console.log('🖥️ Другая ОС: Поддерживаемые клавиши:');
-    console.log('• F7/F9 - переключение треков');
-    console.log('• Media клавиши - Play/Pause, Next, Previous, Stop');
-  }
-  
-  // Try to detect if F-keys work without Fn (Mac only)
-  if (isMac) {
-    let fnRequired = false;
-    let testAttempts = 0;
-    
-    const testFKeys = () => {
-      testAttempts++;
-      if (testAttempts > 3) {
-        if (fnRequired) {
-          console.log('⚠️ F7/F9 требуют нажатия Fn. Настройте Mac для работы без Fn:');
-          console.log('System Preferences → Keyboard → "Use F1, F2, etc. keys as standard function keys"');
-        }
-        return;
-      }
-      
-      // Show test message
-      console.log(`🧪 Тест ${testAttempts}: Нажмите F7 или F9 (без Fn) для проверки...`);
-      
-      const testHandler = (e) => {
-        if (e.keyCode === 118 || e.keyCode === 120) {
-          if (!e.altKey && !e.metaKey && !e.ctrlKey) {
-            console.log('✅ F-клавиши работают без Fn!');
-            fnRequired = false;
-          } else {
-            console.log('⚠️ F-клавиши требуют модификаторы');
-            fnRequired = true;
-          }
-          document.removeEventListener('keydown', testHandler);
-          setTimeout(testFKeys, 2000);
-        }
-      };
-      
-      document.addEventListener('keydown', testHandler);
-      setTimeout(() => {
-        document.removeEventListener('keydown', testHandler);
-        if (testAttempts <= 3) {
-          setTimeout(testFKeys, 2000);
-        }
-      }, 3000);
-    };
-    
-    // Start test after 2 seconds
-    setTimeout(testFKeys, 2000);
+  if (isWindows) {
+    console.log('Клавиши: F7/F9 — треки; Ctrl+F7/F9; медиаклавиши');
   }
 
-  // Universal media keys support (all OS)
+  // Universal media keys support
   document.addEventListener('keydown', (e) => {
     if (e.code === 'MediaPlayPause') {
       e.preventDefault();

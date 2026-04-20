@@ -68,10 +68,13 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
         // Load liked tracks set for current user
         try {
-            const resp = await fetch('/muzic2/src/api/likes.php', { credentials: 'include' });
+            const resp = await fetch('/muzic2/src/api/windows_likes.php?lite=1', { credentials: 'include' });
             const json = await resp.json();
-            window.__likedSet = new Set((json.tracks||[]).map(t=>t.id));
-            window.__likedAlbums = new Set((json.albums||[]).map(a=>a.album_title || a.title));
+            const ids = json.lite && Array.isArray(json.track_ids)
+                ? json.track_ids.map((n) => Number(n)).filter((n) => n > 0)
+                : (json.tracks || []).map((t) => t.id);
+            window.__likedSet = new Set(ids);
+            window.__likedAlbums = new Set((json.albums || []).map((a) => a.album_title || a.title));
         } catch(e) { 
             window.__likedSet = new Set();
             window.__likedAlbums = new Set();
@@ -278,7 +281,7 @@ function createTrackElement(track, number) {
         e.stopPropagation();
         if (!window.__likedSet) window.__likedSet = new Set();
         if (window.__likedSet.has(track.id)) {
-            await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: track.id })});
+            await fetch('/muzic2/src/api/windows_likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: track.id })});
             window.__likedSet.delete(track.id);
             icon.classList.remove('fas'); 
             icon.classList.add('far'); 
@@ -286,7 +289,7 @@ function createTrackElement(track, number) {
             likeBtn.style.color = '#b3b3b3';
             try{ document.dispatchEvent(new CustomEvent('likes:updated', { detail:{ trackId: track.id, liked:false } })); }catch(_){ }
         } else {
-            await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: track.id })});
+            await fetch('/muzic2/src/api/windows_likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: track.id })});
             window.__likedSet.add(track.id);
             icon.classList.remove('far'); 
             icon.classList.add('fas'); 
@@ -360,11 +363,11 @@ function createAlbumElement(album) {
             if (!window.__likedAlbums) window.__likedAlbums = new Set();
             const icon = likeBtn.querySelector('i');
             if (window.__likedAlbums.has(album.title)) {
-                await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: album.title })});
+                await fetch('/muzic2/src/api/windows_likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: album.title })});
                 window.__likedAlbums.delete(album.title);
                 likeBtn.classList.remove('liked');
             } else {
-                await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: album.title })});
+                await fetch('/muzic2/src/api/windows_likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: album.title })});
                 window.__likedAlbums.add(album.title);
                 likeBtn.classList.add('liked');
             }

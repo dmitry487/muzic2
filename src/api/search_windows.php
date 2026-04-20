@@ -1,5 +1,6 @@
 <?php
-session_start();
+require_once __DIR__ . '/../config/session_init.php';
+require_once __DIR__ . '/../config/db.php';
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
@@ -14,8 +15,7 @@ if (!isset($_SESSION['user_id'])) {
 
 // Ультра-быстрая версия поиска для Windows
 try {
-    $pdo = new PDO('mysql:host=localhost;port=8889;dbname=muzic2', 'root', 'root');
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT);
+    $pdo = get_db_connection();
     
     $query = $_GET['q'] ?? '';
     $type = $_GET['type'] ?? 'all';
@@ -41,7 +41,18 @@ try {
     
     // Простой поиск артистов (только первые 5)
     if ($type === 'all' || $type === 'artists') {
-        $stmt = $pdo->prepare("SELECT DISTINCT artist, cover FROM tracks WHERE LOWER(artist) LIKE LOWER(?) LIMIT 5");
+        $stmt = $pdo->prepare("
+            SELECT
+                t.artist AS name,
+                COALESCE(NULLIF(a.cover, ''), MIN(t.cover)) AS cover,
+                COUNT(*) AS track_count
+            FROM tracks t
+            LEFT JOIN artists a ON a.name = t.artist
+            WHERE LOWER(t.artist) LIKE LOWER(?)
+            GROUP BY t.artist, a.cover
+            ORDER BY track_count DESC
+            LIMIT 5
+        ");
         $searchTerm = '%' . $query . '%';
         $stmt->execute([$searchTerm]);
         $results['artists'] = $stmt->fetchAll(PDO::FETCH_ASSOC);

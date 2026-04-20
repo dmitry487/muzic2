@@ -3,8 +3,58 @@ if (location.protocol === 'https:') {
     location.replace('http:' + location.href.substring(5));
 }
 
-// Измеряем время загрузки только для Windows
 console.log('User Agent:', navigator.userAgent);
+
+const API_ORIGIN = (window.location && window.location.protocol && window.location.protocol.startsWith('http'))
+	? window.location.origin
+	: (window.API_ORIGIN || 'http://localhost');
+const api = (path) => (String(path).startsWith('http') ? path : API_ORIGIN + path);
+const getAuthAPI = () => api('/muzic2/src/api/windows_auth.php');
+const getUserAPI = () => api('/muzic2/src/api/windows_auth.php');
+/** @param {{ lite?: boolean }} [opts] lite=1 — только id треков, без JOIN с tracks */
+function getLikesAPI(opts) {
+	const q = opts && opts.lite ? '?lite=1&limit=2000' : '';
+	return api('/muzic2/src/api/windows_likes.php' + q);
+}
+window.API_ORIGIN = API_ORIGIN;
+window.getLikesAPI = getLikesAPI;
+
+// Short-lived cache to avoid multiple identical likes-lite requests on initial page load.
+const __likesLiteCache = { ts: 0, data: null, promise: null };
+async function fetchLikesLiteCached(force) {
+	const now = Date.now();
+	if (!force && __likesLiteCache.data && (now - __likesLiteCache.ts) < 8000) return __likesLiteCache.data;
+	if (__likesLiteCache.promise) return __likesLiteCache.promise;
+	__likesLiteCache.promise = fetch(getLikesAPI({ lite: true }), { credentials: 'include' })
+		.then((r) => r.json())
+		.then((j) => {
+			__likesLiteCache.data = j || { lite: true, track_ids: [], albums: [] };
+			__likesLiteCache.ts = Date.now();
+			return __likesLiteCache.data;
+		})
+		.catch(() => ({ lite: true, track_ids: [], albums: [] }))
+		.finally(() => { __likesLiteCache.promise = null; });
+	return __likesLiteCache.promise;
+}
+window.fetchLikesLiteCached = fetchLikesLiteCached;
+
+function syncLikesFromServerPayload(j) {
+	if (!j || typeof j !== 'object') return;
+	const ids = j.lite && Array.isArray(j.track_ids)
+		? j.track_ids.map((n) => Number(n)).filter((n) => n > 0)
+		: (Array.isArray(j.tracks) ? j.tracks.map((t) => Number(t.id)).filter((n) => n > 0) : []);
+	window.__likedSet = new Set(ids);
+	const alb = Array.isArray(j.albums) ? j.albums : [];
+	window.__likedAlbums = new Set(alb.map((a) => a.album_title || a.title).filter(Boolean));
+}
+
+/** Used by global helpers (e.g. renderArtistInline) and the main app block */
+function escapeHtml(str) {
+	if (str === null || str === undefined) return '';
+	return String(str).replace(/[&<>"]/g, function (m) {
+		return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m];
+	});
+}
 
 const mainContent = document.getElementById('main-content');
 const navHome = document.getElementById('nav-home');
@@ -39,20 +89,6 @@ if (mainContent && navHome && navSearch && navLibrary) {
 	// Session state
 	let currentUser = null;
 
-// Detect operating system
-const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-const isWindows = navigator.platform.toUpperCase().indexOf('WIN') >= 0;
-
-// API endpoints based on OS
-const getAuthAPI = () => isWindows ? '/muzic2/src/api/windows_auth.php' : '/muzic2/src/api/login.php';
-const getUserAPI = () => isWindows ? '/muzic2/src/api/windows_auth.php' : '/muzic2/src/api/user.php';
-const API_ORIGIN = (window.location && window.location.protocol && window.location.protocol.startsWith('http'))
-    ? window.location.origin
-    : (window.API_ORIGIN || 'http://localhost:8888');
-const api = (path) => (String(path).startsWith('http') ? path : API_ORIGIN + path);
-const getLikesAPI = () => api(isWindows ? '/muzic2/src/api/windows_likes.php' : '/muzic2/src/api/likes.php');
-window.API_ORIGIN = API_ORIGIN;
-
 	// Ensure auth modals exist globally
 	ensureAuthModals();
 
@@ -79,54 +115,45 @@ window.API_ORIGIN = API_ORIGIN;
 			mainHeader.style.display = 'none';
 		}
 		
-		// Ультра-быстрая инициализация сессии для Windows
-		if (isWindows) {
-			console.log('Windows detected - using ultra-fast session init');
-            // Optimistic render from localStorage to avoid header lag
-            try {
-                const cached = localStorage.getItem('currentUser');
-                if (cached) {
-                    currentUser = JSON.parse(cached);
-                }
-            } catch(_) {}
-			try {
-				const res = await fetch(api('/muzic2/src/api/user_windows.php'), { credentials: 'include' });
-				const data = await res.json();
-				currentUser = data.authenticated ? data.user : null;
-			} catch (e) {
-				console.error('Windows session init error:', e);
-				currentUser = null;
-			}
-			
-			// Проверяем авторизацию
-			if (!currentUser) {
-				showLoginScreen();
-				return;
-			}
-			
-			// Пользователь авторизован - показываем контент
-			showAuthenticatedContent();
-			renderAuthHeader();
-			return;
-		}
-		
-		// Оригинальная логика для Mac
+		let cachedUser = null;
 		try {
-			const res = await fetch(getUserAPI(), { credentials: 'include' });
-			const data = await res.json();
-			currentUser = data.authenticated ? data.user : null;
+			const raw = localStorage.getItem('currentUser');
+			if (raw) cachedUser = JSON.parse(raw);
+		} catch (_) { /* ignore */ }
+		currentUser = cachedUser;
+
+		let serverDecided = false;
+		try {
+			const ac = new AbortController();
+			const to = setTimeout(() => ac.abort(), 12000);
+			let res;
+			try {
+				res = await fetch(api('/muzic2/src/api/user_windows.php'), { credentials: 'include', signal: ac.signal });
+			} finally {
+				clearTimeout(to);
+			}
+			if (res.ok) {
+				const data = await res.json().catch(() => null);
+				if (data && typeof data.authenticated === 'boolean') {
+					serverDecided = true;
+					currentUser = data.authenticated ? data.user : null;
+					if (currentUser) {
+						try { localStorage.setItem('currentUser', JSON.stringify(currentUser)); } catch (_) { /* ignore */ }
+					} else {
+						try { localStorage.removeItem('currentUser'); } catch (_) { /* ignore */ }
+					}
+				}
+			}
 		} catch (e) {
 			console.error('Session init error:', e);
-			currentUser = null;
 		}
-		
-		// Проверяем авторизацию
+		if (!serverDecided && cachedUser) {
+			currentUser = cachedUser;
+		}
 		if (!currentUser) {
 			showLoginScreen();
 			return;
 		}
-		
-		// Пользователь авторизован - показываем контент
 		showAuthenticatedContent();
 		renderAuthHeader();
 	})();
@@ -225,7 +252,7 @@ window.API_ORIGIN = API_ORIGIN;
 				}
 				
 				// Проверяем авторизацию
-				if (isWindows && payload && payload.user) {
+				if (payload && payload.user) {
 					currentUser = payload.user;
 					try { localStorage.setItem('currentUser', JSON.stringify(currentUser)); } catch(_) {}
 				} else {
@@ -323,12 +350,16 @@ window.API_ORIGIN = API_ORIGIN;
 		if (!panel) return;
 		
 		if (currentUser) {
+			const username = String(currentUser.username || '').trim().toLowerCase();
+			const email = String(currentUser.email || '').trim().toLowerCase();
+			const isAdminUser = username === 'admin' || email === 'admin@test.com';
 			panel.innerHTML = `
 				<div class="user-menu">
 					<button id="user-menu-btn" class="btn">${escapeHtml(currentUser.username || '')}</button>
 					<div id="user-menu-popover" class="popover" style="display:none; position:absolute; right:12px; top:52px; background:#1a1a1a; border:1px solid #333; border-radius:12px; padding:12px; min-width:240px; z-index:1000; box-shadow:0 8px 24px rgba(0,0,0,.4)">
 						<div style="padding:8px 4px; color:#b3b3b3">${escapeHtml(currentUser.username || '')}</div>
 						<hr style="border:0;border-top:1px solid #2a2a2a; margin:8px 0">
+						${isAdminUser ? '<button id="open-admin-btn" class="btn" style="width:100%; margin-bottom:.5rem; background:#1db954; color:#111; border:0; padding:.6rem 1rem; border-radius:8px; cursor:pointer; font-weight:700;">Админка</button>' : ''}
 						<button id="logout-btn" class="btn" style="width:100%; background:#2a2f34; color:#fff; border:0; padding:.6rem 1rem; border-radius:8px; cursor:pointer;">Выйти</button>
 					</div>
 				</div>
@@ -338,6 +369,10 @@ window.API_ORIGIN = API_ORIGIN;
 			if (btn && pop) {
 				btn.onclick = (e) => { e.stopPropagation(); pop.style.display = pop.style.display==='none'?'block':'none'; };
 				document.addEventListener('click', (e)=>{ if(pop.style.display==='block' && !e.target.closest('#user-menu-popover') && e.target!==btn){ pop.style.display='none'; } });
+				const adminBtn = document.getElementById('open-admin-btn');
+				if (adminBtn) {
+					adminBtn.onclick = () => { window.location.href = '/muzic2/public/admin/'; };
+				}
 				const logoutBtn = document.getElementById('logout-btn');
                 if (logoutBtn){ logoutBtn.onclick = async ()=>{ try{ await fetch(api('/muzic2/src/api/logout.php'),{ method:'POST', credentials:'include' }); }catch(_){} try{ localStorage.removeItem('currentUser'); }catch(_){} location.reload(); } }
 			}
@@ -479,22 +514,18 @@ window.API_ORIGIN = API_ORIGIN;
 			// Derive preferred artists from user likes (tracks + albums)
 			let preferredArtists = new Set();
 			try {
-				const likesRes = await fetch(getLikesAPI(), { credentials: 'include' });
+				const likesRes = await fetch(getLikesAPI({ lite: true }), { credentials: 'include' });
 				const likes = await likesRes.json();
-				(likes.tracks||[]).forEach(t => { const a = String(t.artist||'').trim(); if (a) preferredArtists.add(a); if (t.genre) recentGenres.add(String(t.genre).toLowerCase()); });
-				(likes.albums||[]).forEach(a => { const ar = String(a.artist||a.artist_name||'').trim(); if (ar) preferredArtists.add(ar); });
-			} catch(_) { /* not logged in or no likes */ }
+				(likes.albums || []).forEach((a) => {
+					const ar = String(a.artist || a.artist_name || '').trim();
+					if (ar) preferredArtists.add(ar);
+				});
+			} catch (_) { /* not logged in or no likes */ }
 			// If no preferred artists yet, fall back to recent artists
 			if (!preferredArtists.size) preferredArtists = new Set(recentArtists);
 				const likedSet = (window.__likedSet instanceof Set) ? window.__likedSet : new Set();
-				let candidates = [];
-				if (isWindows) {
-					const r = await fetch(api('/muzic2/src/api/home_windows.php')); const d = await r.json();
-					candidates = (d.tracks||[]).concat(d.mixes||[]).filter(Boolean);
-				} else {
-					const r = await fetch(api('/muzic2/public/src/api/home.php?limit_tracks=60&limit_mixes=60')); const d = await r.json();
-					candidates = (d.tracks||[]).concat(d.mixes||[]).filter(Boolean);
-				}
+				const r = await fetch(api('/muzic2/src/api/home_windows.php')); const d = await r.json();
+				const candidates = (d.tracks||[]).concat(d.mixes||[]).filter(Boolean);
 			const scored = candidates.map(t => {
 					const artist = String(t.artist||'').trim();
 					let score = 0;
@@ -573,12 +604,41 @@ window.API_ORIGIN = API_ORIGIN;
 			} catch (e) { console.error('Pulse error', e); }
 		}
 
-		console.log('renderHome - isWindows:', isWindows);
-		if (isWindows) {
-			console.log('Windows detected - using ultra-fast API');
-			try {
-                const res = await fetch(api('/muzic2/src/api/home_windows.php'));
-				const data = await res.json();
+		try {
+				const homeUrl = api('/muzic2/src/api/home_windows.php');
+				const acHome = new AbortController();
+				const toH = setTimeout(() => acHome.abort(), 22000);
+				let res;
+				let likesData = null;
+				try {
+					[res, likesData] = await Promise.all([
+						fetch(homeUrl, { credentials: 'include', signal: acHome.signal }),
+						fetchLikesLiteCached(false)
+					]);
+				} finally {
+					clearTimeout(toH);
+				}
+				if (likesData && typeof likesData === 'object') {
+					syncLikesFromServerPayload(likesData);
+				} else {
+					window.__likedSet = new Set();
+					window.__likedAlbums = new Set();
+				}
+				if (!res.ok) {
+					mainContent.innerHTML = '<div class="error" style="padding:2rem;text-align:center">Не удалось загрузить главную (код ' + res.status + '). Проверьте, что MySQL в MAMP запущен и вы вошли в аккаунт.</div>';
+					return;
+				}
+				let data;
+				try {
+					data = await res.json();
+				} catch (_) {
+					mainContent.innerHTML = '<div class="error" style="padding:2rem;text-align:center">Главная: сервер вернул не JSON (часто это PHP-ошибка). Смотрите логи Apache/PHP.</div>';
+					return;
+				}
+				if (data.error) {
+					mainContent.innerHTML = '<div class="error" style="padding:2rem;text-align:center">' + escapeHtml(String(data.error)) + '</div>';
+					return;
+				}
                 mainContent.innerHTML = `
 					<section class="main-filters">
 						<button class="filter-btn active">Все</button>
@@ -634,16 +694,10 @@ window.API_ORIGIN = API_ORIGIN;
 				renderCards('albums-row', data.albums, 'album');
 				renderCards('tracks-row', data.tracks, 'track');
 				renderCards('artists-row', data.artists, 'artist');
-				// likes async (as before)
-				setTimeout(async () => {
-					try {
-						const likesRes = await fetch(getLikesAPI(), { credentials: 'include' });
-						const likes = await likesRes.json();
-						window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
-						window.__likedAlbums = new Set((likes.albums||[]).map(a=>a.album_title || a.title));
-					document.querySelectorAll('.heart-btn[data-track-id]').forEach(btn => {
+				try {
+					document.querySelectorAll('.heart-btn[data-track-id]').forEach((btn) => {
 						const id = Number(btn.getAttribute('data-track-id'));
-						const isLiked = window.__likedSet.has(id);
+						const isLiked = window.__likedSet && window.__likedSet.has(id);
 						const icon = btn.querySelector('i');
 						if (icon) {
 							if (isLiked) {
@@ -659,58 +713,19 @@ window.API_ORIGIN = API_ORIGIN;
 							applyHeartState(btn, isLiked);
 						}
 					});
-						document.querySelectorAll('.album-heart-btn[data-album-title]').forEach(btn => {
-							const title = btn.getAttribute('data-album-title');
-							if (window.__likedAlbums.has(title)) btn.classList.add('liked');
-						});
-					} catch(_) {}
-				}, 0);
+					document.querySelectorAll('.album-heart-btn[data-album-title]').forEach((btn) => {
+						const title = btn.getAttribute('data-album-title');
+						if (window.__likedAlbums && window.__likedAlbums.has(title)) btn.classList.add('liked');
+					});
+				} catch (_) { /* ignore */ }
+				addFilterButtonHandlers();
 				return;
 			} catch (e) {
-				console.error('Windows API error:', e);
-				mainContent.innerHTML = '<div class="error">Ошибка загрузки главной страницы</div>';
+				console.error('Home API error:', e);
+				const msg = (e && e.name === 'AbortError') ? 'Главная: превышено время ожидания (25 с). База или сеть не отвечают.' : 'Ошибка загрузки главной страницы';
+				mainContent.innerHTML = '<div class="error" style="padding:2rem;text-align:center">' + msg + '</div>';
 				return;
 			}
-		}
-		
-		// Mac path
-		try {
-			const res = await fetch(api('/muzic2/public/src/api/home.php?limit_tracks=8&limit_albums=6&limit_artists=10&limit_mixes=6&limit_favorites=6'));
-			const data = await res.json();
-			try { const likesRes = await fetch(getLikesAPI(), { credentials: 'include' }); const likes = await likesRes.json(); window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id)); } catch(e){ window.__likedSet = new Set(); }
-			mainContent.innerHTML = `
-				<section class="main-filters">
-					<button class="filter-btn active">Все</button>
-					<button class="filter-btn">Музыка</button>
-					<button class="filter-btn">Артисты</button>
-				</section>
-				<section class="main-section" id="mixes-section">
-					<h3>Миксы дня</h3>
-					<div class="card-row" id="mixes-row"></div>
-				</section>
-				<section class="main-section" id="albums-section">
-					<h3>Случайные альбомы</h3>
-					<div class="card-row" id="albums-row"></div>
-				</section>
-                <section class="main-section" id="tracks-section" style="position:relative;">
-                    <h3 style="margin:0 0 12px 0;">Случайные треки</h3>
-					<div class="card-row" id="tracks-row"></div>
-				</section>
-				<section class="main-section" id="artists-section">
-					<h3>Артисты</h3>
-					<div class="card-row" id="artists-row"></div>
-				</section>
-			`;
-			injectHero((data.albums && data.albums[0] && data.albums[0].cover) || '');
-			renderCards('mixes-row', data.mixes, 'track');
-			renderCards('albums-row', data.albums, 'album');
-			renderCards('tracks-row', data.tracks, 'track');
-			renderCards('artists-row', data.artists, 'artist');
-            // Removed extra queue buttons on home for clean UI
-			addFilterButtonHandlers();
-		} catch (e) {
-			mainContent.innerHTML = '<div class="error">Ошибка загрузки</div>';
-		}
 	}
 
 	async function addFilterButtonHandlers() {
@@ -797,15 +812,34 @@ window.API_ORIGIN = API_ORIGIN;
 	// =====================
 	// Helper Functions
 	// =====================
+	function toCoverSrc(cover) {
+		const raw = String(cover || '').trim();
+		if (!raw) return '/muzic2/tracks/covers/placeholder.jpg';
+		if (/^https?:\/\//i.test(raw) || raw.startsWith('data:')) return raw;
+		if (raw.startsWith('/muzic2/')) return raw;
+		if (raw.startsWith('/')) return '/muzic2' + raw;
+		return '/muzic2/' + raw.replace(/^\/+/, '');
+	}
+
+	function releaseTypeLabel(v) {
+		const t = String(v || '').trim().toLowerCase();
+		if (t === 'single' || t === 'singles') return 'Сингл';
+		if (t === 'ep') return 'EP';
+		if (t === 'album') return 'Альбом';
+		return 'Релиз';
+	}
+
 	function createAlbumCard(album) {
 		const esc = v => String(v == null ? '' : v).replace(/'/g, "\\'");
 		const albumTitle = esc(album.title);
-		const playAlbum = `(async ()=>{ try{ const res = await fetch('/muzic2/src/api/album.php?album=' + encodeURIComponent('${albumTitle}')); const data = await res.json(); if(data.tracks && data.tracks.length){ const q = data.tracks.map(tt=>{ const s = tt.src || tt.file_path || ''; if(!s) return null; const src = /^https?:/i.test(s) ? s : (s.indexOf('tracks/') !== -1 ? '/muzic2/' + s.slice(s.indexOf('tracks/')) : '/muzic2/' + s.replace(/^\\/+/, '')); return { id: tt.id || 0, src: encodeURI(src), title: tt.title, artist: tt.artist, feats: tt.feats || '', cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg'), video_url: tt.video_url || '' }; }).filter(t => t !== null); if(q.length && window.playTrack){ window.playTrack({ ...q[0], queue: q, queueStartIndex: 0 }); } } }catch(e){ console.error('album play error', e); } })()`;
+		const playAlbum = `(async ()=>{ try{ const res = await fetch('/muzic2/src/api/album_windows.php?album=' + encodeURIComponent('${albumTitle}')); const data = await res.json(); if(data.tracks && data.tracks.length){ const q = data.tracks.map(tt=>{ const s = tt.src || tt.file_path || ''; if(!s) return null; const src = /^https?:/i.test(s) ? s : (s.indexOf('tracks/') !== -1 ? '/muzic2/' + s.slice(s.indexOf('tracks/')) : '/muzic2/' + s.replace(/^\\/+/, '')); return { id: tt.id || 0, src: encodeURI(src), title: tt.title, artist: tt.artist, feats: tt.feats || '', cover: '/muzic2/' + (tt.cover || data.cover || 'tracks/covers/placeholder.jpg'), video_url: tt.video_url || '' }; }).filter(t => t !== null); if(q.length && window.playTrack){ window.playTrack({ ...q[0], queue: q, queueStartIndex: 0 }); } } }catch(e){ console.error('album play error', e); } })()`;
+		const coverSrc = toCoverSrc(album.cover || 'tracks/covers/placeholder.jpg');
+		const typeLabel = releaseTypeLabel(album.album_type || album.type);
 		return `
             <div class="tile" data-album-title="${escapeHtml(album.title)}">
-                <img class="tile-cover" loading="lazy" src="/muzic2/${album.cover || 'tracks/covers/placeholder.jpg'}" alt="cover" onclick="navigateTo('album', { album: '${encodeURIComponent(album.title)}' })">
+                <img class="tile-cover" loading="lazy" src="${coverSrc}" alt="cover" onerror="this.onerror=null;this.src='/muzic2/tracks/covers/placeholder.jpg';" onclick="navigateTo('album', { album: '${encodeURIComponent(album.title)}' })">
                 <div class="tile-title" onclick="navigateTo('album', { album: '${encodeURIComponent(album.title)}' })">${escapeHtml(album.title)}</div>
-                <div class="tile-desc" onclick="navigateTo('album', { album: '${encodeURIComponent(album.title)}' })">${escapeHtml(album.artist || '')}</div>
+                <div class="tile-desc" onclick="navigateTo('album', { album: '${encodeURIComponent(album.title)}' })">${escapeHtml(album.artist || '')} • ${typeLabel}</div>
                 <div class="tile-play" onclick="event.stopPropagation(); ${playAlbum}">&#9654;</div>
             </div>
 		`;
@@ -821,14 +855,15 @@ window.API_ORIGIN = API_ORIGIN;
 			return;
 		}
 		
-		// Windows: мгновенный скелет + фоновые загрузки
-		if (isWindows) {
-			console.log('Windows detected - fast My Music');
-			injectMyMusicStyles();
+		injectMyMusicStyles();
 				mainContent.innerHTML = `
 					<div class="my-music-container">
 					<div class="my-music-header"><h2>Моя музыка</h2></div>
 						<div class="my-music-content">
+							<div class="liked-tracks-section" style="margin-bottom:2rem;">
+								<h3>Любимые треки</h3>
+								<div id="liked-tracks-wrap"><div class="empty">Загрузка…</div></div>
+							</div>
 							<div class="playlists-section">
 								<h3>Плейлисты</h3>
 							<div class="playlists-grid" id="playlists-grid"><div class="empty">Загрузка плейлистов…</div></div>
@@ -840,53 +875,95 @@ window.API_ORIGIN = API_ORIGIN;
 							</div>
 				</div>`;
 
-			// Плейлисты — в фоне
-			(void async function(){
+			(async function loadMyMusicData() {
+				const grid = document.getElementById('playlists-grid');
+				const favGrid = document.getElementById('favorite-albums-grid');
+				const likedWrap = document.getElementById('liked-tracks-wrap');
+				const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+				const playlistsUrl = api('/muzic2/src/api/playlists_windows.php');
+				const likesUrl = getLikesAPI();
+				const acPl = new AbortController();
+				const acLk = new AbortController();
+				const toPl = setTimeout(() => acPl.abort(), 22000);
+				const toLk = setTimeout(() => acLk.abort(), 22000);
+				let listsRes;
+				let likesRes;
 				try {
-					const listsRes = await fetch(api('/muzic2/src/api/playlists_windows.php'), { credentials: 'include' });
-					const playlistsData = await listsRes.json();
-					const playlists = playlistsData.playlists || [];
-					const grid = document.getElementById('playlists-grid');
-					if (grid) {
-						grid.innerHTML = playlists.length ? playlists.map(pl => `
-							<div class="playlist-tile" data-playlist-id="${pl.id}" data-playlist-name="${pl.name}">
-								<div class="playlist-cover">${pl.cover ? `<img src="${pl.cover}" alt="${pl.name}">` : '<div class="playlist-placeholder">🎵</div>'}</div>
-								<div class="playlist-info"><h4>${pl.name}</h4><p>${pl.track_count || 0} треков</p></div>
-							</div>`).join('') : '<div class="empty">Плейлистов пока нет</div>';
+					[listsRes, likesRes] = await Promise.all([
+						fetch(playlistsUrl, { credentials: 'include', signal: acPl.signal }),
+						fetch(likesUrl, { credentials: 'include', signal: acLk.signal })
+					]);
+				} finally {
+					clearTimeout(toPl);
+					clearTimeout(toLk);
+				}
+				try {
+					let playlists = [];
+					let listsReady = false;
+					let likesData = { tracks: [], albums: [] };
+					let likesReady = false;
+					if (listsRes.ok) {
+						try {
+							const j = await listsRes.json();
+							if (j.error) {
+								if (grid) grid.innerHTML = '<div class="empty">Плейлисты: ' + esc(j.error) + '</div>';
+							} else {
+								playlists = j.playlists || [];
+								listsReady = true;
+							}
+						} catch (_) {
+							if (grid) grid.innerHTML = '<div class="empty">Не удалось разобрать ответ плейлистов</div>';
+						}
+					} else {
+						if (grid) grid.innerHTML = '<div class="empty">Ошибка плейлистов (' + listsRes.status + ')</div>';
 					}
-					// Навешиваем клики
-					document.querySelectorAll('#playlists-grid .playlist-tile').forEach(tile => {
-						tile.onclick = (e)=>{
-							e.preventDefault(); e.stopPropagation();
-							const playlistId = tile.dataset.playlistId;
-							const playlistName = tile.dataset.playlistName;
-							if (playlistId && playlistName) { openPlaylist(playlistId, playlistName); }
-						};
-					});
-				} catch (_) {}
-			})();
-
-			// Любимые альбомы — в фоне, без тяжёлых сопоставлений
-			(void async function(){
-				try {
-					const favGrid = document.getElementById('favorite-albums-grid');
-					if (!favGrid) return;
-					const likesRes = await fetch(getLikesAPI(), { credentials: 'include' });
-					const likesData = await likesRes.json();
+					if (likesRes.ok) {
+						try {
+							likesData = await likesRes.json();
+							if (likesData.error) {
+								if (likedWrap) likedWrap.innerHTML = '<div class="empty">Избранное: ' + esc(likesData.error) + '</div>';
+								if (favGrid) favGrid.innerHTML = '<div class="empty">Избранное: ' + esc(likesData.error) + '</div>';
+							} else {
+								likesReady = true;
+							}
+						} catch (_) {
+							if (likedWrap) likedWrap.innerHTML = '<div class="empty">Не удалось разобрать ответ лайков</div>';
+							if (favGrid) favGrid.innerHTML = '<div class="empty">Не удалось разобрать ответ лайков</div>';
+						}
+					} else {
+						if (likedWrap) likedWrap.innerHTML = '<div class="empty">Ошибка избранного (' + likesRes.status + ')</div>';
+						if (favGrid) favGrid.innerHTML = '<div class="empty">Ошибка избранного (' + likesRes.status + ')</div>';
+					}
 					const likedAlbums = likesData.albums || [];
-					window.__likedAlbums = new Set(likedAlbums.map(a => a.album_title));
-					favGrid.innerHTML = likedAlbums.length ? likedAlbums.map(a => createAlbumCard({ title: a.album_title, artist: 'Любимый альбом', cover: 'tracks/covers/placeholder.jpg' })).join('') : '<div class="empty">Пока нет любимых альбомов</div>';
-				} catch(_) {}
-			})();
-
-			// Обновляем сердечки после загрузки лайков
-			(void async function(){
-				try {
-					const likesRes = await fetch(getLikesAPI(), { credentials: 'include' });
-					const likes = await likesRes.json();
-					window.__likedSet = new Set((likes.tracks||[]).map(t=>t.id));
-					window.__likedAlbums = new Set((likes.albums||[]).map(a=>a.album_title || a.title));
-					// Обновляем иконки лайков на странице
+					syncLikesFromServerPayload(likesData);
+					if (likesReady) {
+						paintMyMusicLikedTracks(likesData.tracks || []);
+					}
+					if (grid && listsReady) {
+						const coverSrc = (c) => {
+							if (!c) return '';
+							const s = String(c);
+							return s.startsWith('http') || s.startsWith('data:') ? s : ('/muzic2/' + s.replace(/^\/+/, ''));
+						};
+						grid.innerHTML = playlists.length ? playlists.map(pl => `
+							<div class="playlist-tile" data-playlist-id="${pl.id}" data-playlist-name="${esc(pl.name)}">
+								<div class="playlist-cover">${pl.cover ? `<img src="${coverSrc(pl.cover)}" alt="">` : '<div class="playlist-placeholder">🎵</div>'}</div>
+								<div class="playlist-info"><h4>${esc(pl.name)}</h4><p>${pl.track_count || 0} треков</p></div>
+							</div>`).join('') : '<div class="empty">Плейлистов пока нет</div>';
+						document.querySelectorAll('#playlists-grid .playlist-tile').forEach(tile => {
+							tile.onclick = (e) => {
+								e.preventDefault(); e.stopPropagation();
+								const playlistId = tile.dataset.playlistId;
+								const playlistName = tile.dataset.playlistName;
+								if (playlistId && playlistName) { openPlaylist(playlistId, playlistName); }
+							};
+						});
+					}
+					if (favGrid && likesReady) {
+						favGrid.innerHTML = likedAlbums.length
+							? likedAlbums.map(a => createAlbumCard({ title: a.album_title, artist: 'Любимый альбом', cover: 'tracks/covers/placeholder.jpg' })).join('')
+							: '<div class="empty">Пока нет любимых альбомов</div>';
+					}
 					document.querySelectorAll('.heart-btn[data-track-id]').forEach(btn => {
 						const id = Number(btn.getAttribute('data-track-id'));
 						if (window.__likedSet.has(id)) btn.classList.add('liked');
@@ -895,137 +972,51 @@ window.API_ORIGIN = API_ORIGIN;
 						const title = btn.getAttribute('data-album-title');
 						if (window.__likedAlbums.has(title)) btn.classList.add('liked');
 					});
-				} catch(_) {}
+				} catch (e) {
+					console.error('loadMyMusicData', e);
+					const slow = e && e.name === 'AbortError';
+					const msg = slow ? 'Таймаут — MySQL не отвечает или сеть медленная. Проверьте MAMP.' : 'Сетевая ошибка при загрузке.';
+					const lw = document.getElementById('liked-tracks-wrap');
+					if (lw && /Загрузка/i.test(lw.textContent || '')) lw.innerHTML = '<div class="empty">' + msg + '</div>';
+					if (grid && /Загрузка/i.test(grid.textContent || '')) grid.innerHTML = '<div class="empty">' + msg + '</div>';
+					if (favGrid && /Загрузка/i.test(favGrid.textContent || '')) favGrid.innerHTML = '<div class="empty">' + msg + '</div>';
+				}
 			})();
 
-				return;
-		}
-		
-		// Оригинальная логика для Mac
-		mainContent.innerHTML = '<div class="loading">Загрузка...</div>';
-		injectMyMusicStyles();
-
-		try {
-			const listsRes = await fetch(api('/muzic2/src/api/playlists.php'), { credentials: 'include' });
-			const playlistsData = await listsRes.json();
-			const playlists = playlistsData.playlists || [];
-
-			// Load liked albums
-			const likesRes = await fetch(getLikesAPI(), { credentials: 'include' });
-			const likesData = await likesRes.json();
-			const likedAlbums = likesData.albums || [];
-
-			// Get full album info for liked albums
-			let albumCards = '<div class="empty">Пока нет любимых альбомов</div>';
-			if (likedAlbums.length > 0) {
-				try {
-					// Get all albums from dedicated API
-					const allAlbumsRes = await fetch(api('/muzic2/src/api/all_albums.php'));
-					const allAlbumsData = await allAlbumsRes.json();
-					const allAlbums = allAlbumsData.albums || [];
-					
-					// Match liked albums with full album data
-					const matchedAlbums = await Promise.all(likedAlbums.map(async (likedAlbum) => {
-						// Try exact match first
-						let matched = allAlbums.find(album => 
-							album.album && album.album.toLowerCase() === likedAlbum.album_title.toLowerCase()
-						);
-						
-						// If no exact match, try partial match
-						if (!matched) {
-							matched = allAlbums.find(album => 
-								album.album && album.album.toLowerCase().includes(likedAlbum.album_title.toLowerCase())
-							);
-						}
-						
-						// If still no match, try reverse partial match
-						if (!matched) {
-							matched = allAlbums.find(album => 
-								album.album && likedAlbum.album_title.toLowerCase().includes(album.album.toLowerCase())
-							);
-						}
-						
-						// If still no match, try to find by searching tracks
-						if (!matched) {
-							try {
-								// Используем быстрый API для Windows
-								const searchApiUrl = isWindows ? 
-									`/muzic2/src/api/search_windows.php?q=${encodeURIComponent(likedAlbum.album_title)}&type=albums` :
-									`/muzic2/src/api/search.php?q=${encodeURIComponent(likedAlbum.album_title)}&type=albums`;
-								
-								const searchRes = await fetch(searchApiUrl);
-								const searchData = await searchRes.json();
-								if (searchData.albums && searchData.albums.length > 0) {
-									matched = searchData.albums[0];
-								}
-							} catch (e) {
-								// Ignore search errors
-							}
-						}
-						
-						return matched ? {
-							title: matched.album || matched.title,
-							artist: matched.artist,
-							cover: matched.cover
-						} : {
-							title: likedAlbum.album_title,
-							artist: 'Неизвестный артист',
-							cover: 'tracks/covers/placeholder.jpg'
-						};
-					}));
-					
-					albumCards = matchedAlbums.map(album => createAlbumCard(album)).join('');
-				} catch (e) {
-					console.error('Error loading album info:', e);
-					// Fallback: show albums with basic info
-					albumCards = likedAlbums.map(album => createAlbumCard({
-						title: album.album_title,
-						artist: 'Неизвестный артист',
-						cover: 'tracks/covers/placeholder.jpg'
-					})).join('');
-				}
-			}
-
-			mainContent.innerHTML = `
-				<section class="my-section">
-					<div class="my-header">
-						<h2>Любимые альбомы</h2>
-					</div>
-					<div class="tile-row" id="albums-row">
-						${albumCards}
-					</div>
-				</section>
-				<section class="my-section">
-					<div class="my-header">
-						<h2>Мои плейлисты</h2>
-						<div class="my-actions">
-							<button id="create-playlist" class="btn primary">Создать плейлист</button>
-						</div>
-					</div>
-					<div class="tile-row" id="playlists-row">
-						${playlists.map(pl => playlistTile(pl)).join('') || '<div class="empty">Пока нет плейлистов</div>'}
-					</div>
-				</section>
-				<div id="playlist-view"></div>
-			`;
-
-			document.getElementById('create-playlist').onclick = () => openCreatePlaylistDialog();
-
-			// Robust click binding for playlist tiles (no reliance on global delegation)
-			const tiles = document.querySelectorAll('#playlists-row .playlist-tile');
-			tiles.forEach(tile => {
-				tile.onclick = (e)=>{
-					e.preventDefault(); e.stopPropagation();
-					const playlistId = tile.dataset.playlistId;
-					const playlistName = tile.dataset.playlistName;
-					if (playlistId && playlistName) { openPlaylist(playlistId, playlistName); }
-				};
-			});
-			// Do not auto-open any playlist; open only on explicit user click
-		} catch (e) {
-			mainContent.innerHTML = '<div class="error">Ошибка загрузки</div>';
-		}
 	}
+
+	function paintMyMusicLikedTracks(likedTracks) {
+		const wrap = document.getElementById('liked-tracks-wrap');
+		if (!wrap) return;
+		const list = Array.isArray(likedTracks) ? likedTracks : [];
+		if (!list.length) {
+			wrap.innerHTML = '<div class="empty">Пока нет лайкнутых треков. Поставьте ♥ на главной или в поиске.</div>';
+			return;
+		}
+		wrap.innerHTML = '<div class="card-row" id="liked-tracks-row"></div>';
+		renderCards('liked-tracks-row', list, 'track');
+	}
+
+	async function refreshMyMusicLikedTracks() {
+		if (!document.getElementById('liked-tracks-wrap') || !currentUser) return;
+		try {
+			const r = await fetch(getLikesAPI(), { credentials: 'include' });
+			if (!r.ok) return;
+			const j = await r.json();
+			if (j.error) return;
+			syncLikesFromServerPayload(j);
+			paintMyMusicLikedTracks(j.tracks || []);
+		} catch (_) { /* ignore */ }
+	}
+
+	let _debounceMyMusicLikes = null;
+	document.addEventListener('likes:updated', () => {
+		if (_debounceMyMusicLikes) clearTimeout(_debounceMyMusicLikes);
+		_debounceMyMusicLikes = setTimeout(() => {
+			_debounceMyMusicLikes = null;
+			try { refreshMyMusicLikedTracks(); } catch (_) { /* ignore */ }
+		}, 280);
+	});
 
 	// Capture-phase guard: prevent autoplay when clicking artist names
 	document.addEventListener('click', (e)=>{
@@ -1059,34 +1050,49 @@ function applyHeartState(btn, liked) {
 	}
 }
 
-// Direct like toggle function (reliable, used by inline onclick)
-async function toggleTrackLike(trackId, buttonEl) {
-    try {
-        if (!currentUser) {
-            try{ attachAuthModalTriggers(); const open = id => { document.querySelector('#auth-modals .modal-overlay').style.display='block'; const m=document.getElementById(id); if (m) m.style.display='block'; }; open('login-modal'); }catch(_){ }
-            return;
-        }
-        const btn = buttonEl || document.querySelector(`.heart-btn[data-track-id="${trackId}"]`);
-        if (!btn) return;
-        const wasLiked = btn.classList.contains('liked');
-        applyHeartState(btn, !wasLiked);
-        try { btn.classList.add('pulse'); setTimeout(()=>btn.classList.remove('pulse'), 180); } catch(_){ }
-        if (!window.__likedSet) window.__likedSet = new Set();
-        if (wasLiked) window.__likedSet.delete(Number(trackId)); else window.__likedSet.add(Number(trackId));
-        const method = wasLiked ? 'DELETE' : 'POST';
-        const res = await fetch(getLikesAPI(), { method, credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: Number(trackId) })});
-        if (!res.ok) throw new Error('Like request failed: ' + res.status);
-        try{ document.dispatchEvent(new CustomEvent('likes:updated', { detail:{ trackId:Number(trackId), liked: !wasLiked } })); }catch(_){ }
-    } catch (err) {
-        // Soft fail: revert UI
-        try {
-            const btn = buttonEl || document.querySelector(`.heart-btn[data-track-id="${trackId}"]`);
-            if (!btn) return;
-            applyHeartState(btn, wasLiked);
-        } catch(_){ }
-        try { if (wasLiked) { window.__likedSet.add(Number(trackId)); } else { window.__likedSet.delete(Number(trackId)); } } catch(_){ }
-        console.error('toggleTrackLike failed', err);
-    }
+// Direct like toggle function (reliable, used by inline onclick) — UI сразу, запрос в фоне
+function toggleTrackLike(trackId, buttonEl) {
+	if (!currentUser) {
+		try {
+			attachAuthModalTriggers();
+			const open = (id) => {
+				document.querySelector('#auth-modals .modal-overlay').style.display = 'block';
+				const m = document.getElementById(id);
+				if (m) m.style.display = 'block';
+			};
+			open('login-modal');
+		} catch (_) { /* ignore */ }
+		return;
+	}
+	const btn = buttonEl || document.querySelector(`.heart-btn[data-track-id="${trackId}"]`);
+	if (!btn) return;
+	const wasLiked = btn.classList.contains('liked');
+	applyHeartState(btn, !wasLiked);
+	try {
+		btn.classList.add('pulse');
+		setTimeout(() => btn.classList.remove('pulse'), 180);
+	} catch (_) { /* ignore */ }
+	if (!window.__likedSet) window.__likedSet = new Set();
+	if (wasLiked) window.__likedSet.delete(Number(trackId));
+	else window.__likedSet.add(Number(trackId));
+	const method = wasLiked ? 'DELETE' : 'POST';
+	const tid = Number(trackId);
+	fetch(getLikesAPI(), { method, credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ track_id: tid }) })
+		.then((res) => {
+			if (!res.ok) throw new Error('Like request failed: ' + res.status);
+			try {
+				document.dispatchEvent(new CustomEvent('likes:updated', { detail: { trackId: tid, liked: !wasLiked } }));
+			} catch (_) { /* ignore */ }
+		})
+		.catch((err) => {
+			const b = buttonEl || document.querySelector(`.heart-btn[data-track-id="${trackId}"]`);
+			if (b) applyHeartState(b, wasLiked);
+			try {
+				if (wasLiked) window.__likedSet.add(tid);
+				else window.__likedSet.delete(tid);
+			} catch (_) { /* ignore */ }
+			console.error('toggleTrackLike failed', err);
+		});
 }
 
 window.toggleTrackLike = toggleTrackLike;
@@ -1144,10 +1150,10 @@ function showAlbumContextMenu(event, album, albumIndex) {
 	toggleLike.onclick = async () => {
 		if (!window.__likedAlbums) window.__likedAlbums = new Set();
 		if (window.__likedAlbums.has(albumTitle)) {
-			await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
+			await fetch(getLikesAPI(), { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
 			window.__likedAlbums.delete(albumTitle);
 		} else {
-			await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
+			await fetch(getLikesAPI(), { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
 			window.__likedAlbums.add(albumTitle);
 		}
 		menu.remove();
@@ -1189,7 +1195,7 @@ function showAlbumContextMenu(event, album, albumIndex) {
 }
 
 	// Global delegation for heart toggle and artist links (bubbling phase business logic)
-		document.addEventListener('click', async (e) => {
+		document.addEventListener('click', (e) => {
 		// Handle artist link clicks
 		const artistLink = e.target.closest('.artist-link');
 		if (artistLink) {
@@ -1221,42 +1227,46 @@ function showAlbumContextMenu(event, album, albumIndex) {
 		
 		// Handle track likes (delegated to helper)
 		if (btn.hasAttribute('data-track-id')) {
-			await toggleTrackLike(btn.getAttribute('data-track-id'), btn);
+			toggleTrackLike(btn.getAttribute('data-track-id'), btn);
 			return;
 		}
 		
-		// Handle album likes
+		// Handle album likes — сразу UI, без повторного GET loadAlbumLikes
 		const albumTitle = btn.getAttribute('data-album-title');
 		if (albumTitle) {
-			try {
-				if (btn.classList.contains('liked')) {
-					const res = await fetch(getLikesAPI(), { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
-					if (res.ok) {
-						btn.classList.remove('liked');
-						window.__likedAlbums && window.__likedAlbums.delete(albumTitle);
-						// Update all album buttons with same title
-						document.querySelectorAll(`[data-album-title="${albumTitle}"]`).forEach(b => b.classList.remove('liked'));
-						// Force reload album likes to sync state
-						setTimeout(() => loadAlbumLikes(), 100);
-					} else {
-						console.error('Failed to remove album like:', res.status);
-					}
-				} else {
-					const res = await fetch(getLikesAPI(), { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
-					if (res.ok) {
-						btn.classList.add('liked');
-						if (!window.__likedAlbums) window.__likedAlbums = new Set();
-						window.__likedAlbums.add(albumTitle);
-						// Update all album buttons with same title
-						document.querySelectorAll(`[data-album-title="${albumTitle}"]`).forEach(b => b.classList.add('liked'));
-						// Force reload album likes to sync state
-						setTimeout(() => loadAlbumLikes(), 100);
-					} else {
-						console.error('Failed to add album like:', res.status);
-					}
+			const wasLiked = btn.classList.contains('liked');
+			const syncAlbumHearts = (liked) => {
+				if (!window.__likedAlbums) window.__likedAlbums = new Set();
+				if (liked) window.__likedAlbums.add(albumTitle);
+				else window.__likedAlbums.delete(albumTitle);
+				document.querySelectorAll('.album-heart-btn[data-album-title], .album-like-btn[data-album-title]').forEach((b) => {
+					if (b.getAttribute('data-album-title') === albumTitle) b.classList.toggle('liked', liked);
+				});
+				const albumLikeBtn = document.getElementById('album-like-btn');
+				if (albumLikeBtn && albumLikeBtn.getAttribute('data-album-title') === albumTitle) {
+					albumLikeBtn.classList.toggle('liked', liked);
 				}
-			} catch (error) {
-				console.error('Error handling album like:', error);
+			};
+			if (wasLiked) {
+				syncAlbumHearts(false);
+				fetch(getLikesAPI(), { method: 'DELETE', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ album_title: albumTitle }) })
+					.then((res) => {
+						if (!res.ok) {
+							syncAlbumHearts(true);
+							console.error('Failed to remove album like:', res.status);
+						}
+					})
+					.catch(() => syncAlbumHearts(true));
+			} else {
+				syncAlbumHearts(true);
+				fetch(getLikesAPI(), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ album_title: albumTitle }) })
+					.then((res) => {
+						if (!res.ok) {
+							syncAlbumHearts(false);
+							console.error('Failed to add album like:', res.status);
+						}
+					})
+					.catch(() => syncAlbumHearts(false));
 			}
 		}
 	});
@@ -1443,6 +1453,12 @@ function showAlbumContextMenu(event, album, albumIndex) {
 				background: #dc3545;
 				color: white;
 			}
+			#liked-tracks-wrap .card-row {
+				display: grid;
+				grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+				gap: 16px;
+			}
+			#liked-tracks-wrap .card { min-height: 72px; }
 			
 		`;
 		document.head.appendChild(s);
@@ -1529,10 +1545,11 @@ function showAlbumContextMenu(event, album, albumIndex) {
 					return;
 				}
 				// Ultra-fast path for Windows: trust API payload and avoid extra roundtrip
-                if (isWindows && payload && payload.user) {
+                if (payload && payload.user) {
 					currentUser = payload.user;
                     try { localStorage.setItem('currentUser', JSON.stringify(currentUser)); } catch(_) {}
 					closeAll();
+					showAuthenticatedContent();
 					renderAuthHeader();
 					return;
 				}
@@ -1602,6 +1619,7 @@ function showAlbumContextMenu(event, album, albumIndex) {
 	function renderCards(rowId, items, type) {
 		let row = document.getElementById(rowId);
 		if (!row) return;
+		if (!Array.isArray(items)) items = [];
 		let html = '';
 		if (type === 'album') {
 			row.className = 'tile-row';
@@ -1680,7 +1698,7 @@ function showAlbumContextMenu(event, album, albumIndex) {
 					const albumTitle = items[idx].album || items[idx].title || '';
 					const icon = btn.querySelector('i');
 					if (window.__likedAlbums.has(albumTitle)) {
-						await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
+						await fetch(getLikesAPI(), { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
 						window.__likedAlbums.delete(albumTitle);
 						btn.classList.remove('liked');
 						if (icon) {
@@ -1688,7 +1706,7 @@ function showAlbumContextMenu(event, album, albumIndex) {
 							icon.classList.add('far');
 						}
 					} else {
-						await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
+						await fetch(getLikesAPI(), { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
 						window.__likedAlbums.add(albumTitle);
 						btn.classList.add('liked');
 						if (icon) {
@@ -1758,10 +1776,10 @@ function showAlbumContextMenu(event, album, albumIndex) {
 		if (type === 'track') {
 			// Add like button handlers for tracks
 			row.querySelectorAll('.heart-btn').forEach((btn, idx) => {
-				btn.onclick = async (e) => {
+				btn.onclick = (e) => {
 					e.stopPropagation();
 					const trackId = items[idx].id || idx;
-					await toggleTrackLike(trackId, btn);
+					toggleTrackLike(trackId, btn);
 				};
 			});
 			
@@ -1778,12 +1796,6 @@ function showAlbumContextMenu(event, album, albumIndex) {
 				};
 			});
 		}
-	}
-
-	function escapeHtml(str) {
-		return String(str).replace(/[&<>"]/g, function (m) {
-			return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];
-		});
 	}
 
 	function ensureStyle(href){
@@ -1866,10 +1878,7 @@ function showAlbumContextMenu(event, album, albumIndex) {
 			// Decode the album name if it's URL encoded
 			const decodedAlbumName = decodeURIComponent(albumName);
 			
-			// Используем быстрый API для Windows
-			const apiUrl = isWindows ? 
-				`/muzic2/src/api/album_windows.php?album=${encodeURIComponent(decodedAlbumName)}` :
-				`/muzic2/src/api/album.php?album=${encodeURIComponent(decodedAlbumName)}`;
+			const apiUrl = `/muzic2/src/api/album_windows.php?album=${encodeURIComponent(decodedAlbumName)}`;
 			
 			const res = await fetch(apiUrl);
 			const data = await res.json();
@@ -1957,7 +1966,7 @@ function showAlbumContextMenu(event, album, albumIndex) {
 							<img class="album-cover-image" loading="lazy" src="/muzic2/${data.cover || 'tracks/covers/placeholder.jpg'}" alt="cover">
 						</div>
 						<div class="album-info-section">
-							<div class="album-type-label">Альбом</div>
+						<div class="album-type-label">${releaseTypeLabel(data.album_type || data.type)}</div>
 							<h1 class="album-main-title">${escapeHtml(data.title||'')}</h1>
 							<div class="album-main-artist">${renderArtistInline(escapeHtml(albumArtistCombined))}</div>
 							<div class="album-meta-text">${trackCount} ${trackCount === 1 ? 'песня' : trackCount < 5 ? 'песни' : 'песен'} • ${durationText}</div>
@@ -2229,10 +2238,7 @@ function showAlbumContextMenu(event, album, albumIndex) {
 			// Decode the artist name if it's URL encoded
 			const decodedArtistName = decodeURIComponent(artistName);
 			
-			// Используем быстрый API для Windows
-			const apiUrl = isWindows ? 
-				`/muzic2/src/api/artist_windows.php?artist=${encodeURIComponent(decodedArtistName)}` :
-				`/muzic2/public/src/api/artist.php?artist=${encodeURIComponent(decodedArtistName)}`;
+			const apiUrl = `/muzic2/src/api/artist_windows.php?artist=${encodeURIComponent(decodedArtistName)}`;
 			
 			const res = await fetch(apiUrl);
 			const data = await res.json();
@@ -2442,6 +2448,7 @@ function showAlbumContextMenu(event, album, albumIndex) {
 				});
 			}
 			
+			const bioText = String(data.bio || '').trim();
 			mainContent.innerHTML = `
 				<div class="artist-page">
 					<div class="artist-hero" style="--artist-bg: url('${coverUrl}')">
@@ -2461,6 +2468,7 @@ function showAlbumContextMenu(event, album, albumIndex) {
 							</div>
 							<h1 class="artist-name-large">${escapeHtml(data.name||'')}</h1>
 							<p class="artist-listeners">${monthlyListeners.toLocaleString('ru-RU')} слушателей за месяц</p>
+							${bioText ? `<p class="artist-bio" style="max-width:760px;margin-top:.55rem;color:#d7d7d7;line-height:1.45;">${escapeHtml(bioText)}</p>` : ''}
 						</div>
 					</div>
 
@@ -2553,12 +2561,12 @@ function showAlbumContextMenu(event, album, albumIndex) {
 						if (!window.__likedSet) window.__likedSet = new Set();
 						const icon = likeBtn.querySelector('i');
 						if (window.__likedSet.has(t.id)) {
-							await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: t.id })});
+							await fetch(getLikesAPI(), { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: t.id })});
 							window.__likedSet.delete(t.id);
 							icon.classList.remove('fas'); icon.classList.add('far');
 							likeBtn.classList.remove('liked');
 						} else {
-							await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: t.id })});
+							await fetch(getLikesAPI(), { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: t.id })});
 							window.__likedSet.add(t.id);
 							icon.classList.remove('far'); icon.classList.add('fas');
 							likeBtn.classList.add('liked');
@@ -2612,12 +2620,12 @@ function showAlbumContextMenu(event, album, albumIndex) {
 								if (!window.__likedSet) window.__likedSet = new Set();
 								const icon = likeBtn.querySelector('i');
 								if (window.__likedSet.has(t.id)) {
-									await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: t.id })});
+									await fetch(getLikesAPI(), { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: t.id })});
 									window.__likedSet.delete(t.id);
 									icon.classList.remove('fas'); icon.classList.add('far');
 									likeBtn.classList.remove('liked');
 								} else {
-									await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: t.id })});
+									await fetch(getLikesAPI(), { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: t.id })});
 									window.__likedSet.add(t.id);
 									icon.classList.remove('far'); icon.classList.add('fas');
 									likeBtn.classList.add('liked');
@@ -2740,9 +2748,7 @@ function showAlbumContextMenu(event, album, albumIndex) {
 			
 			videosList.innerHTML = '<div class="loading">Загрузка...</div>';
 			
-			const apiUrl = isWindows ? 
-				`/muzic2/src/api/videos.php?artist=${encodeURIComponent(artistName)}` :
-				`/muzic2/public/src/api/videos.php?artist=${encodeURIComponent(artistName)}`;
+			const apiUrl = `/muzic2/public/src/api/videos.php?artist=${encodeURIComponent(artistName)}`;
 			
 			const res = await fetch(apiUrl);
 			const json = await res.json();
@@ -2838,10 +2844,7 @@ function showAlbumContextMenu(event, album, albumIndex) {
 			const albumsList = document.getElementById('albums-list');
 			if (!albumsList) return;
 			
-			// Для Windows используем данные из artist_windows.php
-			if (isWindows) {
-				// Получаем данные артиста, которые уже загружены
-				const apiUrl = `/muzic2/src/api/artist_windows.php?artist=${encodeURIComponent(artistName)}`;
+			const apiUrl = `/muzic2/src/api/artist_windows.php?artist=${encodeURIComponent(artistName)}`;
 				const res = await fetch(apiUrl);
 				const data = await res.json();
 				
@@ -2873,11 +2876,11 @@ function showAlbumContextMenu(event, album, albumIndex) {
 								if (!window.__likedAlbums) window.__likedAlbums = new Set();
 								const albumTitle = album.album || album.title || '';
 								if (window.__likedAlbums.has(albumTitle)) {
-									await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
+									await fetch(getLikesAPI(), { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
 									window.__likedAlbums.delete(albumTitle);
 									likeBtn.classList.remove('liked');
 								} else {
-									await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
+									await fetch(getLikesAPI(), { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
 									window.__likedAlbums.add(albumTitle);
 									likeBtn.classList.add('liked');
 								}
@@ -2898,66 +2901,6 @@ function showAlbumContextMenu(event, album, albumIndex) {
 						albumsList.appendChild(albumDiv);
 					});
 				}
-			} else {
-				// Оригинальная логика для Mac
-				const apiUrl = `/muzic2/src/api/search.php?q=${encodeURIComponent(artistName)}&type=albums`;
-				const res = await fetch(apiUrl);
-				const data = await res.json();
-				
-				if (data.albums && data.albums.length > 0) {
-					albumsList.innerHTML = '';
-					data.albums.slice(0, 6).forEach(album => {
-						const albumDiv = document.createElement('div');
-						albumDiv.className = 'album-card';
-						const isLiked = window.__likedAlbums && window.__likedAlbums.has(album.title || '');
-						const albumTypeValue = album.type || album.album_type || '';
-						const albumType = albumTypeValue === 'album' ? 'Альбом' : 
-						                 albumTypeValue === 'ep' ? 'EP' : 
-						                 albumTypeValue === 'single' ? 'Сингл' : 'Сингл';
-						const trackCount = album.track_count || 0;
-						albumDiv.innerHTML = `
-							<button class="album-heart-btn ${isLiked ? 'liked' : ''}" data-album-title="${escapeHtml(album.title || '')}" title="В избранные альбомы">
-								<i class="fas fa-heart"></i>
-							</button>
-							<img class="album-cover" loading="lazy" src="/muzic2/${album.cover || 'tracks/covers/placeholder.jpg'}" alt="album cover">
-							<div class="album-title">${escapeHtml(album.title || '')}</div>
-							<div class="album-artist">${escapeHtml(album.artist || '')}</div>
-							<div class="album-info">${albumType} • ${trackCount} трек${trackCount % 10 === 1 && trackCount % 100 !== 11 ? '' : [2,3,4].includes(trackCount % 10) && ![12,13,14].includes(trackCount % 100) ? 'а' : 'ов'}</div>
-							<button class="album-play-btn"><i class="fas fa-play"></i></button>
-						`;
-						const likeBtn = albumDiv.querySelector('.album-heart-btn');
-						if (likeBtn) {
-							likeBtn.onclick = async (e) => {
-								e.stopPropagation();
-								if (!window.__likedAlbums) window.__likedAlbums = new Set();
-								const albumTitle = album.title || '';
-								if (window.__likedAlbums.has(albumTitle)) {
-									await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
-									window.__likedAlbums.delete(albumTitle);
-									likeBtn.classList.remove('liked');
-								} else {
-									await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ album_title: albumTitle })});
-									window.__likedAlbums.add(albumTitle);
-									likeBtn.classList.add('liked');
-								}
-							};
-						}
-						const playBtn = albumDiv.querySelector('.album-play-btn');
-						if (playBtn) {
-							playBtn.onclick = (e) => {
-								e.stopPropagation();
-								navigateTo('album', { album: album.title });
-							};
-						}
-						albumDiv.onclick = (e) => {
-							if (!e.target.closest('.album-play-btn') && !e.target.closest('.album-heart-btn')) {
-								navigateTo('album', { album: album.title });
-							}
-						};
-						albumsList.appendChild(albumDiv);
-					});
-				}
-			}
 		} catch (e) {
 			console.error('Error loading artist albums:', e);
 		}
@@ -2965,11 +2908,10 @@ function showAlbumContextMenu(event, album, albumIndex) {
 
 	// Load album likes
 	async function loadAlbumLikes() {
-		// Единая логика загрузки лайков альбомов (Windows и Mac)
+		// Загрузка лайков альбомов
 		try {
-			const res = await fetch(getLikesAPI(), { credentials: 'include' });
-			const data = await res.json();
-			window.__likedAlbums = new Set((data.albums || []).map(a => a.album_title || a.title));
+			const data = await fetchLikesLiteCached(false);
+			syncLikesFromServerPayload(data);
 			
 			// Update album heart buttons on artist pages
 			document.querySelectorAll('.album-heart-btn').forEach(btn => {
@@ -3007,8 +2949,7 @@ function showAlbumContextMenu(event, album, albumIndex) {
 		if (!albumsRow) return;
 		
 		try {
-			const likesRes = await fetch(getLikesAPI(), { credentials: 'include' });
-			const likesData = await likesRes.json();
+			const likesData = await fetchLikesLiteCached(false);
 			const likedAlbums = likesData.albums || [];
 			
 			if (likedAlbums.length === 0) {
@@ -3046,9 +2987,7 @@ function showAlbumContextMenu(event, album, albumIndex) {
 				if (!matched) {
 					try {
 						// Используем быстрый API для Windows
-						const searchApiUrl = isWindows ? 
-							`/muzic2/src/api/search_windows.php?q=${encodeURIComponent(likedAlbum.album_title)}&type=albums` :
-							`/muzic2/src/api/search.php?q=${encodeURIComponent(likedAlbum.album_title)}&type=albums`;
+						const searchApiUrl = `/muzic2/src/api/search_windows.php?q=${encodeURIComponent(likedAlbum.album_title)}&type=albums`;
 						
 						const searchRes = await fetch(searchApiUrl);
 						const searchData = await searchRes.json();
@@ -3250,9 +3189,7 @@ function showAlbumContextMenu(event, album, albumIndex) {
 			
 			try {
 				// Используем быстрый API для Windows
-				const apiUrl = isWindows ? 
-					`/muzic2/src/api/search_windows.php?q=${encodeURIComponent(query)}&type=${type}` :
-					`/muzic2/src/api/search.php?q=${encodeURIComponent(query)}&type=${type}`;
+				const apiUrl = `/muzic2/src/api/search_windows.php?q=${encodeURIComponent(query)}&type=${type}`;
 				
 				const response = await fetch(apiUrl);
 				const data = await response.json();
@@ -3390,9 +3327,7 @@ function showAlbumContextMenu(event, album, albumIndex) {
 			
 			try {
 				// Используем быстрый API для Windows
-				const apiUrl = isWindows ? 
-					`/muzic2/src/api/search_windows.php?q=${encodeURIComponent(query)}&type=${type}` :
-					`/muzic2/src/api/search.php?q=${encodeURIComponent(query)}&type=${type}`;
+				const apiUrl = `/muzic2/src/api/search_windows.php?q=${encodeURIComponent(query)}&type=${type}`;
 				
 				const response = await fetch(apiUrl);
 				const data = await response.json();
@@ -3553,11 +3488,15 @@ function showAlbumContextMenu(event, album, albumIndex) {
 		}
 
 		function createArtistCard(artist) {
+			const name = artist && (artist.name || artist.artist) ? String(artist.name || artist.artist) : '';
+			const cover = artist && artist.cover ? String(artist.cover) : 'tracks/covers/placeholder.jpg';
+			const trackCount = Number(artist && artist.track_count != null ? artist.track_count : 0) || 0;
+			const coverSrc = /^https?:\/\//i.test(cover) || cover.startsWith('/muzic2/') ? cover : ('/muzic2/' + cover.replace(/^\/+/, ''));
 			return `
-				<div class="artist-tile" onclick="navigateTo('artist', { artist: '${encodeURIComponent(artist.name)}' })">
-					<img class="artist-avatar" loading="lazy" src="/muzic2/${artist.cover || 'tracks/covers/placeholder.jpg'}" alt="avatar">
-					<div class="artist-name">${renderArtistInline(artist.name)}</div>
-					<div class="artist-tracks">${artist.track_count} треков</div>
+				<div class="artist-tile" onclick="navigateTo('artist', { artist: '${encodeURIComponent(name)}' })">
+					<img class="artist-avatar" loading="lazy" src="${coverSrc}" alt="avatar" onerror="this.onerror=null;this.src='/muzic2/tracks/covers/placeholder.jpg'">
+					<div class="artist-name">${renderArtistInline(name)}</div>
+					<div class="artist-tracks">${trackCount} треков</div>
 				</div>
 			`;
 		}

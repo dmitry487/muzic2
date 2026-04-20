@@ -1,5 +1,6 @@
 <?php
-session_start();
+require_once __DIR__ . '/../config/session_init.php';
+require_once __DIR__ . '/../config/db.php';
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
@@ -21,11 +22,10 @@ if (empty($artist)) {
 }
 
 try {
-    $pdo = new PDO('mysql:host=localhost;port=8889;dbname=muzic2', 'root', 'root');
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT);
+    $pdo = get_db_connection();
     
     // Сначала проверяем таблицу artists для правильной обложки
-    $stmt = $pdo->prepare("SELECT name, cover FROM artists WHERE name = ? LIMIT 1");
+    $stmt = $pdo->prepare("SELECT name, cover, bio FROM artists WHERE name = ? LIMIT 1");
     $stmt->execute([$artist]);
     $artistInfo = $stmt->fetch(PDO::FETCH_ASSOC);
     
@@ -85,7 +85,7 @@ try {
         'verified' => true,
         'monthly_listeners' => rand(100000, 10000000),
         'cover' => $artistInfo['cover'],
-        'bio' => null,
+        'bio' => $artistInfo['bio'] ?? null,
         'total_tracks' => (int)$totalTracks,
         'total_albums' => (int)$totalAlbums,
         'total_duration' => (int)$totalDuration,

@@ -17,14 +17,42 @@ try {
 
     if ($method === 'GET') {
         $q = isset($_GET['q']) ? trim((string)$_GET['q']) : '';
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 100;
+        if ($limit < 1) $limit = 1;
+        if ($limit > 200) $limit = 200;
+        $after = isset($_GET['after']) ? (string)$_GET['after'] : '';
+
+        $where = 'album IS NOT NULL AND album <> ""';
+        $params = [];
         if ($q !== '') {
-            $st = $db->prepare('SELECT album, MIN(artist) AS artist, MIN(album_type) AS album_type, MIN(cover) AS cover, COUNT(*) AS track_count FROM tracks WHERE album LIKE ? GROUP BY album ORDER BY album ASC LIMIT 500');
-            $st->execute(['%'.$q.'%']);
-            $rows = $st->fetchAll();
-        } else {
-            $rows = $db->query('SELECT album, MIN(artist) AS artist, MIN(album_type) AS album_type, MIN(cover) AS cover, COUNT(*) AS track_count FROM tracks GROUP BY album ORDER BY album ASC LIMIT 200')->fetchAll();
+            $where .= ' AND album LIKE ?';
+            $params[] = '%'.$q.'%';
         }
-        echo json_encode(['success'=>true, 'data'=>$rows], JSON_UNESCAPED_UNICODE);
+        if ($after !== '') {
+            $where .= ' AND album > ?';
+            $params[] = $after;
+        }
+
+        $st = $db->prepare("SELECT album,
+                                   MIN(artist) AS artist,
+                                   MIN(album_type) AS album_type,
+                                   MIN(cover) AS cover,
+                                   COUNT(*) AS track_count
+                            FROM tracks
+                            WHERE $where
+                            GROUP BY album
+                            ORDER BY album ASC
+                            LIMIT $limit");
+        $st->execute($params);
+        $rows = $st->fetchAll();
+
+        $nextAfter = '';
+        if ($rows && count($rows) > 0) {
+            $last = end($rows);
+            $nextAfter = (string)($last['album'] ?? '');
+        }
+
+        echo json_encode(['success'=>true, 'data'=>$rows, 'next_after'=>$nextAfter], JSON_UNESCAPED_UNICODE);
         exit;
     }
 

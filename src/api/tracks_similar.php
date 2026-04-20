@@ -56,11 +56,13 @@ $sql = 'SELECT DISTINCT t.id, t.title, t.duration, t.file_path, t.cover, t.creat
 if ($where) {
     $sql .= ' WHERE ' . implode(' OR ', $where);
 }
-$sql .= ' ORDER BY RAND() LIMIT 10';
+$sql .= ' ORDER BY t.id DESC LIMIT 80';
 
 $stmt = $db->prepare($sql);
 $stmt->execute($params);
 $tracks = $stmt->fetchAll();
+shuffle($tracks);
+$tracks = array_slice($tracks, 0, 10);
 
 $track_ids = array_column($tracks, 'id');
 $genres_map = [];

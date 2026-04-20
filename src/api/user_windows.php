@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/../config/session_init.php';
+
 header('Content-Type: application/json');
 // Dynamic CORS to allow credentials reliably
 if (!empty($_SERVER['HTTP_ORIGIN'])) {
@@ -10,9 +12,6 @@ if (!empty($_SERVER['HTTP_ORIGIN'])) {
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 header('Access-Control-Allow-Credentials: true');
-
-// Ультра-быстрая версия для Windows
-session_start();
 
 if (isset($_SESSION['user_id'])) {
     echo json_encode([

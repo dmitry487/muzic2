@@ -1,5 +1,6 @@
 <?php
-session_start();
+require_once __DIR__ . '/../config/session_init.php';
+require_once __DIR__ . '/../config/db.php';
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
@@ -21,8 +22,7 @@ if (empty($album)) {
 }
 
 try {
-    $pdo = new PDO('mysql:host=localhost;port=8889;dbname=muzic2', 'root', 'root');
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT);
+    $pdo = get_db_connection();
     
     // Информация об альбоме
     $stmt = $pdo->prepare("SELECT DISTINCT album, artist, album_type, cover FROM tracks WHERE album = ? LIMIT 1");

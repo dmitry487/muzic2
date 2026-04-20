@@ -11,36 +11,7 @@ if (isset($_GET['api'])) {
   // Handle preflight/OPTIONS gracefully
   if (strtoupper($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') { http_response_code(204); echo json_encode(['success'=>true]); exit; }
   $db = get_db_connection();
-  $db->exec('CREATE TABLE IF NOT EXISTS artists (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL UNIQUE,
-    cover VARCHAR(255),
-    bio TEXT,
-    promo_video VARCHAR(500),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  )');
-  
-  // Add promo_video column if it doesn't exist
-  try {
-    $db->exec("ALTER TABLE artists ADD COLUMN promo_video VARCHAR(500) DEFAULT NULL");
-  } catch (Throwable $e) {
-    // Column already exists, ignore
-  }
-  // Add promo_track_id column if it doesn't exist
-  try {
-    $db->exec("ALTER TABLE artists ADD COLUMN promo_track_id INT DEFAULT NULL");
-  } catch (Throwable $e) {
-    // Column already exists, ignore
-  }
-  // Feats mapping table (idempotent)
-  $db->exec("CREATE TABLE IF NOT EXISTS track_artists (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    track_id INT NOT NULL,
-    artist VARCHAR(255) NOT NULL,
-    role ENUM('primary','featured') NOT NULL DEFAULT 'featured',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uniq_track_artist_role (track_id, artist, role)
-  )");
+  // NOTE: No DDL/migrations here (hot path). Run /muzic2/scripts/setup_db.php if schema is missing.
   $entity = $_GET['entity'] ?? '';
   $method = $_SERVER['REQUEST_METHOD'];
   $body = null;
@@ -147,9 +118,7 @@ if (isset($_GET['api'])) {
     }
 
     if ($entity === 'tracks') {
-      // Ensure optional columns exist
-      try { $db->exec("ALTER TABLE tracks ADD COLUMN video_url VARCHAR(500) NULL"); } catch (Throwable $e) { /* ignore if exists */ }
-      try { $db->exec("ALTER TABLE tracks ADD COLUMN explicit TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) { /* ignore if exists */ }
+      // No schema changes here (hot path).
       if ($method === 'GET') {
         $q = trim((string)($_GET['q'] ?? ''));
         $albumExact = isset($_GET['album']) ? trim((string)$_GET['album']) : '';
@@ -361,8 +330,19 @@ function ok(t){statusEl.textContent=t||''; statusEl.className='status ok'} funct
 function esc(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))}
 function img(src){ if(!src) return ''; const p=src.startsWith('/muzic2/')?src:('/muzic2/'+src.replace(/^\//,'')); return `<img class="img" src="${p}" onerror="this.style.display='none'">`; }
 function normVideo(v){ return (v||'').trim(); }
+async function readJsonSafe(res){
+  const text = await res.text().catch(()=> '');
+  try {
+    return text ? JSON.parse(text) : null;
+  } catch (_) {
+    const status = res && typeof res.status === 'number' ? res.status : 0;
+    const prefix = status ? `HTTP ${status}. ` : '';
+    const body = text ? `Ответ сервера: ${text.slice(0, 300)}` : 'Пустой ответ от сервера';
+    throw new Error(prefix + body);
+  }
+}
 function openVideoPreview(raw){ const url=normVideo(raw); let overlay=document.getElementById('video-preview'); if(!overlay){ overlay=document.createElement('div'); overlay.id='video-preview'; overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100000'; const box=document.createElement('div'); box.style.cssText='background:#0f0f0f;border:1px solid #2a2a2a;border-radius:12px;max-width:800px;width:92%;padding:8px;position:relative'; const close=document.createElement('button'); close.textContent='×'; close.title='Закрыть'; close.style.cssText='position:absolute;top:6px;right:6px;width:28px;height:28px;border:none;border-radius:50%;background:#2a2a2a;color:#b3b3b3;cursor:pointer'; close.onclick=()=>{ try{v.pause();}catch(_){} document.body.removeChild(overlay); }; const v=document.createElement('video'); v.id='video-preview-player'; v.style.cssText='width:100%;height:auto;max-height:70vh;background:#000'; v.controls=true; box.appendChild(close); box.appendChild(v); overlay.appendChild(box); document.body.appendChild(overlay); } const vp=document.getElementById('video-preview-player'); if(vp){ try{ while(vp.firstChild) vp.removeChild(vp.firstChild);}catch(_){} const s=document.createElement('source'); s.src=url; s.type= (url.toLowerCase().endsWith('.webm')?'video/webm':'video/mp4'); vp.appendChild(s); vp.load(); setTimeout(()=>{ try{vp.play().catch(()=>{});}catch(_){} },0); } }
-async function load(){ try{ ok('Загрузка...'); const q=search.value.trim(); const r=await fetch(`${api}&entity=${tab}${q?`&q=${encodeURIComponent(q)}`:''}`); const j=await r.json(); if(!j.success) throw new Error(j.message||'Ошибка'); items=j.data||[]; render(); ok(items.length?`Найдено: ${items.length}`:'Ничего не найдено'); }catch(e){ err(e.message)} }
+async function load(){ try{ ok('Загрузка...'); const q=search.value.trim(); const r=await fetch(`${api}&entity=${tab}${q?`&q=${encodeURIComponent(q)}`:''}`); const j=await readJsonSafe(r); if(!j || !j.success) throw new Error((j&&j.message)||'Ошибка'); items=j.data||[]; render(); ok(items.length?`Найдено: ${items.length}`:'Ничего не найдено'); }catch(e){ err(e.message)} }
  function render(){ list.innerHTML=''; if(tab==='artists'){ items.forEach(a=>{ const c=document.createElement('div'); c.className='card'; const cover=a.artist_cover||a.track_cover||''; c.innerHTML=`${img(cover)}<h3>${esc(a.artist||'Без имени')}</h3><div class='small'>Треков: ${a.tracks||0}</div><div class='row'><button class='btn primary'>Изменить</button><button class='btn' style='background:#3a1416;color:#ffb4b4'>Удалить</button></div>`; c.querySelector('.btn.primary').onclick=()=>editArtist(a); c.querySelectorAll('.btn')[1].onclick=()=>delArtist(a); list.appendChild(c); }); }
  if(tab==='albums'){ items.forEach(al=>{ const c=document.createElement('div'); c.className='card'; c.innerHTML=`${img(al.cover)}<h3>${esc(al.album||'Без названия')}</h3><div class='small'>Артист: ${esc(al.artist||'')}</div><div class='small'>Тип: ${esc(al.album_type||'')}</div><div class='small'>Треков: ${al.track_count||0}</div><div class='row'><button class='btn primary'>Изменить</button></div>`; c.querySelector('.btn.primary').onclick=()=>editAlbum(al); list.appendChild(c); }); }
  if(tab==='tracks'){ items.forEach(t=>{ const c=document.createElement('div'); c.className='card'; const hasVideo = !!(t.video_url && String(t.video_url).trim()); const exp = !!(t.explicit); const featsStr = (t.feats && String(t.feats).trim())? String(t.feats).trim() : ''; const combinedArtists = esc(featsStr? `${t.artist}, ${featsStr}` : (t.artist||'')); c.innerHTML=`${img(t.cover)}<h3>${esc(t.title||'Без названия')} — ${combinedArtists} ${exp?'<span title="Нецензурная лексика" style="display:inline-block;padding:0 6px;border-radius:4px;background:#3a3a3a;color:#fff;font-size:0.8rem;margin-left:6px">E</span>':''}</h3><div class='small'>Альбом: ${esc(t.album||'')}</div><div class='small'>Файл: ${esc(t.file_path||'')}</div><div class='small'>Видео: ${hasVideo?'<span style="color:#8aff8a">есть</span>':'нет'}</div><div class='row'><button class='btn primary'>Изменить</button><button class='btn' data-lyrics='1'>Текст</button>${hasVideo?"<button class='btn' data-preview='1'>Видео</button>":''}<button class='btn' style='background:#3a1416;color:#ffb4b4' >Удалить</button></div>`; c.querySelector('.btn.primary').onclick=()=>editTrack(t); const lyr=c.querySelector('[data-lyrics]'); if(lyr) lyr.onclick=()=>editLyrics(t); const btns=c.querySelectorAll('.btn'); if(hasVideo){ const pv=c.querySelector('[data-preview]'); if(pv) pv.onclick=()=>openVideoPreview(t.video_url); } (hasVideo?btns[3]:btns[2]).onclick=()=>delTrack(t); list.appendChild(c); }); }
@@ -370,14 +350,14 @@ async function load(){ try{ ok('Загрузка...'); const q=search.value.trim
 function openModal(title, html, it){ mtitle.textContent=title; mbody.innerHTML=html; mstatus.textContent=''; modal.style.display='flex'; current=it||null; }
 function closeModal(){ modal.style.display='none'; current=null; }
 closeBtn.onclick=closeModal;
-async function upload(file){ const fd=new FormData(); fd.append('cover', file); const r=await fetch('../upload_cover.php',{method:'POST',body:fd}); const j=await r.json(); if(!r.ok||!j.success) throw new Error(j.message||'Ошибка загрузки'); return j.path; }
-async function uploadVideo(file){ const fd=new FormData(); fd.append('video', file); const r=await fetch('../upload_video.php',{method:'POST',body:fd}); const j=await r.json(); if(!r.ok||!j.success) throw new Error(j.message||'Ошибка загрузки'); return j.path; }
+async function upload(file){ const fd=new FormData(); fd.append('cover', file); const r=await fetch('../upload_cover.php',{method:'POST',body:fd}); const j=await readJsonSafe(r); if(!r.ok||!j||!j.success) throw new Error((j&&j.message)||'Ошибка загрузки'); return j.path; }
+async function uploadVideo(file){ const fd=new FormData(); fd.append('video', file); const r=await fetch('../upload_video.php',{method:'POST',body:fd}); const j=await readJsonSafe(r); if(!r.ok||!j||!j.success) throw new Error((j&&j.message)||'Ошибка загрузки'); return j.path; }
 async function editArtist(a){
   let tracksOptions = `<option value="">— Не выбран —</option>`;
   try {
     const q = a.artist ? encodeURIComponent(a.artist) : '';
     const res = await fetch(`${api}&entity=tracks${q ? `&q=${q}` : ''}`);
-    const data = await res.json();
+    const data = await readJsonSafe(res);
     if (data.success && Array.isArray(data.data)) {
       data.data
         .filter(t => {
@@ -426,7 +406,7 @@ async function editArtist(a){
         promo_track_id:promoTrackId
       };
       const r=await fetch(`${api}&entity=artists`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-      const j=await r.json(); if(!j.success) throw new Error(j.message||'Ошибка');
+      const j=await readJsonSafe(r); if(!j || !j.success) throw new Error((j&&j.message)||'Ошибка');
       closeModal(); load();
     }catch(e){ merr(e.message) }
   }
@@ -448,7 +428,7 @@ function editAlbum(al){ openModal(al.album ? 'Изменить альбом' : '
   </div>
 `, al);
   // Save create/update
-  saveBtn.onclick=async()=>{ try{ mok('Сохранение...'); let cover=document.getElementById('f-cover').value.trim(); const file=document.getElementById('f-file').files[0]; if(file){ cover=await upload(file); document.getElementById('f-cover').value=cover; } const newName = document.getElementById('f-album').value.trim(); const currentName = (al.album||'').trim(); const isCreate = !currentName; const feats = document.getElementById('f-feats').value.trim(); const payload = isCreate ? { action:'create', album:newName, artist: document.getElementById('f-artist').value.trim(), album_type: document.getElementById('f-type').value, cover, feats } : { action:'update', album: currentName ? currentName : newName, album_new: currentName && newName && currentName!==newName ? newName : '', artist: document.getElementById('f-artist').value.trim(), album_type: document.getElementById('f-type').value, cover, feats }; const r=await fetch(`${api}&entity=albums`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const j=await r.json(); if(!j.success) throw new Error(j.message||'Ошибка'); closeModal(); load(); }catch(e){ merr(e.message) } };
+  saveBtn.onclick=async()=>{ try{ mok('Сохранение...'); let cover=document.getElementById('f-cover').value.trim(); const file=document.getElementById('f-file').files[0]; if(file){ cover=await upload(file); document.getElementById('f-cover').value=cover; } const newName = document.getElementById('f-album').value.trim(); const currentName = (al.album||'').trim(); const isCreate = !currentName; const feats = document.getElementById('f-feats').value.trim(); const payload = isCreate ? { action:'create', album:newName, artist: document.getElementById('f-artist').value.trim(), album_type: document.getElementById('f-type').value, cover, feats } : { action:'update', album: currentName ? currentName : newName, album_new: currentName && newName && currentName!==newName ? newName : '', artist: document.getElementById('f-artist').value.trim(), album_type: document.getElementById('f-type').value, cover, feats }; const r=await fetch(`${api}&entity=albums`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const j=await readJsonSafe(r); if(!j || !j.success) throw new Error((j&&j.message)||'Ошибка'); closeModal(); load(); }catch(e){ merr(e.message) } };
   // Load/delete/manage tracks
   const tracksBtn=document.getElementById('btn-album-tracks'); const panel=document.getElementById('album-tracks-panel'); const listEl=document.getElementById('album-tracks-list');
   if (tracksBtn && al.album){
@@ -458,7 +438,7 @@ function editAlbum(al){ openModal(al.album ? 'Изменить альбом' : '
         listEl.innerHTML = '<div class="small">Загрузка...</div>';
         try{
           const r=await fetch(`${api}&entity=tracks&album=${encodeURIComponent(al.album)}`);
-          const j=await r.json(); if(!j.success) throw new Error(j.message||'Ошибка');
+          const j=await readJsonSafe(r); if(!j || !j.success) throw new Error((j&&j.message)||'Ошибка');
           const rows = j.data||[]; listEl.innerHTML='';
           rows.forEach(t=>{
             const row=document.createElement('div'); row.className='card';
@@ -467,7 +447,7 @@ function editAlbum(al){ openModal(al.album ? 'Изменить альбом' : '
             row.querySelector('[data-edit]').onclick=()=>editTrack(t);
             const lyr=row.querySelector('[data-lyrics]'); if (lyr) lyr.onclick=()=>editLyrics(t);
             if (hasVideo) { const pv=row.querySelector('[data-preview]'); pv.onclick=()=>openVideoPreview(t.video_url); }
-            row.querySelector('[data-del]').onclick=async()=>{ if(!confirm('Удалить трек?')) return; const rr=await fetch(`${api}&entity=tracks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',id:t.id})}); const jj=await rr.json(); if(jj.success){ row.remove(); } else { alert(jj.message||'Ошибка'); } };
+            row.querySelector('[data-del]').onclick=async()=>{ if(!confirm('Удалить трек?')) return; const rr=await fetch(`${api}&entity=tracks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',id:t.id})}); const jj=await readJsonSafe(rr); if(jj && jj.success){ row.remove(); } else { alert((jj&&jj.message)||'Ошибка'); } };
             listEl.appendChild(row);
           });
         }catch(e){ listEl.innerHTML = `<div class='small' style='color:#ff9b9b'>${esc(e.message||'Ошибка')}</div>`; }
@@ -477,28 +457,28 @@ function editAlbum(al){ openModal(al.album ? 'Изменить альбом' : '
   const addTrackBtn = document.getElementById('btn-add-track');
   if (addTrackBtn){ addTrackBtn.onclick=()=>{ editTrack({id:0,title:'',artist: (al.artist||''), album:(al.album||document.getElementById('f-album').value.trim()), album_type: (al.album_type||'album'), file_path:'', cover:'', duration:0}); } }
   const delBtn=document.getElementById('btn-album-delete');
-  if (delBtn){ delBtn.onclick=async()=>{ if(!confirm('Удалить альбом и все его треки?')) return; try{ mok('Удаление...'); const r=await fetch(`${api}&entity=albums`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',album:al.album})}); const j=await r.json(); if(!j.success) throw new Error(j.message||'Ошибка'); closeModal(); load(); }catch(e){ merr(e.message) } } }
+  if (delBtn){ delBtn.onclick=async()=>{ if(!confirm('Удалить альбом и все его треки?')) return; try{ mok('Удаление...'); const r=await fetch(`${api}&entity=albums`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',album:al.album})}); const j=await readJsonSafe(r); if(!j || !j.success) throw new Error((j&&j.message)||'Ошибка'); closeModal(); load(); }catch(e){ merr(e.message) } } }
 }
-function editTrack(t){ openModal('Изменить трек', `<div class='field'><label>Название</label><input id='f-title' value='${esc(t.title||'')}'></div><div class='field'><label>Артист</label><input id='f-artist' value='${esc(t.artist||'')}'></div><div class='field'><label>Фиты (через запятую)</label><input id='f-feats' value='${esc(t.feats||'')}' placeholder='Kai Angel, 9mice'></div><div class='field'><label>Альбом</label><input id='f-album' value='${esc(t.album||'')}'></div><div class='field'><label>Тип</label><select id='f-type'><option value='album' ${t.album_type==='album'?'selected':''}>Альбом</option><option value='ep' ${t.album_type==='ep'?'selected':''}>EP</option><option value='single' ${t.album_type==='single'?'selected':''}>Сингл</option></select></div><div class='field'><label>Файл (tracks/music/...)</label><input id='f-file' value='${esc(t.file_path||'')}'></div><div class='field'><label>Обложка (путь или загрузите)</label><div style='display:flex;gap:8px'><input id='f-cover' value='${esc(t.cover||'')}' style='flex:1'><input id='f-file2' type='file' accept='image/*' style='flex:1'></div></div><div class='field'><label>Длительность (сек)</label><input id='f-dur' type='number' value='${t.duration||0}'></div><div class='field'><label>Нецензурная лексика</label><label style='display:inline-flex;align-items:center;gap:8px'><input id='f-exp' type='checkbox' ${t.explicit? 'checked':''}> Показать значок E</label></div><div class='field'><label>Видео (URL)</label><div style='display:flex;gap:8px'><input id='f-video' value='${esc(t.video_url||'')}' placeholder='tracks/video/file.mp4 или полный URL' style='flex:1'><button class='btn' id='preview-video-btn' type='button'>Проверить видео</button></div></div>`, t); const previewBtn=document.getElementById('preview-video-btn'); if(previewBtn){ previewBtn.onclick=()=>{ openVideoPreview((document.getElementById('f-video').value||'')); }; } saveBtn.onclick=async()=>{ try{ mok('Сохранение...'); let cover=document.getElementById('f-cover').value.trim(); const file=document.getElementById('f-file2').files[0]; if(file){ cover=await upload(file); document.getElementById('f-cover').value=cover; } const isCreate = !t.id || t.id===0; const base = { title:document.getElementById('f-title').value.trim(), artist:document.getElementById('f-artist').value.trim(), feats:document.getElementById('f-feats').value.trim(), album:document.getElementById('f-album').value.trim(), album_type:document.getElementById('f-type').value, file_path:document.getElementById('f-file').value.trim(), cover, duration:parseInt(document.getElementById('f-dur').value||0,10), explicit: !!document.getElementById('f-exp').checked, video_url: normVideo(document.getElementById('f-video').value) }; const payload = isCreate ? ({action:'create', ...base}) : ({action:'update', id:t.id, ...base}); const r=await fetch(`${api}&entity=tracks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const j=await r.json(); if(!j.success) throw new Error(j.message||'Ошибка'); closeModal(); load(); }catch(e){ merr(e.message) } } }
+function editTrack(t){ openModal('Изменить трек', `<div class='field'><label>Название</label><input id='f-title' value='${esc(t.title||'')}'></div><div class='field'><label>Артист</label><input id='f-artist' value='${esc(t.artist||'')}'></div><div class='field'><label>Фиты (через запятую)</label><input id='f-feats' value='${esc(t.feats||'')}' placeholder='Kai Angel, 9mice'></div><div class='field'><label>Альбом</label><input id='f-album' value='${esc(t.album||'')}'></div><div class='field'><label>Тип</label><select id='f-type'><option value='album' ${t.album_type==='album'?'selected':''}>Альбом</option><option value='ep' ${t.album_type==='ep'?'selected':''}>EP</option><option value='single' ${t.album_type==='single'?'selected':''}>Сингл</option></select></div><div class='field'><label>Файл (tracks/music/...)</label><input id='f-file' value='${esc(t.file_path||'')}'></div><div class='field'><label>Обложка (путь или загрузите)</label><div style='display:flex;gap:8px'><input id='f-cover' value='${esc(t.cover||'')}' style='flex:1'><input id='f-file2' type='file' accept='image/*' style='flex:1'></div></div><div class='field'><label>Длительность (сек)</label><input id='f-dur' type='number' value='${t.duration||0}'></div><div class='field'><label>Нецензурная лексика</label><label style='display:inline-flex;align-items:center;gap:8px'><input id='f-exp' type='checkbox' ${t.explicit? 'checked':''}> Показать значок E</label></div><div class='field'><label>Видео (URL)</label><div style='display:flex;gap:8px'><input id='f-video' value='${esc(t.video_url||'')}' placeholder='tracks/video/file.mp4 или полный URL' style='flex:1'><button class='btn' id='preview-video-btn' type='button'>Проверить видео</button></div></div>`, t); const previewBtn=document.getElementById('preview-video-btn'); if(previewBtn){ previewBtn.onclick=()=>{ openVideoPreview((document.getElementById('f-video').value||'')); }; } saveBtn.onclick=async()=>{ try{ mok('Сохранение...'); let cover=document.getElementById('f-cover').value.trim(); const file=document.getElementById('f-file2').files[0]; if(file){ cover=await upload(file); document.getElementById('f-cover').value=cover; } const isCreate = !t.id || t.id===0; const base = { title:document.getElementById('f-title').value.trim(), artist:document.getElementById('f-artist').value.trim(), feats:document.getElementById('f-feats').value.trim(), album:document.getElementById('f-album').value.trim(), album_type:document.getElementById('f-type').value, file_path:document.getElementById('f-file').value.trim(), cover, duration:parseInt(document.getElementById('f-dur').value||0,10), explicit: !!document.getElementById('f-exp').checked, video_url: normVideo(document.getElementById('f-video').value) }; const payload = isCreate ? ({action:'create', ...base}) : ({action:'update', id:t.id, ...base}); const r=await fetch(`${api}&entity=tracks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const j=await readJsonSafe(r); if(!j || !j.success) throw new Error((j&&j.message)||'Ошибка'); closeModal(); load(); }catch(e){ merr(e.message) } } }
 
 // Lyrics editor
 async function editLyrics(t){
   const trackId = parseInt(t.id||0,10);
   openModal('Текст (караоке)', `<div class='field'><label>Трек</label><div class='small'>${esc(t.title||'')} — ${esc(t.artist||'')}</div></div><div class='field'><label>LRC</label><textarea id='f-lrc' rows='10' placeholder='[00:00.00] Первая строка\n[00:10.50] Вторая строка'></textarea></div>`, t);
   // Load existing
-  try{ const r=await fetch(`/muzic2/src/api/lyrics.php?track_id=${trackId}`); const j=await r.json(); if (j && j.lrc) document.getElementById('f-lrc').value = j.lrc; }catch(_){ }
+  try{ const r=await fetch(`/muzic2/src/api/lyrics.php?track_id=${trackId}`); const j=await readJsonSafe(r); if (j && j.lrc) document.getElementById('f-lrc').value = j.lrc; }catch(_){ }
   saveBtn.onclick = async ()=>{
     try{
       mok('Сохранение...');
       const lrc = document.getElementById('f-lrc').value;
       const r = await fetch(`/muzic2/src/api/lyrics.php`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: trackId, lrc })});
-      const j = await r.json(); if (!r.ok || !j || !j.success) throw new Error((j&&j.error)||'Ошибка сохранения');
+      const j = await readJsonSafe(r); if (!r.ok || !j || !j.success) throw new Error((j&&j.error)||'Ошибка сохранения');
       closeModal(); ok('Текст сохранён');
     }catch(e){ merr(e.message); }
   };
 }
-async function delTrack(t){ if(!confirm(`Удалить трек "${t.title}"?`)) return; const r=await fetch(`${api}&entity=tracks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',id:t.id})}); const j=await r.json(); if(j.success){ ok('Трек удалён'); load(); } else { err(j.message||'Ошибка') } }
-async function delArtist(a){ if(!confirm(`Удалить артиста "${a.artist}"?`)) return; const r=await fetch(`${api}&entity=artists`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',name:a.artist})}); const j=await r.json(); if(j.success){ ok('Артист удалён'); load(); } else { err(j.message||'Ошибка') } }
+async function delTrack(t){ if(!confirm(`Удалить трек "${t.title}"?`)) return; const r=await fetch(`${api}&entity=tracks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',id:t.id})}); const j=await readJsonSafe(r); if(j && j.success){ ok('Трек удалён'); load(); } else { err((j&&j.message)||'Ошибка') } }
+async function delArtist(a){ if(!confirm(`Удалить артиста "${a.artist}"?`)) return; const r=await fetch(`${api}&entity=artists`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',name:a.artist})}); const j=await readJsonSafe(r); if(j && j.success){ ok('Артист удалён'); load(); } else { err((j&&j.message)||'Ошибка') } }
 add.onclick = async () => {
   if (tab === 'artists') {
     await editArtist({ artist: '', artist_cover: '', bio: '', promo_video: '', promo_track_id: null });
@@ -528,8 +508,8 @@ add.onclick = async () => {
           promo_track_id: promoTrackId
         };
         const r = await fetch(`${api}&entity=artists`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        const j = await r.json();
-        if (!j.success) throw new Error(j.message || 'Ошибка');
+        const j = await readJsonSafe(r);
+        if (!j || !j.success) throw new Error((j&&j.message) || 'Ошибка');
         closeModal();
         load();
       } catch (e) { merr(e.message); }
@@ -544,7 +524,7 @@ add.onclick = async () => {
       if(file){ cover=await upload(file); document.getElementById('f-cover').value=cover; }
       const payload={action:'create', title:document.getElementById('f-title').value.trim(), artist:document.getElementById('f-artist').value.trim(), feats:document.getElementById('f-feats').value.trim(), album:document.getElementById('f-album').value.trim(), album_type:document.getElementById('f-type').value, file_path:document.getElementById('f-file').value.trim(), cover, duration:parseInt(document.getElementById('f-dur').value||0,10), explicit: !!document.getElementById('f-exp').checked, video_url: normVideo(document.getElementById('f-video').value)};
       const r=await fetch(`${api}&entity=tracks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-      const j=await r.json(); if(!j.success) throw new Error(j.message||'Ошибка'); closeModal(); load();
+      const j=await readJsonSafe(r); if(!j || !j.success) throw new Error((j&&j.message)||'Ошибка'); closeModal(); load();
     }catch(e){ merr(e.message) } } }
 };
 

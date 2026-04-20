@@ -81,11 +81,11 @@
             content.innerHTML = '<div class="loading">Загрузка...</div>';
             
             try {
-                // Пробуем разные пути к API
+                // Пробуем разные пути к API (используем public API, который не требует авторизацию)
                 const apiPaths = [
-                    'src/api/home.php',
-                    '../src/api/home.php',
-                    '/muzic2/src/api/home.php'
+                    'public/src/api/home.php',
+                    '/muzic2/public/src/api/home.php',
+                    '../public/src/api/home.php'
                 ];
                 
                 let data = null;

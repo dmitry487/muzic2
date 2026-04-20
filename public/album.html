@@ -417,11 +417,11 @@
           const id = Number(hb.getAttribute('data-track-id'));
           if (!id) return;
           if (hb.classList.contains('liked')) {
-            await fetch('/muzic2/src/api/likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: id })});
+            await fetch('/muzic2/src/api/windows_likes.php', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: id })});
             hb.classList.remove('liked');
             try{ document.dispatchEvent(new CustomEvent('likes:updated', { detail:{ trackId: id, liked:false } })); }catch(_){ }
           } else {
-            await fetch('/muzic2/src/api/likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: id })});
+            await fetch('/muzic2/src/api/windows_likes.php', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ track_id: id })});
             hb.classList.add('liked');
             try{ document.dispatchEvent(new CustomEvent('likes:updated', { detail:{ trackId: id, liked:true } })); }catch(_){ }
           }
@@ -430,9 +430,10 @@
       });
       // Инициализируем состояния лайков для треков альбома
       try {
-        const lr = await fetch('/muzic2/src/api/likes.php', { credentials:'include' });
+        const lr = await fetch('/muzic2/src/api/windows_likes.php?lite=1', { credentials:'include' });
         const lj = await lr.json();
-        const likedSet = new Set((lj.tracks||[]).map(x=>x.id));
+        const likedIds = lj.lite && Array.isArray(lj.track_ids) ? lj.track_ids : (lj.tracks||[]).map(x=>x.id);
+        const likedSet = new Set(likedIds.map(id => Number(id)));
         document.querySelectorAll('.heart-btn[data-track-id]')
           .forEach(btn=>{ const id = Number(btn.getAttribute('data-track-id')); if (likedSet.has(id)) btn.classList.add('liked'); });
       } catch(_) {}

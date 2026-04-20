@@ -1,58 +1,117 @@
 <?php
-// Windows-optimized likes API
-session_start();
-require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../config/session_init.php';
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    header('Content-Type: application/json');
+    http_response_code(200);
+    exit;
+}
+
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 header('Access-Control-Allow-Credentials: true');
 
-// Handle preflight requests
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
-}
-
-$db = get_db_connection();
+$method = $_SERVER['REQUEST_METHOD'];
 $user_id = $_SESSION['user_id'] ?? null;
 
 if (!$user_id) {
-    echo json_encode(['tracks' => [], 'albums' => []]);
+    if ($method === 'GET') {
+        echo json_encode(['tracks' => [], 'albums' => []]);
+        exit;
+    }
+    http_response_code(401);
+    echo json_encode(['error' => 'Требуется вход', 'tracks' => [], 'albums' => []]);
     exit;
 }
 
-$method = $_SERVER['REQUEST_METHOD'];
+require_once __DIR__ . '/../config/db.php';
 
-if ($method === 'GET') {
-    // Get liked tracks with minimal data
-    $stmt = $db->prepare('
-        SELECT t.id, t.title, t.artist, t.cover, t.duration,
-               (SELECT GROUP_CONCAT(ta.artist ORDER BY ta.artist SEPARATOR ", ") 
-                FROM track_artists ta 
-                WHERE ta.track_id = t.id AND ta.role = "featured") AS feats
-        FROM likes l 
-        JOIN tracks t ON l.track_id = t.id 
-        WHERE l.user_id = ? 
-        ORDER BY l.created_at DESC
-    ');
-    $stmt->execute([$user_id]);
-    $tracks = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Get liked albums
-    $createTable = "CREATE TABLE IF NOT EXISTS album_likes (
+try {
+    $db = get_db_connection();
+} catch (Throwable $e) {
+    http_response_code(500);
+    echo json_encode(['tracks' => [], 'albums' => [], 'error' => 'db_unavailable']);
+    exit;
+}
+
+/**
+ * Создаёт album_likes не чаще одного раза за запрос PHP (раньше CREATE выполнялся на каждый GET).
+ */
+function muzic2_ensure_album_likes_table(PDO $db): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    $db->exec("CREATE TABLE IF NOT EXISTS album_likes (
         user_id INT,
         album_title VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (user_id, album_title),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )";
-    $db->exec($createTable);
-    
+    )");
+}
+
+if ($method === 'GET') {
+    $lite = isset($_GET['lite']) && (string)$_GET['lite'] === '1';
+
+    if ($lite) {
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 2000;
+        if ($limit < 1) $limit = 1;
+        if ($limit > 5000) $limit = 5000;
+
+        $stmt = $db->prepare('SELECT track_id FROM likes WHERE user_id = ? ORDER BY created_at DESC LIMIT ' . $limit);
+        $stmt->execute([$user_id]);
+        $trackIds = array_values(array_map('intval', array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'track_id')));
+
+        muzic2_ensure_album_likes_table($db);
+        $stmt = $db->prepare('SELECT album_title FROM album_likes WHERE user_id = ? ORDER BY created_at DESC LIMIT ' . $limit);
+        $stmt->execute([$user_id]);
+        $albums = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        echo json_encode([
+            'lite' => true,
+            'limit' => $limit,
+            'track_ids' => $trackIds,
+            'albums' => $albums,
+        ]);
+        exit;
+    }
+
+    $sqlWithFeats = '
+        SELECT t.id, t.title, t.artist, t.album, t.cover, t.duration, t.file_path, t.video_url, t.explicit,
+        (SELECT GROUP_CONCAT(ta.artist ORDER BY ta.artist SEPARATOR ", ")
+         FROM track_artists ta WHERE ta.track_id = t.id AND ta.role = "featured") AS feats
+        FROM likes l
+        INNER JOIN tracks t ON l.track_id = t.id
+        WHERE l.user_id = ?
+        ORDER BY l.created_at DESC';
+    $sqlSimple = '
+        SELECT t.id, t.title, t.artist, t.album, t.cover, t.duration, t.file_path, t.video_url, t.explicit, NULL AS feats
+        FROM likes l
+        INNER JOIN tracks t ON l.track_id = t.id
+        WHERE l.user_id = ?
+        ORDER BY l.created_at DESC';
+    $tracks = [];
+    try {
+        $stmt = $db->prepare($sqlWithFeats);
+        $stmt->execute([$user_id]);
+        $tracks = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        $stmt = $db->prepare($sqlSimple);
+        $stmt->execute([$user_id]);
+        $tracks = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    muzic2_ensure_album_likes_table($db);
+
     $stmt = $db->prepare('SELECT album_title FROM album_likes WHERE user_id = ? ORDER BY created_at DESC');
     $stmt->execute([$user_id]);
     $albums = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
+
     echo json_encode(['tracks' => $tracks, 'albums' => $albums]);
     exit;
 }
@@ -91,15 +150,8 @@ if ($method === 'POST') {
         
     } elseif ($album_title) {
         // Like album
-        $createTable = "CREATE TABLE IF NOT EXISTS album_likes (
-            user_id INT,
-            album_title VARCHAR(255),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (user_id, album_title),
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        )";
-        $db->exec($createTable);
-        
+        muzic2_ensure_album_likes_table($db);
+
         $stmt = $db->prepare('INSERT IGNORE INTO album_likes (user_id, album_title) VALUES (?, ?)');
         $stmt->execute([$user_id, $album_title]);
         

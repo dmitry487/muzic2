@@ -47,9 +47,19 @@ try {
         throw new Exception('Файл слишком большой. Максимум 100 МБ');
     }
 
-    // Validate MIME and extension
-    $finfo = new finfo(FILEINFO_MIME_TYPE);
-    $mime = $finfo->file($file['tmp_name']);
+    // Validate MIME and extension (fileinfo may be disabled; fall back gracefully)
+    $mime = '';
+    try {
+        if (class_exists('finfo')) {
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $mime = (string)$finfo->file($file['tmp_name']);
+        }
+    } catch (Throwable $e) {
+        $mime = '';
+    }
+    if (!$mime) {
+        $mime = (string)($file['type'] ?? '');
+    }
     
     // Расширенный список поддерживаемых форматов
     $allowed = [
@@ -151,7 +161,7 @@ try {
         'mime' => $mime,
         'size' => $file['size']
     ]);
-} catch (Exception $e) {
+} catch (Throwable $e) {
     http_response_code(400);
     echo json_encode([
         'success' => false,

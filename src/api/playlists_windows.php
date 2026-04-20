@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/../config/session_init.php';
+require_once __DIR__ . '/../config/db.php';
 header('Content-Type: application/json');
 if (!empty($_SERVER['HTTP_ORIGIN'])) {
     header('Access-Control-Allow-Origin: ' . $_SERVER['HTTP_ORIGIN']);
@@ -10,55 +12,59 @@ header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 header('Access-Control-Allow-Credentials: true');
 
-// Ультра-быстрая версия для Windows
-session_start();
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
 
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['playlists' => []]);
     exit;
 }
 
+$user_id = (int)$_SESSION['user_id'];
+
 try {
-    require_once __DIR__ . '/../config/db.php';
     $pdo = get_db_connection();
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT);
-    
-    // Простой запрос без JOIN + создаём "Любимые треки" если нет
-    $stmt = $pdo->prepare("SELECT id, name, cover FROM playlists WHERE user_id = ?");
-    $stmt->execute([$_SESSION['user_id']]);
-    $playlists = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Проверяем есть ли "Любимые треки", если нет — создаём
-    $hasFavorites = false;
-    foreach ($playlists as $pl) {
-        if (strtolower(trim($pl['name'])) === 'любимые треки') {
-            $hasFavorites = true;
-            break;
+
+    // Один round-trip: завести «Любимые треки», если ещё нет.
+    $ensureFav = $pdo->prepare(
+        "INSERT INTO playlists (user_id, name, is_public) SELECT ?, 'Любимые треки', 0 " .
+        "WHERE NOT EXISTS (SELECT 1 FROM playlists p WHERE p.user_id = ? AND p.name = 'Любимые треки')"
+    );
+    $ensureFav->execute([$user_id, $user_id]);
+
+    try {
+        $sql = 'SELECT p.id, p.name, p.created_at,
+                (SELECT COUNT(*) FROM playlist_tracks pt WHERE pt.playlist_id = p.id) AS track_count
+                FROM playlists p
+                WHERE p.user_id = ?
+                ORDER BY p.created_at DESC';
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$user_id]);
+        $playlists = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        $stmt = $pdo->prepare(
+            'SELECT p.id, p.name,
+            (SELECT COUNT(*) FROM playlist_tracks pt WHERE pt.playlist_id = p.id) AS track_count
+             FROM playlists p WHERE p.user_id = ? ORDER BY p.id DESC'
+        );
+        $stmt->execute([$user_id]);
+        $playlists = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    foreach ($playlists as &$pl) {
+        $pl['track_count'] = (int)($pl['track_count'] ?? 0);
+        if (isset($pl['name']) && trim($pl['name']) === 'Любимые треки') {
+            $pl['cover'] = 'tracks/covers/favorites-playlist.png';
+        } else {
+            $pl['cover'] = null;
         }
     }
-    if (!$hasFavorites) {
-        try {
-            $stmt = $pdo->prepare("INSERT INTO playlists (user_id, name, is_public) VALUES (?, ?, 0)");
-            $stmt->execute([$_SESSION['user_id'], 'Любимые треки']);
-            $newId = $pdo->lastInsertId();
-            if ($newId) {
-                array_unshift($playlists, ['id' => $newId, 'name' => 'Любимые треки', 'cover' => null, 'track_count' => 0]);
-            }
-        } catch (Exception $e) {
-            // Игнорируем ошибки создания
-        }
-    }
-    
-    // Добавляем количество треков (упрощенно)
-    foreach ($playlists as &$playlist) {
-        $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM playlist_tracks WHERE playlist_id = ?");
-        $stmt->execute([$playlist['id']]);
-        $playlist['track_count'] = $stmt->fetch()['count'];
-    }
-    
+    unset($pl);
+
     echo json_encode(['playlists' => $playlists]);
-    
-} catch (Exception $e) {
-    echo json_encode(['playlists' => []]);
+} catch (Throwable $e) {
+    http_response_code(500);
+    echo json_encode(['playlists' => [], 'error' => 'load_failed']);
 }
-?>
