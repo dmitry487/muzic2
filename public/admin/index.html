@@ -9,6 +9,11 @@
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
   header{padding:16px;background:var(--panel);border-bottom:1px solid var(--border)}
+  .head{display:flex;gap:12px;align-items:center;justify-content:space-between}
+  .head-left{min-width:0}
+  .head-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .linkbtn{display:inline-flex;align-items:center;justify-content:center;padding:12px 16px;border-radius:12px;border:2px solid var(--border);background:var(--panel2);color:var(--text);text-decoration:none;font-weight:900}
+  .linkbtn:hover{border-color:var(--accent)}
   header h1{margin:0 0 6px}
   header p{margin:0;color:var(--muted)}
   .bar{display:flex;gap:10px;padding:12px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
@@ -35,13 +40,21 @@
 </head>
 <body>
 <header>
-  <h1>Админка (просто)</h1>
-  <p>Меняйте имена, карт��нки и описание без кода</p>
+  <div class="head">
+    <div class="head-left">
+      <h1>Админка (просто)</h1>
+      <p>Меняйте имена, картинки и описание без кода</p>
+    </div>
+    <div class="head-actions">
+      <a class="linkbtn" href="/muzic2/" title="Перейти на главную страницу сайта">На главную</a>
+    </div>
+  </div>
 </header>
 <div class="bar">
   <button class="tab active" data-tab="artists">Артисты</button>
   <button class="tab" data-tab="albums">Альбомы</button>
   <button class="tab" data-tab="tracks">Треки</button>
+  <button class="tab" data-tab="reports">Отчёты</button>
 </div>
 <div class="controls">
   <input id="search" placeholder="Поиск..." />
@@ -68,6 +81,7 @@ const API = {
   artists: '/muzic2/public/admin/api/artists.php',
   albums:  '/muzic2/public/admin/api/albums.php',
   tracks:  '/muzic2/public/admin/api/tracks.php',
+  stats:   '/muzic2/src/api/stats.php',
   upload:  '/muzic2/public/upload_cover.php',
   uploadVideo: '/muzic2/public/upload_video.php'
 };
@@ -90,6 +104,8 @@ let paging = { after: '', done: false, loading: false };
 let artistSuggestions = [];
 let artistSuggestionsLoaded = false;
 
+let reportsState = { period: 'month', limit: 10 };
+
 function ok(t){statusEl.textContent=t||''; statusEl.className='status ok'}
 function err(t){statusEl.textContent=t||''; statusEl.className='status err'}
 function mok(t){mstatus.textContent=t||''; mstatus.className='status ok'}
@@ -111,6 +127,10 @@ async function readJsonSafe(res){
 
 async function load(opts){
   try{
+    if (tab === 'reports') {
+      await loadReports();
+      return;
+    }
     const o = opts || {};
     const reset = !!o.reset;
     if (reset) {
@@ -149,6 +169,7 @@ async function load(opts){
 
 function render(){
   list.innerHTML='';
+  if (tab === 'reports') return;
   if (tab==='artists'){
     items.forEach(a=>{
       const c=document.createElement('div'); c.className='card';
@@ -183,6 +204,11 @@ function render(){
 }
 
 function ensureLoadMoreButton(){
+  if (tab === 'reports') {
+    const old = document.getElementById('load-more');
+    if (old) old.style.display = 'none';
+    return;
+  }
   // Simple "Load more" button at the end of the list
   let btn = document.getElementById('load-more');
   if (!btn){
@@ -195,6 +221,255 @@ function ensureLoadMoreButton(){
     document.body.appendChild(btn);
   }
   btn.style.display = paging.done ? 'none' : 'block';
+}
+
+function formatSeconds(sec){
+  sec = Number(sec) || 0;
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (h > 0) return `${h} ч ${m} мин`;
+  return `${m} мин`;
+}
+
+function formatDt(dt){
+  const s = String(dt || '').trim();
+  if (!s) return '';
+  // MySQL TIMESTAMP usually: "YYYY-MM-DD HH:MM:SS"
+  const d = new Date(s.replace(' ', 'T'));
+  if (Number.isNaN(d.getTime())) return s;
+  const pad2 = (n)=> String(n).padStart(2,'0');
+  return `${pad2(d.getDate())}.${pad2(d.getMonth()+1)}.${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+function formatDateOnly(ymd){
+  const s = String(ymd || '').trim();
+  if (!s) return '';
+  const p = s.split('-');
+  if (p.length === 3) return `${p[2]}.${p[1]}`;
+  return s;
+}
+
+function toCoverSrcPublic(p){
+  const s = String(p||'').trim();
+  if (!s) return '/muzic2/tracks/covers/placeholder.jpg';
+  if (/^https?:\/\//i.test(s) || s.startsWith('data:')) return s;
+  if (s.startsWith('/muzic2/')) return s;
+  if (s.startsWith('/')) return '/muzic2' + s;
+  return '/muzic2/' + s.replace(/^\/+/, '');
+}
+
+async function loadReports(){
+  // UI: hide search/add, show report controls
+  if (search) search.style.display = 'none';
+  if (add) add.style.display = 'none';
+  ok('Загрузка отчётов...');
+  list.className = 'list';
+  list.style.gridTemplateColumns = '1fr';
+  list.innerHTML = `
+    <div class="card">
+      <h3>Отчёты</h3>
+      <div class="small">Период и лимиты</div>
+      <div class="row" style="flex-wrap:wrap; align-items:flex-end">
+        <div style="min-width:200px">
+          <div class="small">Период</div>
+          <select id="rep-period" style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);background:#0f1113;color:#fff">
+            <option value="day">День</option>
+            <option value="week">Неделя</option>
+            <option value="month" selected>Месяц</option>
+            <option value="year">Год</option>
+            <option value="all">Всё время</option>
+          </select>
+        </div>
+        <div style="min-width:160px">
+          <div class="small">Лимит (топ)</div>
+          <input id="rep-limit" type="number" min="5" max="50" value="${reportsState.limit}" />
+        </div>
+        <button class="btn primary" id="rep-refresh">Обновить</button>
+      </div>
+    </div>
+    <div class="card" id="rep-summary"><h3>Сводка</h3><div class="small">Загрузка…</div></div>
+    <div class="card" id="rep-activity">
+      <h3>Активность (30 дней)</h3>
+      <div class="small">Наведите на столбик, чтобы увидеть дату и время</div>
+      <div style="position:relative">
+        <canvas id="rep-chart" width="1000" height="260" style="width:100%;height:260px;background:#0f1113;border:1px solid var(--border);border-radius:12px"></canvas>
+        <div id="rep-tip" style="position:absolute;display:none;pointer-events:none;background:#121317;border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:12px;color:#e6e6e6;max-width:260px;box-shadow:0 10px 40px rgba(0,0,0,.35)"></div>
+      </div>
+    </div>
+    <div class="card" id="rep-top-tracks"><h3>Топ треков</h3><div class="small">Загрузка…</div></div>
+    <div class="card" id="rep-top-artists"><h3>Топ артистов</h3><div class="small">Загрузка…</div></div>
+  `;
+
+  const periodSel = document.getElementById('rep-period');
+  const limitInp = document.getElementById('rep-limit');
+  const refreshBtn = document.getElementById('rep-refresh');
+  if (periodSel) periodSel.value = reportsState.period;
+  if (refreshBtn) refreshBtn.onclick = () => {
+    reportsState.period = periodSel ? periodSel.value : 'month';
+    reportsState.limit = Math.max(5, Math.min(50, Number(limitInp && limitInp.value) || 10));
+    loadReports().catch(()=>{});
+  };
+
+  const qs = new URLSearchParams({
+    period: reportsState.period,
+    type: 'all',
+    limit: String(reportsState.limit),
+  }).toString();
+  const r = await fetch(`${API.stats}?${qs}`, { credentials:'include' });
+  const j = await readJsonSafe(r);
+  if (!j || j.error) throw new Error((j && j.error) || 'Ошибка отчётов');
+
+  // Summary
+  const sum = j.summary || {};
+  const sumEl = document.getElementById('rep-summary');
+  if (sumEl) {
+    sumEl.innerHTML = `
+      <h3>Сводка</h3>
+      <div class="row" style="flex-wrap:wrap">
+        <div class="card" style="flex:1;min-width:220px"><div class="small">Прослушиваний</div><div style="font-size:28px;font-weight:900">${Number(sum.total_plays||0)}</div></div>
+        <div class="card" style="flex:1;min-width:220px"><div class="small">Время</div><div style="font-size:28px;font-weight:900">${formatSeconds(sum.total_time||0)}</div></div>
+        <div class="card" style="flex:1;min-width:220px"><div class="small">Уникальных треков</div><div style="font-size:28px;font-weight:900">${Number(sum.unique_tracks||0)}</div></div>
+        <div class="card" style="flex:1;min-width:220px"><div class="small">Уникальных артистов</div><div style="font-size:28px;font-weight:900">${Number(sum.unique_artists||0)}</div></div>
+      </div>
+    `;
+  }
+
+  // Activity chart (simple bars)
+  const activity = Array.isArray(j.activity) ? j.activity : [];
+  const canvas = document.getElementById('rep-chart');
+  if (canvas && canvas.getContext) {
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle = '#0f1113';
+    ctx.fillRect(0,0,W,H);
+    const vals = activity.map(a=>Number(a.plays||a.play_count||0)||0);
+    const maxV = Math.max(1, ...vals);
+    const pad = 18;
+    const labelH = 28;
+    const baseY = H - pad - labelH;
+    const bw = Math.max(2, Math.floor((W - pad*2) / Math.max(1, vals.length)));
+    for (let i=0;i<vals.length;i++){
+      const v = vals[i];
+      const bh = Math.round((baseY - pad) * (v / maxV));
+      const x = pad + i*bw;
+      const y = baseY - bh;
+      ctx.fillStyle = '#1ed760';
+      ctx.fillRect(x, y, Math.max(1, bw-2), bh);
+    }
+    // x labels (dates) every Nth bar
+    ctx.fillStyle = '#a0a6ad';
+    ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+    const step = Math.max(1, Math.ceil(vals.length / 8));
+    for (let i=0;i<activity.length;i+=step){
+      const a = activity[i];
+      const label = formatDateOnly(a && a.date);
+      const x = pad + i*bw;
+      ctx.fillText(label, x, H - pad);
+    }
+    ctx.strokeStyle = '#2a2d32';
+    ctx.strokeRect(0.5,0.5,W-1,H-1);
+
+    // Hover tooltip with date/time + stats
+    const tip = document.getElementById('rep-tip');
+    const hit = (mx, my) => {
+      if (!vals.length) return -1;
+      if (mx < pad || mx > W - pad) return -1;
+      if (my < pad || my > baseY + 2) return -1;
+      const i = Math.floor((mx - pad) / bw);
+      if (i < 0 || i >= vals.length) return -1;
+      return i;
+    };
+    const setTip = (e, idx) => {
+      if (!tip) return;
+      if (idx < 0) { tip.style.display = 'none'; return; }
+      const a = activity[idx] || {};
+      const plays = Number(a.plays||a.play_count||0) || 0;
+      const dur = Number(a.duration||a.total_duration||0) || 0;
+      // "time" here means current time of viewing; day stats are by date
+      const now = new Date();
+      const pad2 = (n)=> String(n).padStart(2,'0');
+      const nowStr = `${pad2(now.getDate())}.${pad2(now.getMonth()+1)}.${now.getFullYear()} ${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+      tip.innerHTML = `
+        <div style="font-weight:900">${formatDateOnly(a.date)} (сейчас: ${nowStr})</div>
+        <div style="margin-top:4px">Прослушиваний: <b>${plays}</b></div>
+        <div>Время: <b>${formatSeconds(dur)}</b></div>
+      `;
+      tip.style.display = 'block';
+      // position relative to container
+      const rect = canvas.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const left = Math.max(8, Math.min(rect.width - 220, cx + 12));
+      const top = Math.max(8, Math.min(rect.height - 70, cy + 12));
+      tip.style.left = left + 'px';
+      tip.style.top = top + 'px';
+    };
+    canvas.onmousemove = (e)=>{
+      const rect = canvas.getBoundingClientRect();
+      const mx = (e.clientX - rect.left) * (W / rect.width);
+      const my = (e.clientY - rect.top) * (H / rect.height);
+      setTip(e, hit(mx, my));
+    };
+    canvas.onmouseleave = ()=>{ if (tip) tip.style.display = 'none'; };
+  }
+
+  // Top tracks table
+  const tracks = Array.isArray(j.tracks) ? j.tracks : [];
+  const tt = document.getElementById('rep-top-tracks');
+  if (tt) {
+    const rows = tracks.map((t, i)=>`
+      <tr>
+        <td class="small" style="padding:8px 6px">${i+1}</td>
+        <td style="padding:8px 6px">
+          <div style="display:flex;gap:10px;align-items:center">
+            <img src="${toCoverSrcPublic(t.cover)}" style="width:42px;height:42px;border-radius:10px;object-fit:cover;border:1px solid var(--border)" onerror="this.onerror=null;this.src='/muzic2/tracks/covers/placeholder.jpg'">
+            <div>
+              <div style="font-weight:800">${esc(t.title||'')}</div>
+              <div class="small">${esc(t.artist||'')}</div>
+            </div>
+          </div>
+        </td>
+        <td class="small" style="padding:8px 6px;text-align:right">${Number(t.play_count||0)}</td>
+        <td class="small" style="padding:8px 6px;text-align:right;white-space:nowrap">${esc(formatDt(t.last_played||''))}</td>
+      </tr>
+    `).join('');
+    tt.innerHTML = `
+      <h3>Топ треков</h3>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr><th class="small" style="text-align:left;padding:8px 6px">#</th><th class="small" style="text-align:left;padding:8px 6px">Трек</th><th class="small" style="text-align:right;padding:8px 6px">Прослуш.</th><th class="small" style="text-align:right;padding:8px 6px">Последнее</th></tr></thead>
+        <tbody>${rows || `<tr><td class="small" style="padding:8px 6px" colspan="4">Нет данных</td></tr>`}</tbody>
+      </table>
+    `;
+  }
+
+  // Top artists table
+  const artists = Array.isArray(j.artists) ? j.artists : [];
+  const ta = document.getElementById('rep-top-artists');
+  if (ta) {
+    const rows = artists.map((a, i)=>`
+      <tr>
+        <td class="small" style="padding:8px 6px">${i+1}</td>
+        <td style="padding:8px 6px">
+          <div style="display:flex;gap:10px;align-items:center">
+            <img src="${toCoverSrcPublic(a.cover)}" style="width:42px;height:42px;border-radius:999px;object-fit:cover;border:1px solid var(--border)" onerror="this.onerror=null;this.src='/muzic2/tracks/covers/placeholder.jpg'">
+            <div style="font-weight:800">${esc(a.name||'')}</div>
+          </div>
+        </td>
+        <td class="small" style="padding:8px 6px;text-align:right">${Number(a.play_count||0)}</td>
+        <td class="small" style="padding:8px 6px;text-align:right;white-space:nowrap">${esc(formatDt(a.last_played||''))}</td>
+      </tr>
+    `).join('');
+    ta.innerHTML = `
+      <h3>Топ артистов</h3>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr><th class="small" style="text-align:left;padding:8px 6px">#</th><th class="small" style="text-align:left;padding:8px 6px">Артист</th><th class="small" style="text-align:right;padding:8px 6px">Прослуш.</th><th class="small" style="text-align:right;padding:8px 6px">Последнее</th></tr></thead>
+        <tbody>${rows || `<tr><td class="small" style="padding:8px 6px" colspan="4">Нет данных</td></tr>`}</tbody>
+      </table>
+    `;
+  }
+
+  ok('Отчёты загружены');
 }
 
 function openModal(title, html, it){ mtitle.textContent=title; mbody.innerHTML=html; mstatus.textContent=''; modal.style.display='flex'; current = it || null; }
@@ -352,6 +627,7 @@ async function delAlbum(al){
 }
 
 add.onclick = async ()=>{
+  if (tab === 'reports') return;
   if (tab==='artists'){
     await editArtist({artist:'',artist_cover:'',bio:'',promo_video:'',promo_track_id:null});
     document.getElementById('f-name').value = '';
@@ -380,7 +656,21 @@ add.onclick = async ()=>{
   }
 };
 
-document.querySelectorAll('.tab').forEach(b=> b.onclick=()=>{ document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); tab=b.dataset.tab; load({reset:true}); });
+document.querySelectorAll('.tab').forEach(b=> b.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  tab = b.dataset.tab;
+  // restore controls when leaving reports
+  if (tab === 'reports') {
+    if (search) search.style.display = 'none';
+    if (add) add.style.display = 'none';
+  } else {
+    if (search) search.style.display = '';
+    if (add) add.style.display = '';
+    list.style.gridTemplateColumns = '';
+  }
+  load({reset:true});
+});
 search.oninput = ()=>{ clearTimeout(search._t); search._t = setTimeout(()=>load({reset:true}), 300); };
 
 load({reset:true});

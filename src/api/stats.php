@@ -88,30 +88,22 @@ try {
     if ($type === 'all' || $type === 'artists') {
         // Безопасно встраиваем limit, так как он уже приведен к int
         $limitSafe = (int)$limit;
-        // Получаем статистику артистов без JOIN, чтобы избежать проблем с GROUP BY
-        // Используем простой GROUP BY без COLLATE для совместимости с only_full_group_by
+        // Только артисты, которые существуют в основной таблице artists
         $stmt = $db->prepare("SELECT 
-            ph.track_artist as name,
+            a.name as name,
             COUNT(*) as play_count,
             COALESCE(SUM(ph.play_duration), 0) as total_duration,
-            MAX(ph.played_at) as last_played
+            MAX(ph.played_at) as last_played,
+            MAX(COALESCE(NULLIF(a.cover, ''), 'tracks/covers/placeholder.jpg')) as cover
         FROM play_history ph
+        INNER JOIN artists a ON a.name = ph.track_artist
+        INNER JOIN tracks t ON t.id = ph.track_id
         WHERE ph.user_id = ? $dateFilter
-        GROUP BY ph.track_artist
+        GROUP BY a.name
         ORDER BY play_count DESC, total_duration DESC
         LIMIT $limitSafe");
         $stmt->execute([$user_id]);
         $artists = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        // Получаем обложки артистов отдельным запросом
-        foreach ($artists as &$artist) {
-            $coverStmt = $db->prepare("SELECT cover FROM artists WHERE name = ? LIMIT 1");
-            $coverStmt->execute([$artist['name']]);
-            $coverRow = $coverStmt->fetch(PDO::FETCH_ASSOC);
-            $artist['cover'] = $coverRow && $coverRow['cover'] ? $coverRow['cover'] : 'tracks/covers/placeholder.jpg';
-        }
-        unset($artist);
-        
         $result['artists'] = $artists;
     }
     
@@ -153,7 +145,7 @@ try {
             MAX(COALESCE(t.explicit, 0)) as explicit,
             MIN(ph.track_id) as track_id
         FROM play_history ph
-        LEFT JOIN tracks t ON ph.track_id = t.id
+        INNER JOIN tracks t ON ph.track_id = t.id
         WHERE ph.user_id = ? $dateFilter
         GROUP BY ph.track_title, ph.track_artist
         ORDER BY play_count DESC, total_duration DESC
@@ -215,14 +207,15 @@ try {
         // Безопасно встраиваем limit, так как он уже приведен к int
         $limitSafe = (int)$limit;
         $stmt = $db->prepare("SELECT 
-            album as title,
-            track_artist as artist,
+            ph.album as title,
+            ph.track_artist as artist,
             COUNT(*) as play_count,
-            COALESCE(SUM(play_duration), 0) as total_duration,
-            MAX(played_at) as last_played
-        FROM play_history 
-        WHERE user_id = ? AND album IS NOT NULL AND album != '' $dateFilter
-        GROUP BY album, track_artist
+            COALESCE(SUM(ph.play_duration), 0) as total_duration,
+            MAX(ph.played_at) as last_played
+        FROM play_history ph
+        INNER JOIN tracks t ON ph.track_id = t.id
+        WHERE ph.user_id = ? AND ph.album IS NOT NULL AND ph.album != '' $dateFilter
+        GROUP BY ph.album, ph.track_artist
         ORDER BY play_count DESC, total_duration DESC
         LIMIT $limitSafe");
         $stmt->execute([$user_id]);
@@ -231,12 +224,13 @@ try {
     
     // Общее время прослушивания
     $stmt = $db->prepare("SELECT 
-        COALESCE(SUM(play_duration), 0) as total_seconds,
+        COALESCE(SUM(ph.play_duration), 0) as total_seconds,
         COUNT(*) as total_plays,
-        COUNT(DISTINCT track_id) as unique_tracks,
-        COUNT(DISTINCT track_artist) as unique_artists
-    FROM play_history 
-    WHERE user_id = ? $dateFilter");
+        COUNT(DISTINCT ph.track_id) as unique_tracks,
+        COUNT(DISTINCT ph.track_artist) as unique_artists
+    FROM play_history ph
+    INNER JOIN tracks t ON ph.track_id = t.id
+    WHERE ph.user_id = ? $dateFilter");
     $stmt->execute([$user_id]);
     $summary = $stmt->fetch(PDO::FETCH_ASSOC);
     
@@ -249,12 +243,13 @@ try {
     
     // График активности по дням (последние 30 дней)
     $stmt = $db->prepare("SELECT 
-        DATE(played_at) as date,
+        DATE(ph.played_at) as date,
         COUNT(*) as plays,
-        COALESCE(SUM(play_duration), 0) as duration
-    FROM play_history 
-    WHERE user_id = ? AND played_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-    GROUP BY DATE(played_at)
+        COALESCE(SUM(ph.play_duration), 0) as duration
+    FROM play_history ph
+    INNER JOIN tracks t ON ph.track_id = t.id
+    WHERE ph.user_id = ? AND ph.played_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+    GROUP BY DATE(ph.played_at)
     ORDER BY date ASC");
     $stmt->execute([$user_id]);
     $result['activity'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
