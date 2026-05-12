@@ -61,19 +61,18 @@ if ($method === 'POST') {
             exit;
         }
         
-        // Try both email and username
+        
         $stmt = $db->prepare('SELECT id, email, username, password FROM users WHERE email = ? OR username = ?');
         $stmt->execute([$login, $login]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
         $valid = false;
         if ($user) {
-            // Primary: verify modern hash
+           
             if (password_verify($password, $user['password'])) {
                 $valid = true;
             } else {
-                // Fallback: allow legacy plaintext/equal match if old data stored unhashed
-                // This does NOT change the stored password; just accepts if they match exactly
+                
                 if (hash_equals((string)$user['password'], (string)$password)) {
                     $valid = true;
                 }
@@ -85,7 +84,7 @@ if ($method === 'POST') {
             exit;
         }
         
-        // Set session
+        
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['username'] = $user['username'];
         

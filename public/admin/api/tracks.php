@@ -13,11 +13,8 @@ function admin_log($message){
 
 try {
     $db = get_db_connection();
-    // Ensure optional video_url column exists (idempotent)
     try { $db->exec("ALTER TABLE tracks ADD COLUMN video_url VARCHAR(500) NULL"); } catch (Throwable $e) { /* ignore if exists */ }
-    // Ensure explicit flag exists
     try { $db->exec("ALTER TABLE tracks ADD COLUMN explicit TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) { /* ignore if exists */ }
-    // Ensure feats mapping table exists
     try {
         $db->exec("CREATE TABLE IF NOT EXISTS track_artists (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -98,64 +95,50 @@ try {
         $dur = (int)($body['duration'] ?? 0);
         if ($title==='' || $artist==='' || $album==='' || $file==='') throw new Exception('Заполните обязательные поля');
         
-        // Нормализуем путь к файлу - должен быть в формате tracks/music/filename.mp3
         function normalizeFilePath($path) {
             if (empty($path)) return '';
-            
-            // Нормализуем разделители
             $path = str_replace('\\', '/', $path);
             
-            // Убираем ведущие слэши и /muzic2/
             $path = preg_replace('#^/+muzic2/+#', '', $path);
             $path = ltrim($path, '/');
             
-            // Если путь уже начинается с tracks/, возвращаем как есть
             if (strpos($path, 'tracks/') === 0) {
                 return $path;
             }
             
-            // Если это абсолютный путь, извлекаем относительный
             $root = realpath(__DIR__ . '/../../../../');
             if ($root && (strpos($path, '/') === 0 || strpos($path, $root) === 0)) {
                 $fullPath = realpath($path);
                 if ($fullPath && strpos($fullPath, $root) === 0) {
                     $path = substr($fullPath, strlen($root) + 1);
-                    // Если получили путь с tracks/, возвращаем
+                    
                     if (strpos($path, 'tracks/') === 0) {
                         return $path;
                     }
                 }
             }
-            
-            // Пробуем найти tracks/ в пути
+
             $idx = strpos($path, 'tracks/');
             if ($idx !== false) {
                 return substr($path, $idx);
             }
             
-            // Если ничего не помогло, предполагаем что это имя файла в tracks/music/
             return 'tracks/music/' . basename($path);
         }
         
         $file = normalizeFilePath($file);
         
-        // Проверяем и копируем файл в tracks/music/ если нужно
         $root = realpath(__DIR__ . '/../../../../');
         $targetPath = $root . '/' . $file;
         $targetDir = dirname($targetPath);
         
-        // Если файл не находится в tracks/music/, копируем его туда
         if (strpos($file, 'tracks/music/') === 0) {
-            // Путь уже правильный, проверяем существует ли файл
             if (!file_exists($targetPath)) {
-                // Пробуем найти исходный файл по оригинальному пути
                 $originalPath = trim((string)($body['file_path'] ?? ''));
                 if ($originalPath && file_exists($originalPath)) {
-                    // Создаем директорию если нужно
                     if (!is_dir($targetDir)) {
                         mkdir($targetDir, 0755, true);
                     }
-                    // Копируем файл
                     if (!copy($originalPath, $targetPath)) {
                         throw new Exception('Не удалось скопировать файл');
                     }
@@ -166,7 +149,6 @@ try {
         $st = $db->prepare('INSERT INTO tracks (title, artist, album, album_type, duration, file_path, cover, video_url, explicit) VALUES (?,?,?,?,?,?,?,?,?)');
         $st->execute([$title,$artist,$album,$type,$dur,$file,$cover,$video_url,$explicit]);
         $newId = (int)$db->lastInsertId();
-        // Save feats if provided
         $featsRaw = $body['feats'] ?? '';
         $featsArr = [];
         if (is_array($featsRaw)) { $featsArr = $featsRaw; }
@@ -195,7 +177,6 @@ try {
         if (!$set) throw new Exception('Нечего сохранять');
         $st = $db->prepare('UPDATE tracks SET '.implode(',', $set).' WHERE id=:id');
         $st->execute($params);
-        // Update feats if provided
         if (array_key_exists('feats', $body)) {
             $db->prepare('DELETE FROM track_artists WHERE track_id=? AND role="featured"')->execute([$id]);
             $featsRaw = $body['feats'];

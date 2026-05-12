@@ -28,14 +28,23 @@ try {
     $pdo = get_db_connection();
 
     // Один round-trip: завести «Любимые треки», если ещё нет.
-    $ensureFav = $pdo->prepare(
-        "INSERT INTO playlists (user_id, name, is_public) SELECT ?, 'Любимые треки', 0 " .
-        "WHERE NOT EXISTS (SELECT 1 FROM playlists p WHERE p.user_id = ? AND p.name = 'Любимые треки')"
-    );
-    $ensureFav->execute([$user_id, $user_id]);
-
     try {
-        $sql = 'SELECT p.id, p.name, p.created_at,
+        $ensureFav = $pdo->prepare(
+            "INSERT INTO playlists (user_id, name, is_public, cover) SELECT ?, 'Любимые треки', 0, 'tracks/covers/favorites-playlist.png' " .
+            "WHERE NOT EXISTS (SELECT 1 FROM playlists p WHERE p.user_id = ? AND p.name = 'Любимые треки')"
+        );
+        $ensureFav->execute([$user_id, $user_id]);
+    } catch (Throwable $e) {
+        $ensureFav = $pdo->prepare(
+            "INSERT INTO playlists (user_id, name, is_public) SELECT ?, 'Любимые треки', 0 " .
+            "WHERE NOT EXISTS (SELECT 1 FROM playlists p WHERE p.user_id = ? AND p.name = 'Любимые треки')"
+        );
+        $ensureFav->execute([$user_id, $user_id]);
+    }
+
+    // playlists.cover может отсутствовать в старой БД → делаем совместимую выборку
+    try {
+        $sql = 'SELECT p.id, p.name, p.created_at, p.cover,
                 (SELECT COUNT(*) FROM playlist_tracks pt WHERE pt.playlist_id = p.id) AS track_count
                 FROM playlists p
                 WHERE p.user_id = ?
@@ -44,21 +53,33 @@ try {
         $stmt->execute([$user_id]);
         $playlists = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
-        $stmt = $pdo->prepare(
-            'SELECT p.id, p.name,
-            (SELECT COUNT(*) FROM playlist_tracks pt WHERE pt.playlist_id = p.id) AS track_count
-             FROM playlists p WHERE p.user_id = ? ORDER BY p.id DESC'
-        );
-        $stmt->execute([$user_id]);
-        $playlists = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            $sql = 'SELECT p.id, p.name, p.created_at,
+                    (SELECT COUNT(*) FROM playlist_tracks pt WHERE pt.playlist_id = p.id) AS track_count
+                    FROM playlists p
+                    WHERE p.user_id = ?
+                    ORDER BY p.created_at DESC';
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$user_id]);
+            $playlists = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Throwable $e2) {
+            $stmt = $pdo->prepare(
+                'SELECT p.id, p.name,
+                (SELECT COUNT(*) FROM playlist_tracks pt WHERE pt.playlist_id = p.id) AS track_count
+                 FROM playlists p WHERE p.user_id = ? ORDER BY p.id DESC'
+            );
+            $stmt->execute([$user_id]);
+            $playlists = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+        // добавим поле cover для единого формата
+        foreach ($playlists as &$pl2) { $pl2['cover'] = $pl2['cover'] ?? null; }
+        unset($pl2);
     }
 
     foreach ($playlists as &$pl) {
         $pl['track_count'] = (int)($pl['track_count'] ?? 0);
         if (isset($pl['name']) && trim($pl['name']) === 'Любимые треки') {
             $pl['cover'] = 'tracks/covers/favorites-playlist.png';
-        } else {
-            $pl['cover'] = null;
         }
     }
     unset($pl);

@@ -83,6 +83,7 @@ if ($method === 'GET') {
 
     $sqlWithFeats = '
         SELECT t.id, t.title, t.artist, t.album, t.cover, t.duration, t.file_path, t.video_url, t.explicit,
+        l.created_at AS added_at,
         (SELECT GROUP_CONCAT(ta.artist ORDER BY ta.artist SEPARATOR ", ")
          FROM track_artists ta WHERE ta.track_id = t.id AND ta.role = "featured") AS feats
         FROM likes l
@@ -90,7 +91,7 @@ if ($method === 'GET') {
         WHERE l.user_id = ?
         ORDER BY l.created_at DESC';
     $sqlSimple = '
-        SELECT t.id, t.title, t.artist, t.album, t.cover, t.duration, t.file_path, t.video_url, t.explicit, NULL AS feats
+        SELECT t.id, t.title, t.artist, t.album, t.cover, t.duration, t.file_path, t.video_url, t.explicit, l.created_at AS added_at, NULL AS feats
         FROM likes l
         INNER JOIN tracks t ON l.track_id = t.id
         WHERE l.user_id = ?
@@ -108,7 +109,22 @@ if ($method === 'GET') {
 
     muzic2_ensure_album_likes_table($db);
 
-    $stmt = $db->prepare('SELECT album_title FROM album_likes WHERE user_id = ? ORDER BY created_at DESC');
+    $stmt = $db->prepare('SELECT al.album_title,
+        (SELECT t.cover
+         FROM tracks t
+         WHERE t.album = al.album_title
+           AND t.cover IS NOT NULL
+           AND TRIM(t.cover) != ""
+         ORDER BY
+           CASE
+             WHEN LOWER(t.cover) LIKE "%placeholder%" OR LOWER(TRIM(t.cover)) = "cover" THEN 1
+             ELSE 0
+           END,
+           t.id DESC
+         LIMIT 1) AS cover
+        FROM album_likes al
+        WHERE al.user_id = ?
+        ORDER BY al.created_at DESC');
     $stmt->execute([$user_id]);
     $albums = $stmt->fetchAll(PDO::FETCH_ASSOC);
 

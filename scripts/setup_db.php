@@ -131,6 +131,8 @@ try {
     try { $db->exec("CREATE TABLE IF NOT EXISTS artists (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL UNIQUE, cover VARCHAR(255), bio TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"); } catch (Throwable $e) {}
     try { $db->exec("ALTER TABLE tracks ADD COLUMN video_url VARCHAR(500) NULL"); } catch (Throwable $e) {}
     try { $db->exec("ALTER TABLE tracks ADD COLUMN explicit TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+    try { $db->exec("ALTER TABLE playlists ADD COLUMN cover VARCHAR(500) NULL"); } catch (Throwable $e) {}
+    try { $db->exec("ALTER TABLE playlist_tracks ADD COLUMN added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"); } catch (Throwable $e) {}
     // Featured artists mapping for tracks
     try {
         $db->exec("CREATE TABLE IF NOT EXISTS track_artists (

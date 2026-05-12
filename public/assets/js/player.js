@@ -5256,7 +5256,7 @@
     }
   };
 
-  // Set queue function for external use
+
   window.setQueue = function(queue, startIndex = 0) {
     console.log('setQueue called with queue length:', queue ? queue.length : 'null', 'startIndex:', startIndex);
     console.log('Current trackQueue length before setQueue:', trackQueue.length);

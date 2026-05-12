@@ -42,8 +42,7 @@
 <header>
   <div class="head">
     <div class="head-left">
-      <h1>Админка (просто)</h1>
-      <p>Меняйте имена, картинки и описание без кода</p>
+      <h1>Административная панель</h1>
     </div>
     <div class="head-actions">
       <a class="linkbtn" href="/muzic2/" title="Перейти на главную страницу сайта">На главную</a>
@@ -234,11 +233,13 @@ function formatSeconds(sec){
 function formatDt(dt){
   const s = String(dt || '').trim();
   if (!s) return '';
-  // MySQL TIMESTAMP usually: "YYYY-MM-DD HH:MM:SS"
-  const d = new Date(s.replace(' ', 'T'));
-  if (Number.isNaN(d.getTime())) return s;
-  const pad2 = (n)=> String(n).padStart(2,'0');
-  return `${pad2(d.getDate())}.${pad2(d.getMonth()+1)}.${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  // Keep DB time as-is (no timezone conversion in browser)
+  // Supports:
+  // - "YYYY-MM-DD HH:MM:SS"
+  // - "YYYY-MM-DDTHH:MM:SS(.sss)?(Z|+03:00)"
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  if (m) return `${m[3]}.${m[2]}.${m[1]} ${m[4]}:${m[5]}`;
+  return s;
 }
 
 function formatDateOnly(ymd){

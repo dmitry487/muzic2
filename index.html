@@ -107,8 +107,70 @@
                         <p>Треков: ${data.tracks ? data.tracks.length : 0}</p>
                         <p>Альбомов: ${data.albums ? data.albums.length : 0}</p>
                         <p>Артистов: ${data.artists ? data.artists.length : 0}</p>
+                        <div style="margin:18px auto; display:flex; gap:10px; justify-content:center; flex-wrap:wrap">
+                            <button id="db-export-btn" style="background:#1db954;color:#000;font-weight:700;">Экспорт БД</button>
+                            <button id="db-import-btn" style="background:#333;color:#fff;border:1px solid #555;">Импорт БД</button>
+                            <input id="db-import-file" type="file" accept="application/json" style="display:none">
+                        </div>
                         <p><a href="public/index.php" style="color: #1db954;">Перейти к полной версии</a></p>
                     `;
+
+                    // DB transfer buttons (requires logged-in session)
+                    const exportBtn = document.getElementById('db-export-btn');
+                    const importBtn = document.getElementById('db-import-btn');
+                    const importFile = document.getElementById('db-import-file');
+                    const apiBase = '/muzic2/public/src/api/db_transfer.php';
+
+                    if (exportBtn) exportBtn.onclick = async () => {
+                        try {
+                            exportBtn.disabled = true;
+                            exportBtn.textContent = 'Экспорт...';
+                            const res = await fetch(apiBase + '?action=export', { credentials: 'include' });
+                            const text = await res.text();
+                            let j = null; try { j = text ? JSON.parse(text) : null; } catch (_) { j = null; }
+                            if (!res.ok || !j || !j.success) {
+                                throw new Error((j && j.error) ? j.error : (text ? text.slice(0, 200) : 'export_failed'));
+                            }
+                            const blob = new Blob([JSON.stringify(j, null, 2)], { type: 'application/json' });
+                            const a = document.createElement('a');
+                            const ts = new Date().toISOString().replace(/[:.]/g, '-');
+                            a.href = URL.createObjectURL(blob);
+                            a.download = 'muzic2-db-export-' + ts + '.json';
+                            document.body.appendChild(a);
+                            a.click();
+                            a.remove();
+                        } catch (e) {
+                            alert('Экспорт не удался. Ошибка: ' + (e && e.message ? e.message : 'unknown'));
+                        } finally {
+                            exportBtn.disabled = false;
+                            exportBtn.textContent = 'Экспорт БД';
+                        }
+                    };
+
+                    if (importBtn && importFile) importBtn.onclick = () => importFile.click();
+                    if (importFile) importFile.onchange = async () => {
+                        const f = importFile.files && importFile.files[0] ? importFile.files[0] : null;
+                        if (!f) return;
+                        try {
+                            importBtn.disabled = true;
+                            importBtn.textContent = 'Импорт...';
+                            const fd = new FormData();
+                            fd.append('file', f);
+                            const res = await fetch(apiBase + '?action=import', { method: 'POST', body: fd, credentials: 'include' });
+                            const text = await res.text();
+                            let j = null; try { j = text ? JSON.parse(text) : null; } catch (_) { j = null; }
+                            if (!res.ok || !j || !j.success) throw new Error((j && j.error) ? j.error : (text ? text.slice(0, 200) : 'import_failed'));
+                            alert('Импорт завершён: ' + JSON.stringify(j.imported || {}, null, 2));
+                            // reload stats
+                            loadPage('home');
+                        } catch (e) {
+                            alert('Импорт не удался. Нужно быть авторизованным. Ошибка: ' + (e && e.message ? e.message : 'unknown'));
+                        } finally {
+                            importBtn.disabled = false;
+                            importBtn.textContent = 'Импорт БД';
+                            importFile.value = '';
+                        }
+                    };
                 } else {
                     content.innerHTML = '<div class="error">Не удалось загрузить данные</div>';
                 }

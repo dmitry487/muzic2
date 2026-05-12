@@ -511,7 +511,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			const recentArtists = new Set(recents.map(x=>String(x.artist||'').trim()).filter(Boolean));
 			const recentGenres = new Set(recents.map(x=>String(x.genre||'').toLowerCase().trim()).filter(Boolean));
 
-			// Derive preferred artists from user likes (tracks + albums)
+			
 			let preferredArtists = new Set();
 			try {
 				const likesRes = await fetch(getLikesAPI({ lite: true }), { credentials: 'include' });
@@ -520,8 +520,8 @@ if (mainContent && navHome && navSearch && navLibrary) {
 					const ar = String(a.artist || a.artist_name || '').trim();
 					if (ar) preferredArtists.add(ar);
 				});
-			} catch (_) { /* not logged in or no likes */ }
-			// If no preferred artists yet, fall back to recent artists
+			} catch (_) { }
+			
 			if (!preferredArtists.size) preferredArtists = new Set(recentArtists);
 				const likedSet = (window.__likedSet instanceof Set) ? window.__likedSet : new Set();
 				const r = await fetch(api('/muzic2/src/api/home_windows.php')); const d = await r.json();
@@ -529,12 +529,11 @@ if (mainContent && navHome && navSearch && navLibrary) {
 			const scored = candidates.map(t => {
 					const artist = String(t.artist||'').trim();
 					let score = 0;
-				// Strongly focus on preferred artists from likes
+				
 				if (preferredArtists.has(artist)) score += 6; else if (recentArtists.has(artist)) score += 2.5;
 					if (likedSet.size && likedSet.has(t.id)) score += 2;
 					const feats = String(t.feats||'').split(',').map(s=>s.trim()).filter(Boolean);
 					if (feats.some(f => recentArtists.has(f))) score += 1;
-				// Genre coherence if available
 				const genre = String(t.genre||'').toLowerCase().trim();
 				if (genre && recentGenres.size && recentGenres.has(genre)) score += 1.5;
 					score += Math.random()*0.5;
@@ -542,7 +541,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 				});
 			scored.sort((a,b)=>b.score-a.score);
 
-			// Diversify by artist: group, then interleave while limiting repetition
+			
 			const byArtist = new Map();
 			for (const item of scored) {
 				const artist = String(item.t.artist||'').trim();
@@ -837,7 +836,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 		const typeLabel = releaseTypeLabel(album.album_type || album.type);
 		return `
             <div class="tile" data-album-title="${escapeHtml(album.title)}">
-                <img class="tile-cover" loading="lazy" src="${coverSrc}" alt="cover" onerror="this.onerror=null;this.src='/muzic2/tracks/covers/placeholder.jpg';" onclick="navigateTo('album', { album: '${encodeURIComponent(album.title)}' })">
+                <img class="tile-cover" loading="lazy" src="${coverSrc}" alt="cover" onerror="this.onerror=null;this.src='/muzic2/public/assets/img/playlist-placeholder.png';" onclick="navigateTo('album', { album: '${encodeURIComponent(album.title)}' })">
                 <div class="tile-title" onclick="navigateTo('album', { album: '${encodeURIComponent(album.title)}' })">${escapeHtml(album.title)}</div>
                 <div class="tile-desc" onclick="navigateTo('album', { album: '${encodeURIComponent(album.title)}' })">${escapeHtml(album.artist || '')} • ${typeLabel}</div>
                 <div class="tile-play" onclick="event.stopPropagation(); ${playAlbum}">&#9654;</div>
@@ -961,7 +960,7 @@ if (mainContent && navHome && navSearch && navLibrary) {
 					}
 					if (favGrid && likesReady) {
 						favGrid.innerHTML = likedAlbums.length
-							? likedAlbums.map(a => createAlbumCard({ title: a.album_title, artist: 'Любимый альбом', cover: 'tracks/covers/placeholder.jpg' })).join('')
+							? likedAlbums.map(a => createAlbumCard({ title: a.album_title, artist: 'Любимый альбом', cover: a.cover || '' })).join('')
 							: '<div class="empty">Пока нет любимых альбомов</div>';
 					}
 					document.querySelectorAll('.heart-btn[data-track-id]').forEach(btn => {
@@ -1459,6 +1458,66 @@ function showAlbumContextMenu(event, album, albumIndex) {
 				gap: 16px;
 			}
 			#liked-tracks-wrap .card { min-height: 72px; }
+
+			/* My Music: smaller playlist cards */
+			#playlists-grid {
+				display: grid;
+				grid-template-columns: repeat(6, minmax(0, 1fr));
+				gap: 12px;
+			}
+			#playlists-grid .playlist-tile {
+				background: #181818;
+				border-radius: 14px;
+				padding: 10px;
+			}
+			#playlists-grid .playlist-cover {
+				width: 100%;
+				aspect-ratio: 1 / 1;
+				border-radius: 10px;
+				overflow: hidden;
+				background: #222;
+				margin-bottom: 8px;
+			}
+			#playlists-grid .playlist-cover img {
+				width: 100%;
+				height: 100%;
+				object-fit: cover;
+				display: block;
+			}
+			#playlists-grid .playlist-info h4 {
+				margin: 0;
+				font-size: .92rem;
+				font-weight: 800;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+			#playlists-grid .playlist-info p {
+				margin: 3px 0 0;
+				font-size: .82rem;
+				color: #a9a9a9;
+			}
+
+			/* Liked albums: ensure horizontal compact row and visible covers */
+			#favorite-albums-grid {
+				display: grid;
+				grid-template-columns: repeat(5, minmax(0, 1fr));
+				gap: 12px;
+			}
+			#favorite-albums-grid .tile {
+				min-width: 0;
+				background: #181818;
+				border-radius: 14px;
+			}
+			#favorite-albums-grid .tile-cover {
+				width: 100%;
+				aspect-ratio: 1 / 1;
+				object-fit: cover;
+				border-radius: 10px;
+			}
+			@media (max-width: 1200px) { #playlists-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } #favorite-albums-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+			@media (max-width: 900px) { #playlists-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } #favorite-albums-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+			@media (max-width: 640px) { #playlists-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } #favorite-albums-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 			
 		`;
 		document.head.appendChild(s);
